@@ -153,3 +153,9 @@ A media server for streaming your personal video, audio and photo collections to
 
 - Web interface: `http://<SERVER_IP>:8096`
 - Auto-discovery (DLNA/clients): UDP `7359`
+- Persistent volumes:
+  - `jellyfin_config` → `/config`
+  - `jellyfin_cache`  → `/cache`
+- Media path: map your host directories to `/media` (e.g. `/mnt/hdd/movies:/media`)
+
+> Adjust the `/path/to/media` volume in `docker-compose.yml` to point at your actual media library.
