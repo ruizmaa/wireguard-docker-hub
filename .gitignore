@@ -5,3 +5,5 @@ wireguard/
 **/*.conf
 **/*.key
 **/*.log
+.firefly.env.prod
+.firefly.db.env.prod

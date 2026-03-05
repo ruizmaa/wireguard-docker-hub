@@ -62,8 +62,8 @@ services:
     ports:
       - 8081:8080   # Web GUI
     env_file:
-      - .env
-      - .db.env
+      - .firefly.env.prod
+      - .firefly.db.env.prod
     volumes:
       - firefly_upload:/var/www/html/storage/upload
     depends_on:
@@ -71,13 +71,13 @@ services:
 
   firefly_db:
     container_name: firefly_db
-    image: mariadb:lts
+    image: postgres:18
     restart: unless-stopped
     profiles: ["firefly"]
     env_file:
-      - .db.env
+      - .firefly.db.env.prod
     volumes:
-      - firefly_db:/var/lib/mysql
+      - firefly_db:/var/lib/postgresql/data
 
 volumes:
   pihole_etc:
