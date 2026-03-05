@@ -144,3 +144,12 @@ Once it's runing, you can start syncing files by following these steps:
 Any file moved into the local folder on your MiniPC will automatically appear on the linked devices.
 
 Changes are bidirectional: if you edit or delete a file on one device, it will be updated on all others.
+
+### [Jellyfin](https://hub.docker.com/r/linuxserver/jellyfin)
+
+A media server for streaming your personal video, audio and photo collections to apps and browsers.
+
+#### Jellyfin **Configuration**
+
+- Web interface: `http://<SERVER_IP>:8096`
+- Auto-discovery (DLNA/clients): UDP `7359`
