@@ -54,6 +54,31 @@ services:
       - /path/to/media:/media  # Change to your path (e.g., /mnt/usb, /mnt/hdd)
       # - /path/to/media2:/media2  # Add more media paths as needed
 
+  firefly:
+    container_name: firefly
+    image: fireflyiii/core:latest
+    restart: unless-stopped
+    profiles: ["firefly"]
+    ports:
+      - 8081:8080   # Web GUI
+    env_file:
+      - .env
+      - .db.env
+    volumes:
+      - firefly_upload:/var/www/html/storage/upload
+    depends_on:
+      - firefly_db
+
+  firefly_db:
+    container_name: firefly_db
+    image: mariadb:lts
+    restart: unless-stopped
+    profiles: ["firefly"]
+    env_file:
+      - .db.env
+    volumes:
+      - firefly_db:/var/lib/mysql
+
 volumes:
   pihole_etc:
     name: pihole_etc
@@ -63,3 +88,7 @@ volumes:
     name: jellyfin_config
   jellyfin_cache:
     name: jellyfin_cache
+  firefly_upload:
+    name: firefly_upload
+  firefly_db:
+    name: firefly_db
