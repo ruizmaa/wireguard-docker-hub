@@ -36,8 +36,30 @@ services:
       # - /path/to/data2:/data2
       # Add more data paths as needed
 
+  jellyfin:
+    container_name: jellyfin
+    image: lscr.io/linuxserver/jellyfin:latest
+    restart: unless-stopped
+    ports:
+      - 8096:8096/tcp  # Web GUI
+      - 7359:7359/udp  # Auto discovery
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=Etc/UTC
+      # - JELLYFIN_PublishedServerUrl=http://jellyfin.home:8096  # Server address shown to Jellyfin apps
+    volumes:
+      - jellyfin_config:/config
+      - jellyfin_cache:/cache
+      - /path/to/media:/media  # Change to your path (e.g., /mnt/usb, /mnt/hdd)
+      # - /path/to/media2:/media2  # Add more media paths as needed
+
 volumes:
   pihole_etc:
     name: pihole_etc
   syncthing_config:
     name: syncthing_config
+  jellyfin_config:
+    name: jellyfin_config
+  jellyfin_cache:
+    name: jellyfin_cache
