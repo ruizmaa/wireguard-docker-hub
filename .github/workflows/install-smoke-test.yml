@@ -42,10 +42,13 @@ jobs:
       - name: Install Docker (same script the home server uses)
         run: sudo ./scripts/basic-install.sh
 
-      - name: Free port 53 for pihole (runner's systemd-resolved binds it by default)
+      - name: Free port 53 for pihole (disable systemd-resolved's stub listener)
         run: |
-          sudo systemctl stop systemd-resolved
-          echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
+          sudo mkdir -p /etc/systemd/resolved.conf.d
+          printf '[Resolve]\nDNSStubListener=no\n' | sudo tee /etc/systemd/resolved.conf.d/no-stub.conf > /dev/null
+          sudo systemctl restart systemd-resolved
+          sudo rm -f /etc/resolv.conf
+          sudo ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
 
       - name: Start services stack
         working-directory: services
