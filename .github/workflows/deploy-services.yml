@@ -11,6 +11,9 @@ on:
       - scripts/lib/update-images.sh
       - scripts/deploy-services.sh
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: [self-hosted, home]

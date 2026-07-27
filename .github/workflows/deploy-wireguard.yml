@@ -12,6 +12,9 @@ on:
       - scripts/lib/update-images.sh
       - scripts/deploy-wireguard.sh
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: [self-hosted, vps]
