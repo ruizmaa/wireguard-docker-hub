@@ -69,7 +69,15 @@ jobs:
 
       - name: Start services stack
         working-directory: services
-        run: sudo docker compose up -d
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if sudo docker compose pull; then
+              break
+            fi
+            echo "pull failed (attempt $attempt/5, likely Docker Hub rate-limiting), retrying in 15s..."
+            sleep 15
+          done
+          sudo docker compose up -d
 
       - name: Verify all services are running
         working-directory: services
