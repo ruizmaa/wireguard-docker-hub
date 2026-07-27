@@ -3,10 +3,9 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
-NO_INTERACTIVE_APT="DEBIAN_FRONTEND=noninteractive apt-get"
+NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
 
 # Colors
-GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
@@ -21,12 +20,12 @@ echo "      -> Config Path: $WG_CONF"
 
 # Install required packages
 echo -e "    ${YELLOW}[2/7] Installing required packages for network fixes...${NC}"
-sudo $NO_INTERACTIVE_APT update -y -qq > /dev/null
-sudo $NO_INTERACTIVE_APT upgrade -y -qq > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq > /dev/null
 
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
-sudo $NO_INTERACTIVE_APT install -y -qq iptables-persistent netfilter-persistent > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq iptables-persistent netfilter-persistent > /dev/null
 
 # Kernel settings
 echo -e "    ${YELLOW}[3/7] Configuring Kernel Forwarding...${NC}"

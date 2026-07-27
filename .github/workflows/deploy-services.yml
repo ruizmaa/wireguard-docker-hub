@@ -1,0 +1,24 @@
+name: Deploy Services (Home server)
+
+# SECURITY: self-hosted runner on a public repo, safe only because this
+# triggers on "push" (main requires a PR), never "pull_request".
+# Don't add it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/**
+      - scripts/lib/update-images.sh
+      - scripts/deploy-services.sh
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, home]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Deploy
+        run: ./scripts/deploy-services.sh
