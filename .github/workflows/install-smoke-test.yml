@@ -1,0 +1,63 @@
+name: Install Smoke Test
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  vps-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run VPS quick-start install
+        run: sudo ./scripts/easy-install.sh
+
+      - name: Verify wireguard container is running
+        run: |
+          state=$(sudo docker compose ps --format json wireguard | jq -r '.State')
+          if [ "$state" != "running" ]; then
+            echo "wireguard container state is '$state', expected 'running'"
+            sudo docker compose logs
+            exit 1
+          fi
+          echo "wireguard container is running"
+
+      - name: Run network config check
+        run: |
+          output=$(sudo ./scripts/check-network-config.sh 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q ERROR; then
+            echo "check-network-config.sh reported at least one ERROR"
+            exit 1
+          fi
+
+  home-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Docker (same script the home server uses)
+        run: sudo ./scripts/basic-install.sh
+
+      - name: Free port 53 for pihole (runner's systemd-resolved binds it by default)
+        run: |
+          sudo systemctl stop systemd-resolved
+          echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
+
+      - name: Start services stack
+        working-directory: services
+        run: sudo docker compose up -d
+
+      - name: Verify all services are running
+        working-directory: services
+        run: |
+          not_running=$(sudo docker compose ps --format json | jq -r 'select(.State != "running") | .Service')
+          if [ -n "$not_running" ]; then
+            echo "Services not running: $not_running"
+            sudo docker compose logs
+            exit 1
+          fi
+          echo "All services are running"
