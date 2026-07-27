@@ -35,6 +35,18 @@ jobs:
             exit 1
           fi
 
+      - name: Verify wireguard peer config was generated
+        run: sudo docker exec wireguard test -s /config/peer_1/peer1.conf
+
+      - name: Verify wg0 interface has a peer configured
+        run: |
+          output=$(sudo docker exec wireguard wg show wg0)
+          echo "$output"
+          if ! echo "$output" | grep -q "peer:"; then
+            echo "wg0 has no peer configured"
+            exit 1
+          fi
+
   home-smoke-test:
     runs-on: ubuntu-latest
     steps:
@@ -79,3 +91,47 @@ jobs:
             exit 1
           fi
           echo "All services are running"
+
+      - name: Install dig for DNS check
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
+
+      - name: Verify pihole resolves DNS
+        run: |
+          for i in $(seq 1 12); do
+            ip=$(dig +short @127.0.0.1 google.com | head -n1)
+            if [ -n "$ip" ]; then
+              echo "pihole resolved google.com -> $ip"
+              exit 0
+            fi
+            echo "pihole not answering yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          echo "pihole never resolved a DNS query after 60s"
+          exit 1
+
+      - name: Verify jellyfin responds
+        run: |
+          for i in $(seq 1 12); do
+            if curl -sf http://127.0.0.1:8096/health; then
+              echo "jellyfin healthy"
+              exit 0
+            fi
+            echo "jellyfin not ready yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          echo "jellyfin never became healthy after 60s"
+          exit 1
+
+      - name: Verify syncthing responds
+        run: |
+          for i in $(seq 1 12); do
+            status=$(curl -sf http://127.0.0.1:8384/rest/noauth/health 2>/dev/null | jq -r '.status' 2>/dev/null)
+            if [ "$status" = "OK" ]; then
+              echo "syncthing healthy"
+              exit 0
+            fi
+            echo "syncthing not ready yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          echo "syncthing never became healthy after 60s"
+          exit 1
