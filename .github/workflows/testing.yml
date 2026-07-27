@@ -10,6 +10,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Validate YAML syntax
+        run: |
+          find . -regextype posix-extended -regex '.*\.ya?ml' -not -path './.git/*' -print0 \
+            | xargs -0 -I{} ruby -ryaml -e "YAML.load_file('{}')"
+
       - name: Validate root compose
         run: docker compose -f docker-compose.yml config >/dev/null
 
