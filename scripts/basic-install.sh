@@ -3,7 +3,7 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
-NO_INTERACTIVE_APT="DEBIAN_FRONTEND=noninteractive apt-get"
+NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
 
 # Detect real user (if not already defined)
 if [ -z "$REAL_USER" ]; then
@@ -22,16 +22,12 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$SCRIPT_DIR/.."
-COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
-
 # Basic system update and essential package installation
 echo -e "    ${YELLOW}[1/6]${NC} Updating system and installing essential packages..."
-sudo $NO_INTERACTIVE_APT update -qq > /dev/null
-sudo $NO_INTERACTIVE_APT install -y -qq apt-utils 2>/dev/null || true
-sudo $NO_INTERACTIVE_APT upgrade -y -qq > /dev/null
-sudo $NO_INTERACTIVE_APT install -y -qq nano ca-certificates curl gnupg iputils-ping > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" update -qq > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq apt-utils 2>/dev/null || true
+sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq nano ca-certificates curl gnupg iputils-ping jq > /dev/null
 
 # Basic configuration
 echo -e "    ${YELLOW}[2/6]${NC} Configuring terminal..."
@@ -45,12 +41,13 @@ fi
 
 # Install Docker
 echo -e "    ${YELLOW}[3/6]${NC} Setting up Docker repository..."
+# shellcheck disable=SC1091 # runtime system file, not part of this repo
 . /etc/os-release
 echo "      -> Detected Distro: $ID"
 echo "      -> Detected Codename: $VERSION_CODENAME"
 
 sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/$ID/gpg -o /etc/apt/keyrings/docker.asc
+sudo curl -fsSL "https://download.docker.com/linux/$ID/gpg" -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
 
 sudo tee /etc/apt/sources.list.d/docker.sources > /dev/null <<EOF
@@ -62,8 +59,8 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
 echo -e "    ${YELLOW}[4/6]${NC} Installing Docker Engine..."
-sudo $NO_INTERACTIVE_APT update -y -qq > /dev/null
-sudo $NO_INTERACTIVE_APT install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null
 
 echo -e "    ${YELLOW}[5/6]${NC} Configuring permissions..."
 sudo usermod -aG docker "$REAL_USER"

@@ -1,7 +1,7 @@
 services:
   pihole:
     container_name: pihole
-    image: pihole/pihole:latest
+    image: pihole/pihole:2026.07.2
     restart: unless-stopped
     ports:
       - "53:53/tcp"
@@ -18,7 +18,7 @@ services:
 
   syncthing:
     container_name: syncthing
-    image: lscr.io/linuxserver/syncthing:latest
+    image: lscr.io/linuxserver/syncthing:2.1.2
     restart: unless-stopped
     hostname: minipc-syncthing
     ports:
@@ -38,7 +38,7 @@ services:
 
   jellyfin:
     container_name: jellyfin
-    image: lscr.io/linuxserver/jellyfin:latest
+    image: lscr.io/linuxserver/jellyfin:10.11.11
     restart: unless-stopped
     ports:
       - 8096:8096/tcp  # Web GUI

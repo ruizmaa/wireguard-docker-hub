@@ -194,3 +194,42 @@ The WireGuard interface is configured via environment variables in `docker-compo
 > [!NOTE]
 > The installer automatically updates `PUID`/`PGID` to match your system user.  
 > If installing manually, set them to `id -u` / `id -g` to avoid permission issues.
+
+## Keeping images up to date
+
+`docker-compose.yml` (WireGuard) runs on the **VPS**. `services/docker-compose.yml` runs on the **home server**. Both pin specific image versions, and each machine deploys independently, a change to one compose file never touches the other machine. The flow:
+
+1. **Dependabot** opens a PR whenever a newer version is published
+2. **`Testing` workflow** runs on the PR. Safe to run on any fork's PR, since it uses a GitHub-hosted runner with no access to your infrastructure
+3. **Review and merge** the PR.
+4. On push to `main`, whichever deploy workflow matches the changed paths runs on its own self-hosted runner:
+   - `Deploy WireGuard (VPS)` triggers only on changes to `docker-compose.yml` / `wireguard.sh`, and runs on the runner registered on the **VPS**.
+   - `Deploy Services (Home server)` triggers only on changes under `services/`, and runs on the runner registered on the **home server**.
+
+To apply an update manually instead of waiting for the next push (e.g. while testing), from the relevant machine:
+
+```bash
+./wireguard.sh update      # on the VPS
+./services/update.sh       # on the home server
+```
+
+Both show `current -> new` per service and ask for confirmation before pulling and recreating. Pass `--yes` to skip the prompt.
+
+`scripts/deploy-wireguard.sh` / `scripts/deploy-services.sh` are the non-interactive equivalents each deploy workflow runs (the matching entry point with `--yes`, plus `docker image prune -f`).
+
+### Self-hosted runners
+
+Register one on each machine, with a label so each workflow lands on the right one.
+
+Go to Settings -> Actions -> Runners -> New self-hosted runner, pick the machine's OS/architecture, and follow GitHub's own instructions there (download, checksum, extract) up to and including `./config.sh ...`. **But add `--labels vps` or `--labels home` to that command**
+
+Then, instead of the `./run.sh` GitHub suggests (which only runs while that terminal stays open), install it as a persistent service:
+
+```bash
+sudo ./svc.sh install   # survives reboots, restarts on crash
+sudo ./svc.sh start     # starts it now
+```
+
+Do this on the vps server (`--labels vps`) and home server (`--labels home`).
+
+Each runner polls GitHub outbound, so no inbound port needs to be opened on either machine.
