@@ -1,0 +1,18 @@
+name: Deploy Services (Home server)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/**
+      - scripts/lib/update-images.sh
+      - scripts/deploy-services.sh
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, home]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Deploy
+        run: ./scripts/deploy-services.sh

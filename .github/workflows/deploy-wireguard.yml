@@ -1,0 +1,19 @@
+name: Deploy WireGuard (VPS)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docker-compose.yml
+      - wireguard.sh
+      - scripts/lib/update-images.sh
+      - scripts/deploy-wireguard.sh
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, vps]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Deploy
+        run: ./scripts/deploy-wireguard.sh
