@@ -49,23 +49,12 @@ jobs:
           printf '[Resolve]\nDNSStubListener=no\n' | sudo tee /etc/systemd/resolved.conf.d/no-stub.conf > /dev/null
           sudo systemctl restart systemd-resolved
 
-          # Pin a real resolver directly and make it immutable so nothing
-          # (cloud-init, networkd-dispatcher, resolvconf) can silently revert
-          # it back to the (now unbound) 127.0.0.53 stub address.
-          sudo chattr -i /etc/resolv.conf 2>/dev/null || true
+          # Pin real nameservers and lock the file so nothing reverts it to the now-unbound 127.0.0.53 stub.
           sudo rm -f /etc/resolv.conf
           printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' | sudo tee /etc/resolv.conf > /dev/null
           sudo chattr +i /etc/resolv.conf
 
-          echo "--- /etc/resolv.conf ---"
-          cat /etc/resolv.conf
-          echo "--- systemd-resolved status ---"
-          systemctl is-active systemd-resolved
-          echo "--- who's listening on :53 ---"
-          sudo ss -tulpn | grep ':53 ' || echo "(nothing listening on :53)"
-
-          # dockerd reads /etc/resolv.conf once at startup, not per-request —
-          # restart it now that resolv.conf points at real nameservers.
+          # dockerd caches resolv.conf at startup, so restart it now that DNS is fixed.
           sudo systemctl restart docker
 
       - name: Start services stack
