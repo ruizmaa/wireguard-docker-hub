@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Verify wireguard peer config was generated
-        run: sudo docker exec wireguard test -s /config/peer_1/peer1.conf
+        run: sudo docker exec wireguard test -s /config/peer1/peer1.conf
 
       - name: Verify wg0 interface has a peer configured
         run: |
