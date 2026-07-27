@@ -63,6 +63,10 @@ jobs:
           echo "--- who's listening on :53 ---"
           sudo ss -tulpn | grep ':53 ' || echo "(nothing listening on :53)"
 
+          # dockerd reads /etc/resolv.conf once at startup, not per-request —
+          # restart it now that resolv.conf points at real nameservers.
+          sudo systemctl restart docker
+
       - name: Start services stack
         working-directory: services
         run: sudo docker compose up -d
