@@ -40,8 +40,12 @@ case "$1" in
             docker exec -it wireguard cat /config/peer_"$2"/peer"$2".conf
         fi
         ;;
+    update)
+        source ./scripts/lib/update-images.sh
+        update_compose_images ./docker-compose.yml "$2"
+        ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status|logs|handshake|regenerate|qr <num>|conf-file <num>}"
+        echo "Usage: $0 {start|stop|restart|status|logs|handshake|regenerate|qr <num>|conf-file <num>|update [--yes]}"
         exit 1
         ;;
 esac

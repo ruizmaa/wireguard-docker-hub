@@ -31,7 +31,7 @@ echo -e "    ${YELLOW}[1/6]${NC} Updating system and installing essential packag
 sudo $NO_INTERACTIVE_APT update -qq > /dev/null
 sudo $NO_INTERACTIVE_APT install -y -qq apt-utils 2>/dev/null || true
 sudo $NO_INTERACTIVE_APT upgrade -y -qq > /dev/null
-sudo $NO_INTERACTIVE_APT install -y -qq nano ca-certificates curl gnupg iputils-ping > /dev/null
+sudo $NO_INTERACTIVE_APT install -y -qq nano ca-certificates curl gnupg iputils-ping jq > /dev/null
 
 # Basic configuration
 echo -e "    ${YELLOW}[2/6]${NC} Configuring terminal..."
