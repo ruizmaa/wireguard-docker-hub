@@ -16,16 +16,15 @@ update_compose_images() {
     local had_failure="false"
 
     local compose_json
-    compose_json=$(docker compose -f "$compose_file" config --format json 2>&1)
-    if [ $? -ne 0 ]; then
+    if ! compose_json=$(docker compose -f "$compose_file" config --format json 2>&1); then
         echo -e "  ${RED}[FAIL]${NC} '$compose_file': docker compose config failed:"
+        # shellcheck disable=SC2001 # clearer here than parameter-expansion for multi-line indent
         echo "$compose_json" | sed 's/^/        /'
         return 1
     fi
 
     local service_list
-    service_list=$(echo "$compose_json" | jq -r '.services | to_entries[] | "\(.key)\t\(.value.image)\t\(.value.container_name)"' 2>&1)
-    if [ $? -ne 0 ]; then
+    if ! service_list=$(echo "$compose_json" | jq -r '.services | to_entries[] | "\(.key)\t\(.value.image)\t\(.value.container_name)"' 2>&1); then
         echo -e "  ${RED}[FAIL]${NC} could not parse services from '$compose_file' (is jq installed?): $service_list"
         return 1
     fi

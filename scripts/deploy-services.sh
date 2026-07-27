@@ -6,7 +6,7 @@
 # services (pihole/syncthing/jellyfin) compose stack only.
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR/.."
+cd "$SCRIPT_DIR/.." || exit
 
 ./services/update.sh --yes
 status=$?

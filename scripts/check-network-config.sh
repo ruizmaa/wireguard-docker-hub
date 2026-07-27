@@ -21,22 +21,22 @@ print_status() {
 # Kernel
 sysctl_fwd=$(sysctl -n net.ipv4.ip_forward)
 [ "$sysctl_fwd" -eq 1 ] && s1=0 || s1=1
-print_status "Kernel IP Forwarding" $s1
+print_status "Kernel IP Forwarding" "$s1"
 
 sysctl_mark=$(sysctl -n net.ipv4.conf.all.src_valid_mark)
 [ "$sysctl_mark" -eq 1 ] && s2=0 || s2=1
-print_status "Kernel Valid Mark" $s2
+print_status "Kernel Valid Mark" "$s2"
 
 # MTU
 if [ -f "$WG_CONF" ] && grep -qE "MTU\s*=\s*1420" "$WG_CONF"; then s3=0; else s3=1; fi
-print_status "MTU Configuration (1420)" $s3
+print_status "MTU Configuration (1420)" "$s3"
 
 # Firewall
 if sudo iptables -t nat -C POSTROUTING -o "$IFACE" -j MASQUERADE 2>/dev/null; then s4=0; else s4=1; fi
-print_status "Firewall NAT Rule" $s4
+print_status "Firewall NAT Rule" "$s4"
 
 if sudo iptables -C INPUT -i wg0 -j ACCEPT 2>/dev/null; then s5=0; else s5=1; fi
-print_status "Firewall Input Rule" $s5
+print_status "Firewall Input Rule" "$s5"
 
 if sudo iptables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null; then s6=0; else s6=1; fi
-print_status "Firewall UDP 51820 Open" $s6
+print_status "Firewall UDP 51820 Open" "$s6"

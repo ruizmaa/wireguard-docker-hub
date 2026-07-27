@@ -22,4 +22,4 @@ jobs:
         run: docker compose -f services/docker-compose.yml config >/dev/null
 
       - name: ShellCheck
-        run: find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck
+        run: find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck -x
