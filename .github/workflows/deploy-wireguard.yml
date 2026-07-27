@@ -1,5 +1,8 @@
 name: Deploy WireGuard (VPS)
 
+# SECURITY: self-hosted runner on a public repo, safe only because this
+# triggers on "push" (main requires a PR), never "pull_request".
+# Don't add it.
 on:
   push:
     branches: [main]
