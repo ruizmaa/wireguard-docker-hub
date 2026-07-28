@@ -69,6 +69,9 @@ jobs:
             -v "$(pwd)/client-wg0.conf:/etc/wireguard/wg0.conf" \
             "$image"
 
+      - name: Sanity check - does the runner itself have outbound ICMP
+        run: ping -c 3 -W 3 1.1.1.1 || echo "runner has no direct outbound ICMP to 1.1.1.1 - the tunnel ping check below is expected to fail too, and should be swapped for a TCP-based check"
+
       - name: Trigger a handshake attempt
         run: sudo docker exec wg-client sh -c "ping -c 2 -W 2 10.13.13.1" || true
 
