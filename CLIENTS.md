@@ -16,7 +16,7 @@ On the VPS:
 ./wireguard.sh conf-file <ID>
 ```
 
-This will print something like:
+This prints the peer's configuration file contents to your terminal. That file is stored at:
 
 ```bash
 ./config/peer1/peer1.conf

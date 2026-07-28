@@ -1,6 +1,8 @@
 name: Install Smoke Test
 
 on:
+  push:
+    branches: ["main", "dev"]
   pull_request:
   workflow_dispatch:
 
@@ -50,11 +52,12 @@ jobs:
       - name: Set up a WireGuard client peer
         run: |
           sudo docker cp wireguard:/config/peer1/peer1.conf ./peer1.conf
-          sudo chmod 644 ./peer1.conf
+          sudo chmod 600 ./peer1.conf
           gateway=$(sudo docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')
           image=$(sudo docker compose config --format json | jq -r '.services.wireguard.image')
           sed "s|^Endpoint = .*|Endpoint = ${gateway}:51820|" ./peer1.conf > ./client-wg0.conf
-          cat ./client-wg0.conf
+          sudo chmod 600 ./client-wg0.conf
+          grep -v -E '^(PrivateKey|PresharedKey) = ' ./client-wg0.conf
           sudo docker run -d --name wg-client --cap-add=NET_ADMIN \
             --sysctl net.ipv4.conf.all.src_valid_mark=1 \
             -v "$(pwd)/client-wg0.conf:/etc/wireguard/wg0.conf" \
