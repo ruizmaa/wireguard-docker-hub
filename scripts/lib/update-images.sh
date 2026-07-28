@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shared by wireguard.sh's `update` subcommand and services/update.sh.
+# Library shared by wireguard.sh's `update` subcommand and services/update.sh. Not meant to be run directly.
 # Usage (after sourcing): update_compose_images <compose_file> [--yes]
 
 # shellcheck source=scripts/lib/colors.sh
