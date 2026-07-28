@@ -80,13 +80,17 @@ sudo systemctl enable fail2ban > /dev/null
 sudo systemctl restart fail2ban > /dev/null
 
 echo -e "    ${YELLOW}[7/9]${NC} Hardening SSH (disabling root login)..."
-sudo mkdir -p /etc/ssh/sshd_config.d
-sudo tee /etc/ssh/sshd_config.d/99-harden.conf > /dev/null <<EOF
+if [ "$REAL_USER" = "root" ]; then
+    echo -e "      ${YELLOW}-> Skipped: no non-root user detected, disabling root login would lock this account out.${NC}"
+else
+    sudo mkdir -p /etc/ssh/sshd_config.d
+    sudo tee /etc/ssh/sshd_config.d/99-harden.conf > /dev/null <<EOF
 PermitRootLogin no
 EOF
-sudo mkdir -p /run/sshd
-sudo sshd -t
-sudo systemctl reload-or-restart ssh
+    sudo mkdir -p /run/sshd
+    sudo sshd -t
+    sudo systemctl reload-or-restart ssh
+fi
 
 echo -e "    ${YELLOW}[8/9]${NC} Configuring and enabling unattended-upgrades (automatic security patches)..."
 sudo tee /etc/apt/apt.conf.d/20auto-upgrades > /dev/null <<EOF
@@ -110,7 +114,9 @@ else
     exit 1
 fi
 
-if sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'; then
+if [ "$REAL_USER" = "root" ]; then
+    echo -e "      ${YELLOW}-> Skipped root-login check (no non-root user detected).${NC}"
+elif sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'; then
     echo -e "      ${GREEN}-> Root SSH login is disabled.${NC}"
 else
     echo -e "      ${RED}-> Error: PermitRootLogin verification failed.${NC}"
