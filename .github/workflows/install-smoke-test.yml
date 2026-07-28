@@ -9,9 +9,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: install-smoke-test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   vps-smoke-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -90,12 +95,16 @@ jobs:
 
   home-smoke-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
       - name: Install Docker (same script the home server uses)
         run: sudo ./scripts/basic-install.sh
 
+      # SECURITY: this reconfigures the runner's own DNS resolver
+      # Safe only because this is a GitHub runner destroyed after the job
+      # Never run this job on a self-hosted/persistent runner.
       - name: Free port 53 for pihole (disable systemd-resolved's stub listener)
         run: |
           sudo mkdir -p /etc/systemd/resolved.conf.d
