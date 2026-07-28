@@ -69,7 +69,7 @@ add_rule INPUT -p tcp --dport 22 -j ACCEPT
 add_rule INPUT -p udp --dport 51820 -j ACCEPT
 add_rule INPUT -i wg0 -j ACCEPT
 add_rule FORWARD -i wg0 -j ACCEPT
-add_rule FORWARD -o wg0 -j ACCEPT
+add_rule FORWARD -o wg0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 if ! sudo iptables -t nat -C POSTROUTING -o "$IFACE" -j MASQUERADE 2>/dev/null; then
     sudo iptables -t nat -A POSTROUTING -o "$IFACE" -j MASQUERADE

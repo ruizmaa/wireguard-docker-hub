@@ -43,8 +43,8 @@ print_status "Firewall UDP 51820 Open" "$s6"
 if sudo iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null; then s7=0; else s7=1; fi
 print_status "Firewall SSH Rule" "$s7"
 
-if sudo iptables -L INPUT | head -n1 | grep -q "policy DROP"; then s8=0; else s8=1; fi
+if sudo iptables -S INPUT 2>/dev/null | head -n1 | grep -qE '^-P INPUT DROP$'; then s8=0; else s8=1; fi
 print_status "Firewall INPUT Default-Deny" "$s8"
 
-if sudo iptables -L FORWARD | head -n1 | grep -q "policy DROP"; then s9=0; else s9=1; fi
+if sudo iptables -S FORWARD 2>/dev/null | head -n1 | grep -qE '^-P FORWARD DROP$'; then s9=0; else s9=1; fi
 print_status "Firewall FORWARD Default-Deny" "$s9"
