@@ -59,6 +59,13 @@ add_rule() {
     fi
 }
 
+# Baseline accepts, always added before the default-deny policy below so the
+# current SSH session (and WireGuard) never gets locked out.
+add_rule INPUT -i lo -j ACCEPT
+add_rule INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+add_rule INPUT -p icmp -j ACCEPT
+add_rule INPUT -p tcp --dport 22 -j ACCEPT
+
 add_rule INPUT -p udp --dport 51820 -j ACCEPT
 add_rule INPUT -i wg0 -j ACCEPT
 add_rule FORWARD -i wg0 -j ACCEPT
@@ -68,6 +75,10 @@ if ! sudo iptables -t nat -C POSTROUTING -o "$IFACE" -j MASQUERADE 2>/dev/null; 
     sudo iptables -t nat -A POSTROUTING -o "$IFACE" -j MASQUERADE
     echo "      -> Added NAT Masquerade rule."
 fi
+
+# Default-deny: only traffic explicitly accepted above gets through.
+sudo iptables -P INPUT DROP
+sudo iptables -P FORWARD DROP
 
 # Rules persistently
 echo -e "    ${YELLOW}[6/7] Saving firewall rules...${NC}"
