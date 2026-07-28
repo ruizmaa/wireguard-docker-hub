@@ -12,6 +12,8 @@ Follow the [official documentation](https://docs.docker.com/engine/install/) to 
 
 The services are defined in `services/docker-compose.yml`. Copy the services you need to your main `docker-compose.yml` or run them directly from that directory.
 
+Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) and Jellyfin (`JELLYFIN_MEDIA_1`, `JELLYFIN_MEDIA_2`, etc.) data mounts, each a full `host_path:container_path`.
+
 Start the services:
 
 ```bash
@@ -158,4 +160,4 @@ A media server for streaming your personal video, audio and photo collections to
   - `jellyfin_cache`  → `/cache`
 - Media path: map your host directories to `/media` (e.g. `/mnt/hdd/movies:/media`)
 
-> Adjust the `/path/to/media` volume in `docker-compose.yml` to point at your actual media library.
+> Set `JELLYFIN_MEDIA_1` (and `JELLYFIN_MEDIA_2`, etc.) in `.env` to your actual media library path, as a full `host_path:container_path` (e.g. `/mnt/hdd/movies:/media`).

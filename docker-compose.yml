@@ -16,18 +16,18 @@ services:
     network_mode: host
 
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC  # <your_time_zone>
-      - SERVERURL=auto  # <your_public_ip_or_domain>
-      - SERVERPORT=51820  # Standard WireGuard port
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+      - SERVERURL=${SERVERURL:-auto}  # <your_public_ip_or_domain>
+      - SERVERPORT=${SERVERPORT:-51820}  # Standard WireGuard port
 
-      - PEERS=1  # As needed, or devices names <PHONE,LAPTOP,ETC>
-      - PEERDNS=1.1.1.1,8.8.8.8  # Optional custom DNS for the peers
+      - PEERS=${PEERS:-1}  # As needed, or devices names <PHONE,LAPTOP,ETC>
+      - PEERDNS=${PEERDNS:-1.1.1.1,8.8.8.8}  # Optional custom DNS for the peers
       - PERSISTENTKEEPALIVE_PEERS=all
 
-      # - INTERNAL_SUBNET=10.X.X.0
-      - ALLOWEDIPS=0.0.0.0/0  # Route all traffic through the VPN
+      - INTERNAL_SUBNET=${INTERNAL_SUBNET:-10.13.13.0}
+      - ALLOWEDIPS=${ALLOWEDIPS:-0.0.0.0/0}  # 0.0.0.0/0 routes all traffic through the VPN
 
       - LOG_CONFS=true  # This shows the QRs when starting the container
     volumes:

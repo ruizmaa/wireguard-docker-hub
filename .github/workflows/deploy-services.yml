@@ -18,7 +18,8 @@ jobs:
   deploy:
     runs-on: [self-hosted, home]
     steps:
-      - uses: actions/checkout@v7
-
       - name: Deploy
-        run: ./scripts/deploy-services.sh
+        run: |
+          cd ~/wireguard-docker-hub
+          git pull --ff-only
+          ./scripts/deploy-services.sh
