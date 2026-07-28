@@ -28,8 +28,10 @@ jobs:
           sudo systemctl is-active --quiet fail2ban
           sudo fail2ban-client status sshd > /dev/null
 
-      - name: Verify root SSH login is disabled
-        run: sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
+      - name: Verify root SSH login and password auth are disabled
+        run: |
+          sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
+          sudo sshd -T 2>/dev/null | grep -q '^passwordauthentication no$'
 
       - name: Verify unattended-upgrades is active
         run: sudo systemctl is-active --quiet unattended-upgrades
@@ -141,8 +143,10 @@ jobs:
           sudo systemctl is-active --quiet fail2ban
           sudo fail2ban-client status sshd > /dev/null
 
-      - name: Verify root SSH login is disabled
-        run: sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
+      - name: Verify root SSH login and password auth are disabled
+        run: |
+          sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
+          sudo sshd -T 2>/dev/null | grep -q '^passwordauthentication no$'
 
       - name: Verify unattended-upgrades is active
         run: sudo systemctl is-active --quiet unattended-upgrades

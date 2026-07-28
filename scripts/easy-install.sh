@@ -34,6 +34,18 @@ echo ""
 echo -e "\n${YELLOW}>>> STEP 1: Installing Docker & System Deps...${NC}"
 sudo --preserve-env=REAL_USER bash "$SCRIPT_DIR/basic-install.sh"
 
+# Remove the cloud image's default passwordless sudo. Skipped in CI
+# This pipeline never needs sudo itself, only docker-group membership
+if [ -z "${GITHUB_ACTIONS:-}" ]; then
+    CLOUD_INIT_SUDOERS="/etc/sudoers.d/90-cloud-init-users"
+    if sudo grep -q "Created by cloud-init" "$CLOUD_INIT_SUDOERS" 2>/dev/null \
+        && sudo grep -q "NOPASSWD" "$CLOUD_INIT_SUDOERS" 2>/dev/null; then
+        echo "    Removing default passwordless sudo (cloud-init)..."
+        printf '# NOPASSWD:ALL removed by easy-install.sh: this deploy pipeline never\n# uses sudo (only docker-group membership). Interactive sudo now\n# requires a password via the pre-existing %%sudo group rule.\n' \
+            | sudo EDITOR='tee' visudo -f "$CLOUD_INIT_SUDOERS" > /dev/null
+    fi
+fi
+
 # Detect and inject public IP
 echo ""
 echo -e "\n${YELLOW}>>> STEP 2: Configuring Public IP & Permissions...${NC}"

@@ -88,7 +88,7 @@ chmod +x wireguard.sh scripts/*.sh
 
 #### A: 🚀 Quick Start (automated)
 
-Recommended for fresh VPS installations. This script handles the full lifecycle: installs Docker, auto-detects your Public IP, updates configuration, starts the container, and applies network patches.
+Recommended for fresh VPS installations. This script handles the full lifecycle: installs Docker, hardens SSH and removes the cloud image's default passwordless sudo, auto-detects your Public IP, updates configuration, starts the container, and applies network patches.
 
 ```bash
 sudo ./scripts/easy-install.sh
