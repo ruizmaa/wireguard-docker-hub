@@ -49,6 +49,9 @@ graph TD
 > - **Maximize Performance**
 > - **Preserve Real IPs**
 
+> [!NOTE]
+> By default the tunnel only reaches the home server's own services, not the rest of your LAN — its peer's `AllowedIPs` on the VPS is scoped to its own tunnel IP. To route your whole home network instead, deliberately widen that peer's `AllowedIPs` to your LAN subnet (never `0.0.0.0/0`).
+
 ## Related documentation
 
 This guide handles the **VPS Hub** (the central node). For the other parts of the infrastructure shown above, check the specific guides:
