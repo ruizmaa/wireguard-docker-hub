@@ -27,7 +27,7 @@ This prints the peer's configuration file contents to your terminal. That file i
 You can use `scp` to copy the file to your client machine:
 
 ```bash
-scp <USER>@<VPS_PUBLIC_IP>:<PATH>/peer1.conf .
+scp <USER>@<VPS_PUBLIC_IP>:<PATH>/peer1/peer1.conf .
 ```
 
 >Replace `<USER>`, `<VPS_PUBLIC_IP>`, and `<PATH>` with your real values
