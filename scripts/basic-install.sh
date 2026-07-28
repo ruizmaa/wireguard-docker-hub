@@ -84,7 +84,7 @@ if [ "$REAL_USER" = "root" ]; then
     echo -e "      ${YELLOW}-> Skipped: no non-root user detected, disabling root login would lock this account out.${NC}"
 else
     sudo mkdir -p /etc/ssh/sshd_config.d
-    sudo tee /etc/ssh/sshd_config.d/99-harden.conf > /dev/null <<EOF
+    sudo tee /etc/ssh/sshd_config.d/00-harden.conf > /dev/null <<EOF
 PermitRootLogin no
 PasswordAuthentication no
 EOF
