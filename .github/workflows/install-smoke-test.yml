@@ -113,13 +113,19 @@ jobs:
       - name: Start services stack
         working-directory: services
         run: |
+          pulled=false
           for attempt in 1 2 3 4 5; do
             if sudo docker compose pull; then
+              pulled=true
               break
             fi
             echo "pull failed (attempt $attempt/5, likely Docker Hub rate-limiting), retrying in 15s..."
             sleep 15
           done
+          if [ "$pulled" != "true" ]; then
+            echo "gave up after 5 pull attempts, not starting the stack"
+            exit 1
+          fi
           sudo docker compose up -d
 
       - name: Verify all services are running
