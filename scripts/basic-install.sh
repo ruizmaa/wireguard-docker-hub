@@ -76,7 +76,8 @@ bantime = 1h
 findtime = 10m
 maxretry = 5
 EOF
-sudo systemctl enable --now fail2ban > /dev/null
+sudo systemctl enable fail2ban > /dev/null
+sudo systemctl restart fail2ban > /dev/null
 
 echo -e "    ${YELLOW}[7/7]${NC} Verifying installation..."
 if sudo -u "$REAL_USER" sg docker -c "docker run --rm hello-world" > /dev/null 2>&1; then
