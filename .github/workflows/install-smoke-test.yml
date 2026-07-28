@@ -31,6 +31,9 @@ jobs:
       - name: Verify root SSH login is disabled
         run: sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
 
+      - name: Verify unattended-upgrades is active
+        run: sudo systemctl is-active --quiet unattended-upgrades
+
       - name: Verify wireguard container is running
         run: |
           for i in $(seq 1 12); do
@@ -140,6 +143,9 @@ jobs:
 
       - name: Verify root SSH login is disabled
         run: sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
+
+      - name: Verify unattended-upgrades is active
+        run: sudo systemctl is-active --quiet unattended-upgrades
 
       # SECURITY: this reconfigures the runner's own DNS resolver
       # Safe only because this is a GitHub runner destroyed after the job

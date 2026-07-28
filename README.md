@@ -121,7 +121,7 @@ Recommended if you want full control and customization
 
 ##### 1. Install Dependencies
 
-Installs Docker and system tools, enables `fail2ban` for SSH brute-force protection, and disables root SSH login.
+Installs Docker and system tools, enables `fail2ban` for SSH brute-force protection, disables root SSH login, and enables `unattended-upgrades` for automatic security patches.
 
 ```bash
 sudo ./scripts/basic-install.sh
@@ -199,15 +199,16 @@ The WireGuard interface is configured via environment variables, set in `.env` (
 > The installer automatically writes `PUID`/`PGID`/`SERVERURL` to `.env` to match your system user and public IP.  
 > If installing manually, set them to `id -u` / `id -g` in `.env` to avoid permission issues.
 
-## Checking the SSH hardening
+## Checking the hardening
 
-`basic-install.sh` installs and enables `fail2ban` automatically, with an `sshd` jail that bans an IP for 1h after 5 failed attempts in 10 minutes, and disables root SSH login (`PermitRootLogin no`). No custom tooling needed to inspect either, the standard tools already cover it:
+`basic-install.sh` installs and enables `fail2ban` automatically, with an `sshd` jail that bans an IP for 1h after 5 failed attempts in 10 minutes, disables root SSH login (`PermitRootLogin no`), and enables `unattended-upgrades` for automatic security patches. No custom tooling needed to inspect any of it, the standard tools already cover it:
 
 ```bash
 sudo fail2ban-client status sshd                # current/total ban counts, currently banned IPs
 sudo fail2ban-client get sshd banip --with-time # banned IPs with time remaining
 sudo grep ' Ban ' /var/log/fail2ban.log         # full history, including already-expired bans
 sudo sshd -T | grep permitrootlogin             # confirm root login is disabled
+sudo systemctl status unattended-upgrades       # confirm automatic security patches are enabled
 ```
 
 ## Keeping images up to date
