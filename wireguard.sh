@@ -37,7 +37,7 @@ case "$1" in
             echo "Error: Specify the peer number. E.g.: ./wireguard.sh conf-file 1"
             exit 1
         else
-            docker exec -it wireguard cat /config/peer_"$2"/peer"$2".conf
+            docker exec wireguard cat "/config/peer$2/peer$2.conf"
         fi
         ;;
     update)

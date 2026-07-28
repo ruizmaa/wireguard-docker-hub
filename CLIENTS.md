@@ -5,7 +5,7 @@ This guide explains how to connect clients to your WireGuard Hub VPS.
 Configuration files for clients are generated automatically on the VPS inside:
 
 ```bash
-./config/wg_confs/
+./config/peer<ID>/
 ```
 
 ## How to get your generated client configuration
@@ -16,10 +16,10 @@ On the VPS:
 ./wireguard.sh conf-file <ID>
 ```
 
-This will print something like:
+This prints the peer's configuration file contents to your terminal. That file is stored at:
 
 ```bash
-./config/wg_confs/peer1.conf
+./config/peer1/peer1.conf
 ```
 
 ### How to download the configuration file
@@ -27,12 +27,12 @@ This will print something like:
 You can use `scp` to copy the file to your client machine:
 
 ```bash
-scp <USER>@<VPS_PUBLIC_IP>:<PATH>/peer1.conf .
+scp <USER>@<VPS_PUBLIC_IP>:<PATH>/peer1/peer1.conf .
 ```
 
 >Replace `<USER>`, `<VPS_PUBLIC_IP>`, and `<PATH>` with your real values
 >
->Example: `scp ubuntu@1.2.3.4:~/wireguard/config/wg_confs/peer1.conf .`
+>Example: `scp ubuntu@1.2.3.4:~/wireguard/config/peer1/peer1.conf .`
 
 ## Linux client (Debian/Ubuntu + Systemd)
 
