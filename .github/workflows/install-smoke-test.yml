@@ -23,6 +23,11 @@ jobs:
       - name: Run VPS quick-start install
         run: sudo ./scripts/easy-install.sh
 
+      - name: Verify fail2ban is active
+        run: |
+          sudo systemctl is-active --quiet fail2ban
+          sudo fail2ban-client status sshd | grep -q 'Currently banned'
+
       - name: Verify wireguard container is running
         run: |
           for i in $(seq 1 12); do
@@ -124,6 +129,11 @@ jobs:
 
       - name: Install Docker (same script the home server uses)
         run: sudo ./scripts/basic-install.sh
+
+      - name: Verify fail2ban is active
+        run: |
+          sudo systemctl is-active --quiet fail2ban
+          sudo fail2ban-client status sshd | grep -q 'Currently banned'
 
       # SECURITY: this reconfigures the runner's own DNS resolver
       # Safe only because this is a GitHub runner destroyed after the job
