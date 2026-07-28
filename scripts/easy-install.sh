@@ -40,9 +40,15 @@ if [ -z "${GITHUB_ACTIONS:-}" ]; then
     CLOUD_INIT_SUDOERS="/etc/sudoers.d/90-cloud-init-users"
     if sudo grep -q "Created by cloud-init" "$CLOUD_INIT_SUDOERS" 2>/dev/null \
         && sudo grep -q "NOPASSWD" "$CLOUD_INIT_SUDOERS" 2>/dev/null; then
-        echo "    Removing default passwordless sudo (cloud-init)..."
-        printf '# NOPASSWD:ALL removed by easy-install.sh: this deploy pipeline never\n# uses sudo (only docker-group membership). Interactive sudo now\n# requires a password via the pre-existing %%sudo group rule.\n' \
-            | sudo EDITOR='tee' visudo -f "$CLOUD_INIT_SUDOERS" > /dev/null
+        PASSWD_STATUS=$(sudo passwd -S "$REAL_USER" 2>/dev/null | awk '{print $2}')
+        if [ "$PASSWD_STATUS" = "P" ]; then
+            echo "    Removing default passwordless sudo (cloud-init)..."
+            printf '# NOPASSWD:ALL removed by easy-install.sh: this deploy pipeline never\n# uses sudo (only docker-group membership). Interactive sudo now\n# requires a password via the pre-existing %%sudo group rule.\n' \
+                | sudo EDITOR='tee' visudo -f "$CLOUD_INIT_SUDOERS" > /dev/null
+        else
+            echo -e "    ${YELLOW}-> Skipped: '$REAL_USER' has no password set (passwd -S reports '${PASSWD_STATUS:-unknown}').${NC}"
+            echo -e "    ${YELLOW}   Keeping passwordless sudo so you don't get locked out. Run 'sudo passwd $REAL_USER' and re-run easy-install.sh if you want it removed.${NC}"
+        fi
     fi
 fi
 

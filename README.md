@@ -90,6 +90,15 @@ chmod +x wireguard.sh scripts/*.sh
 
 Recommended for fresh VPS installations. This script handles the full lifecycle: installs Docker, hardens SSH and removes the cloud image's default passwordless sudo, auto-detects your Public IP, updates configuration, starts the container, and applies network patches.
 
+> [!WARNING]
+> **Set a password for your user first.** Fresh cloud images (Oracle, AWS, etc.) typically create their default user with SSH-key-only login and **no password at all**, relying entirely on passwordless sudo (`NOPASSWD:ALL`) for admin access. This script removes that passwordless sudo. If your user has no password to fall back on, you lose `sudo` access completely, with no way back short of recreating the instance.
+>
+> ```bash
+> sudo passwd "$USER"
+> ```
+>
+> Run this and save the password before continuing.
+
 ```bash
 sudo ./scripts/easy-install.sh
 ```
