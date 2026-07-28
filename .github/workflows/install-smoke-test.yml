@@ -25,13 +25,18 @@ jobs:
 
       - name: Verify wireguard container is running
         run: |
-          state=$(sudo docker compose ps --format json wireguard | jq -r '.State')
-          if [ "$state" != "running" ]; then
-            echo "wireguard container state is '$state', expected 'running'"
-            sudo docker compose logs
-            exit 1
-          fi
-          echo "wireguard container is running"
+          for i in $(seq 1 12); do
+            state=$(sudo docker compose ps --format json wireguard | jq -r '.State')
+            if [ "$state" = "running" ]; then
+              echo "wireguard container is running"
+              exit 0
+            fi
+            echo "wireguard container state is '$state' (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          echo "wireguard container state is '$state', expected 'running'"
+          sudo docker compose logs
+          exit 1
 
       - name: Run network config check
         run: |
@@ -47,12 +52,19 @@ jobs:
 
       - name: Verify wg0 interface has a peer configured
         run: |
-          output=$(sudo docker exec wireguard wg show wg0)
+          for i in $(seq 1 12); do
+            output=$(sudo docker exec wireguard wg show wg0 2>&1) || true
+            if echo "$output" | grep -q "peer:"; then
+              echo "$output"
+              echo "wg0 has a peer configured"
+              exit 0
+            fi
+            echo "wg0 not ready yet (attempt $i/12): $output"
+            sleep 5
+          done
           echo "$output"
-          if ! echo "$output" | grep -q "peer:"; then
-            echo "wg0 has no peer configured"
-            exit 1
-          fi
+          echo "wg0 has no peer configured after 60s"
+          exit 1
 
       - name: Set up a WireGuard client peer
         run: |
@@ -151,13 +163,18 @@ jobs:
       - name: Verify all services are running
         working-directory: services
         run: |
-          not_running=$(sudo docker compose ps --format json | jq -r 'select(.State != "running") | .Service')
-          if [ -n "$not_running" ]; then
-            echo "Services not running: $not_running"
-            sudo docker compose logs
-            exit 1
-          fi
-          echo "All services are running"
+          for i in $(seq 1 12); do
+            not_running=$(sudo docker compose ps --format json | jq -r 'select(.State != "running") | .Service')
+            if [ -z "$not_running" ]; then
+              echo "All services are running"
+              exit 0
+            fi
+            echo "Services not running yet (attempt $i/12): $not_running, retrying in 5s..."
+            sleep 5
+          done
+          echo "Services not running: $not_running"
+          sudo docker compose logs
+          exit 1
 
       - name: Install dig for DNS check
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
