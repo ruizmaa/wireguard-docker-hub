@@ -5,3 +5,4 @@ wireguard/
 **/*.conf
 **/*.key
 **/*.log
+.env
