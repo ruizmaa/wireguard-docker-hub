@@ -28,6 +28,9 @@ jobs:
           sudo systemctl is-active --quiet fail2ban
           sudo fail2ban-client status sshd > /dev/null
 
+      - name: Verify root SSH login is disabled
+        run: sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
+
       - name: Verify wireguard container is running
         run: |
           for i in $(seq 1 12); do
@@ -134,6 +137,9 @@ jobs:
         run: |
           sudo systemctl is-active --quiet fail2ban
           sudo fail2ban-client status sshd > /dev/null
+
+      - name: Verify root SSH login is disabled
+        run: sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
 
       # SECURITY: this reconfigures the runner's own DNS resolver
       # Safe only because this is a GitHub runner destroyed after the job

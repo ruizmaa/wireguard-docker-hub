@@ -23,14 +23,14 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$SCRIPT_DIR/lib/colors.sh"
 
 # Basic system update and essential package installation
-echo -e "    ${YELLOW}[1/7]${NC} Updating system and installing essential packages..."
+echo -e "    ${YELLOW}[1/8]${NC} Updating system and installing essential packages..."
 sudo "${NO_INTERACTIVE_APT[@]}" update -qq > /dev/null
 sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq apt-utils 2>/dev/null || true
 sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq > /dev/null
 sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq nano ca-certificates curl gnupg iputils-ping jq fail2ban > /dev/null
 
 # Basic configuration
-echo -e "    ${YELLOW}[2/7]${NC} Configuring terminal..."
+echo -e "    ${YELLOW}[2/8]${NC} Configuring terminal..."
 if [ -n "$REAL_HOME" ]; then
     BASHRC="$REAL_HOME/.bashrc"
     if ! grep -q "xterm-256color" "$BASHRC" 2>/dev/null; then
@@ -40,7 +40,7 @@ if [ -n "$REAL_HOME" ]; then
 fi
 
 # Install Docker
-echo -e "    ${YELLOW}[3/7]${NC} Setting up Docker repository..."
+echo -e "    ${YELLOW}[3/8]${NC} Setting up Docker repository..."
 # shellcheck disable=SC1091 # runtime system file, not part of this repo
 . /etc/os-release
 echo "      -> Detected Distro: $ID"
@@ -58,14 +58,14 @@ Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
-echo -e "    ${YELLOW}[4/7]${NC} Installing Docker Engine..."
+echo -e "    ${YELLOW}[4/8]${NC} Installing Docker Engine..."
 sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
 sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null
 
-echo -e "    ${YELLOW}[5/7]${NC} Configuring permissions..."
+echo -e "    ${YELLOW}[5/8]${NC} Configuring permissions..."
 sudo usermod -aG docker "$REAL_USER"
 
-echo -e "    ${YELLOW}[6/7]${NC} Configuring and enabling fail2ban (SSH brute-force protection)..."
+echo -e "    ${YELLOW}[6/8]${NC} Configuring and enabling fail2ban (SSH brute-force protection)..."
 sudo mkdir -p /etc/fail2ban/jail.d
 sudo tee /etc/fail2ban/jail.d/sshd.local > /dev/null <<EOF
 [sshd]
@@ -79,7 +79,15 @@ EOF
 sudo systemctl enable fail2ban > /dev/null
 sudo systemctl restart fail2ban > /dev/null
 
-echo -e "    ${YELLOW}[7/7]${NC} Verifying installation..."
+echo -e "    ${YELLOW}[7/8]${NC} Hardening SSH (disabling root login)..."
+sudo mkdir -p /etc/ssh/sshd_config.d
+sudo tee /etc/ssh/sshd_config.d/99-harden.conf > /dev/null <<EOF
+PermitRootLogin no
+EOF
+sudo sshd -t
+sudo systemctl reload ssh
+
+echo -e "    ${YELLOW}[8/8]${NC} Verifying installation..."
 if sudo -u "$REAL_USER" sg docker -c "docker run --rm hello-world" > /dev/null 2>&1; then
     echo -e "      ${GREEN}-> Docker is running correctly.${NC}"
 else
@@ -91,5 +99,12 @@ if sudo systemctl is-active --quiet fail2ban && sudo fail2ban-client status sshd
     echo -e "      ${GREEN}-> fail2ban is running and the sshd jail is loaded correctly.${NC}"
 else
     echo -e "      ${RED}-> Error: fail2ban verification failed (daemon or sshd jail not active).${NC}"
+    exit 1
+fi
+
+if sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'; then
+    echo -e "      ${GREEN}-> Root SSH login is disabled.${NC}"
+else
+    echo -e "      ${RED}-> Error: PermitRootLogin verification failed.${NC}"
     exit 1
 fi
