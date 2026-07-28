@@ -50,7 +50,7 @@ graph TD
 > - **Preserve Real IPs**
 
 > [!NOTE]
-> By default the tunnel only reaches the home server's own services, not the rest of your LAN — its peer's `AllowedIPs` on the VPS is scoped to its own tunnel IP. To route your whole home network instead, deliberately widen that peer's `AllowedIPs` to your LAN subnet (never `0.0.0.0/0`).
+> By default the tunnel only reaches the home server's own services, not your whole LAN. The home server peer's `AllowedIPs` on the VPS is scoped to its own tunnel IP (separate from the client `ALLOWEDIPS` env var below, which stays `0.0.0.0/0` on purpose). To bridge your full LAN, widen that peer's `AllowedIPs` to your LAN subnet specifically, never to `0.0.0.0/0`.
 
 ## Related documentation
 
