@@ -69,9 +69,6 @@ jobs:
             -v "$(pwd)/client-wg0.conf:/etc/wireguard/wg0.conf" \
             "$image"
 
-      - name: Sanity check - does the runner itself have outbound ICMP
-        run: ping -c 3 -W 3 1.1.1.1 || echo "runner has no direct outbound ICMP to 1.1.1.1 - the tunnel ping check below is expected to fail too, and should be swapped for a TCP-based check"
-
       - name: Trigger a handshake attempt
         run: sudo docker exec wg-client sh -c "ping -c 2 -W 2 10.13.13.1" || true
 
@@ -93,22 +90,15 @@ jobs:
           exit 1
 
       - name: Verify tunnel forwards traffic to the internet
+        # GitHub-hosted runners drop outbound ping entirely
+        # This checks real TCP connectivity through the tunnel
         run: |
-          if ! sudo docker exec wg-client ping -c 3 -W 3 1.1.1.1; then
-            echo "wg-client completed the handshake but could not reach 1.1.1.1 through the tunnel"
-            echo "--- wg0 state ---"
+          if ! sudo docker exec wg-client wget -q --no-check-certificate --timeout=5 https://1.1.1.1; then
+            echo "wg-client completed the handshake but could not reach the internet through the tunnel"
             sudo docker exec wireguard wg show wg0
-            echo "--- host FORWARD chain ---"
-            sudo iptables -L FORWARD -n -v
-            echo "--- host NAT POSTROUTING chain ---"
-            sudo iptables -t nat -L POSTROUTING -n -v
-            echo "--- host default route ---"
-            ip route show default
-            echo "--- host ip forward ---"
-            sysctl net.ipv4.ip_forward
             exit 1
           fi
-          echo "external ping through the tunnel succeeded"
+          echo "external HTTPS request through the tunnel succeeded"
 
       - name: Clean up client container
         if: always()
