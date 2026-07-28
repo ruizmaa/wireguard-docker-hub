@@ -1,11 +1,10 @@
 #!/bin/bash
-
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
+# Reports current status of kernel forwarding, MTU and firewall rules.
+# Run manually to verify, or automatically as the last step of fix-vps-net.sh.
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/colors.sh
+source "$SCRIPT_DIR/lib/colors.sh"
 WG_CONF="$SCRIPT_DIR/../config/wg_confs/wg0.conf"
 IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
 

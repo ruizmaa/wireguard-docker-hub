@@ -1,16 +1,15 @@
 #!/bin/bash
+# Applies MTU and iptables/NAT fixes required for WireGuard on a VPS.
+# Run manually (or via easy-install.sh) after the container has generated wg0.conf.
 set -e
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
 NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
 
-# Colors
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/colors.sh
+source "$SCRIPT_DIR/lib/colors.sh"
 WG_CONF="$SCRIPT_DIR/../config/wg_confs/wg0.conf"
 IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
 

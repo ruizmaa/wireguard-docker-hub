@@ -1,4 +1,6 @@
 #!/bin/bash
+# Installs Docker Engine and base system dependencies.
+# Invoked by easy-install.sh; can also be run manually/standalone.
 set -e
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -16,11 +18,9 @@ fi
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 export REAL_USER REAL_HOME
 
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/colors.sh
+source "$SCRIPT_DIR/lib/colors.sh"
 
 # Basic system update and essential package installation
 echo -e "    ${YELLOW}[1/6]${NC} Updating system and installing essential packages..."

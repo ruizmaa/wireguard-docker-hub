@@ -1,14 +1,12 @@
 #!/bin/bash
+# Wipes and regenerates all WireGuard configs/keys from docker-compose.yml.
+# Run manually via ./wireguard.sh regenerate; destructive, asks for confirmation.
 set -e
-
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$SCRIPT_DIR/.."
+# shellcheck source=scripts/lib/colors.sh
+source "$SCRIPT_DIR/lib/colors.sh"
 CONFIG_DIR="$PROJECT_ROOT/config"
 WG_CONF="$CONFIG_DIR/wg_confs/wg0.conf"
 

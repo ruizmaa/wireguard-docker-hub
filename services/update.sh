@@ -1,4 +1,6 @@
 #!/bin/bash
+# Updates the services (pihole/syncthing/jellyfin) compose stack images.
+# Run manually, or via scripts/deploy-services.sh in the deploy-services workflow.
 set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
