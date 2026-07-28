@@ -124,13 +124,13 @@ A continuous file synchronization program.
 
 ##### Syncthing **Password**
 
-By default, the Syncthing web interface is accessible without any credentials, so is highly recomended to set a username and password.
+By default, the Syncthing web interface is accessible without any credentials, so it's highly recommended to set a username and password.
 
-Open the web UI at `http://<SERVER_IP>:8384` and go to: `Actions > Settings > GUI > Set user/password`. Here add your usser name and password. It's also recommended to activate the option `Use HTTPS for GUI`.
+Open the web UI at `http://<SERVER_IP>:8384` and go to: `Actions > Settings > GUI > Set user/password`. Here add your username and password. It's also recommended to activate the option `Use HTTPS for GUI`.
 
 #### Syncthing **Start**
 
-Once it's runing, you can start syncing files by following these steps:
+Once it's running, you can start syncing files by following these steps:
 
 > Following the `docker-compose.yml` file, the example file paths used in `volumes` are `/path/to/data1:/data1`
 

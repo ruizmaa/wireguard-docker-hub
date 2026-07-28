@@ -57,7 +57,7 @@ graph TD
 This guide handles the **VPS Hub** (the central node). For the other parts of the infrastructure shown above, check the specific guides:
 
 - **[💻📱 External client setup guide](CLIENTS.md):** How to connect your external devices (Phone, Laptop...) to this VPN.
-- **[🏠👾 Home server services](SERVICES.md):** Guide for self-hosted serviccies and applications running on your home server.
+- **[🏠👾 Home server services](SERVICES.md):** Guide for self-hosted services and applications running on your home server.
 
 ## Prerequisites
 
@@ -98,7 +98,7 @@ Once the installation finishes, you must log out and log back in to apply Docker
 
 ```bash
 exit
-ssh <USSER>@<IP>
+ssh <USER>@<IP>
 ```
 
 Now you can just connect your devices with the QR code.
@@ -121,7 +121,7 @@ Recommended if you want full control and customization
 
 ##### 1. Install Dependencies
 
-Installs Docker and system tools.
+Installs Docker and system tools, enables `fail2ban` for SSH brute-force protection, and disables root SSH login.
 
 ```bash
 sudo ./scripts/basic-install.sh
@@ -163,7 +163,7 @@ To apply Docker permissions (use docker without sudo) and terminal fixes, you mu
 
 ```bash
 exit
-ssh <USSER>@<IP>
+ssh <USER>@<IP>
 ```
 
 ##### 5. Connect your devices
@@ -199,14 +199,15 @@ The WireGuard interface is configured via environment variables, set in `.env` (
 > The installer automatically writes `PUID`/`PGID`/`SERVERURL` to `.env` to match your system user and public IP.  
 > If installing manually, set them to `id -u` / `id -g` in `.env` to avoid permission issues.
 
-## Checking fail2ban
+## Checking the SSH hardening
 
-`basic-install.sh` installs and enables `fail2ban` automatically, with an `sshd` jail that bans an IP for 1h after 5 failed attempts in 10 minutes. No custom tooling needed to inspect it, `fail2ban-client` already covers it:
+`basic-install.sh` installs and enables `fail2ban` automatically, with an `sshd` jail that bans an IP for 1h after 5 failed attempts in 10 minutes, and disables root SSH login (`PermitRootLogin no`). No custom tooling needed to inspect either, the standard tools already cover it:
 
 ```bash
 sudo fail2ban-client status sshd                # current/total ban counts, currently banned IPs
 sudo fail2ban-client get sshd banip --with-time # banned IPs with time remaining
 sudo grep ' Ban ' /var/log/fail2ban.log         # full history, including already-expired bans
+sudo sshd -T | grep permitrootlogin             # confirm root login is disabled
 ```
 
 ## Keeping images up to date
