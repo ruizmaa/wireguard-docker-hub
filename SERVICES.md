@@ -4,13 +4,15 @@ This document details the deployment of dockerized self-hosted services running 
 
 ## Prerequisites
 
-### Docker & Docker compose installed
+### Basic installation
 
-Follow the [official documentation](https://docs.docker.com/engine/install/) to install it.
+Run the same installer used on the VPS:
 
-### `jq` installed
+```bash
+sudo ./scripts/basic-install.sh
+```
 
-Required by `services/update.sh` (and the automated deploy) to read the pinned image tags from `services/docker-compose.yml`. Install it via your distro's package manager (e.g. `sudo apt install jq`).
+This installs Docker Engine and the Compose plugin, `jq` (required by `services/update.sh` and the automated deploy to read the pinned image tags from `services/docker-compose.yml`), enables `fail2ban` for SSH brute-force protection, and disables root SSH login.
 
 ## Services
 
