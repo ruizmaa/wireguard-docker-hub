@@ -6,7 +6,6 @@ services:
     # Required capabilities for managing network interfaces
     cap_add:
       - NET_ADMIN
-      - SYS_MODULE
 
     # NETWORK MODE: HOST
     # 'host' mode is used to bypass Docker's NAT stack.
@@ -32,7 +31,7 @@ services:
       - LOG_CONFS=true  # This shows the QRs when starting the container
     volumes:
       - ./config:/config  # Make persistent the config and codes
-      - /lib/modules:/lib/modules  # For kernel module access
+      - /lib/modules:/lib/modules:ro  # For kernel module access (read-only: no need to write to the host's modules)
     restart: unless-stopped
 
     # Not used with HOST mode

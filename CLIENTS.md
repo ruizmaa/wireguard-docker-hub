@@ -91,7 +91,7 @@ sudo systemctl start wg-quick@wg0
 sudo wg
 ```
 
-You should see out put containing:
+You should see output containing:
 
 * Your client’s private/public keys
 * The VPS public key

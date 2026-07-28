@@ -4,13 +4,15 @@ This document details the deployment of dockerized self-hosted services running 
 
 ## Prerequisites
 
-### Docker & Docker compose installed
+### Basic installation
 
-Follow the [official documentation](https://docs.docker.com/engine/install/) to install it.
+Run the same installer used on the VPS:
 
-### `jq` installed
+```bash
+sudo ./scripts/basic-install.sh
+```
 
-Required by `services/update.sh` (and the automated deploy) to read the pinned image tags from `services/docker-compose.yml`. Install it via your distro's package manager (e.g. `sudo apt install jq`).
+This installs Docker Engine and the Compose plugin, `jq` (required by `services/update.sh` and the automated deploy to read the pinned image tags from `services/docker-compose.yml`), enables `fail2ban` for SSH brute-force protection, disables root SSH login, and enables `unattended-upgrades` for automatic security patches.
 
 ## Services
 
@@ -122,13 +124,13 @@ A continuous file synchronization program.
 
 ##### Syncthing **Password**
 
-By default, the Syncthing web interface is accessible without any credentials, so is highly recomended to set a username and password.
+By default, the Syncthing web interface is accessible without any credentials, so it's highly recommended to set a username and password.
 
-Open the web UI at `http://<SERVER_IP>:8384` and go to: `Actions > Settings > GUI > Set user/password`. Here add your usser name and password. It's also recommended to activate the option `Use HTTPS for GUI`.
+Open the web UI at `http://<SERVER_IP>:8384` and go to: `Actions > Settings > GUI > Set user/password`. Here add your username and password. It's also recommended to activate the option `Use HTTPS for GUI`.
 
 #### Syncthing **Start**
 
-Once it's runing, you can start syncing files by following these steps:
+Once it's running, you can start syncing files by following these steps:
 
 > Following the `docker-compose.yml` file, the example file paths used in `volumes` are `/path/to/data1:/data1`
 

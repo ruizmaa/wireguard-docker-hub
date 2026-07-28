@@ -37,7 +37,16 @@ sudo --preserve-env=REAL_USER bash "$SCRIPT_DIR/basic-install.sh"
 # Detect and inject public IP
 echo ""
 echo -e "\n${YELLOW}>>> STEP 2: Configuring Public IP & Permissions...${NC}"
-PUBLIC_IP=$(curl -s ifconfig.me)
+if ! PUBLIC_IP=$(curl -4fsSL --max-time 5 https://ifconfig.me/ip); then
+    echo -e "    ${RED}Error: failed to reach ifconfig.me to detect the public IP${NC}"
+    exit 1
+fi
+if ! [[ "$PUBLIC_IP" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] \
+    || [ "${BASH_REMATCH[1]}" -gt 255 ] || [ "${BASH_REMATCH[2]}" -gt 255 ] \
+    || [ "${BASH_REMATCH[3]}" -gt 255 ] || [ "${BASH_REMATCH[4]}" -gt 255 ]; then
+    echo -e "    ${RED}Error: could not determine a valid public IPv4 address (got: '$PUBLIC_IP')${NC}"
+    exit 1
+fi
 echo "    Detected IP: $PUBLIC_IP"
 echo "    Using REAL_USER=$REAL_USER (UID=$REAL_UID, GID=$REAL_GID)"
 
