@@ -86,6 +86,7 @@ else
     sudo mkdir -p /etc/ssh/sshd_config.d
     sudo tee /etc/ssh/sshd_config.d/99-harden.conf > /dev/null <<EOF
 PermitRootLogin no
+PasswordAuthentication no
 EOF
     sudo mkdir -p /run/sshd
     sudo sshd -t
@@ -115,11 +116,11 @@ else
 fi
 
 if [ "$REAL_USER" = "root" ]; then
-    echo -e "      ${YELLOW}-> Skipped root-login check (no non-root user detected).${NC}"
-elif sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'; then
-    echo -e "      ${GREEN}-> Root SSH login is disabled.${NC}"
+    echo -e "      ${YELLOW}-> Skipped root-login/password-auth check (no non-root user detected).${NC}"
+elif sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$' && sudo sshd -T 2>/dev/null | grep -q '^passwordauthentication no$'; then
+    echo -e "      ${GREEN}-> Root SSH login and SSH password authentication are disabled.${NC}"
 else
-    echo -e "      ${RED}-> Error: PermitRootLogin verification failed.${NC}"
+    echo -e "      ${RED}-> Error: PermitRootLogin/PasswordAuthentication verification failed.${NC}"
     exit 1
 fi
 
