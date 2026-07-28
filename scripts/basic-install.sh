@@ -84,8 +84,9 @@ sudo mkdir -p /etc/ssh/sshd_config.d
 sudo tee /etc/ssh/sshd_config.d/99-harden.conf > /dev/null <<EOF
 PermitRootLogin no
 EOF
+sudo mkdir -p /run/sshd
 sudo sshd -t
-sudo systemctl reload ssh
+sudo systemctl reload-or-restart ssh
 
 echo -e "    ${YELLOW}[8/9]${NC} Configuring and enabling unattended-upgrades (automatic security patches)..."
 sudo tee /etc/apt/apt.conf.d/20auto-upgrades > /dev/null <<EOF
