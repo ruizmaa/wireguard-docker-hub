@@ -47,6 +47,43 @@ jobs:
             exit 1
           fi
 
+      - name: Set up a WireGuard client peer
+        run: |
+          sudo docker cp wireguard:/config/peer1/peer1.conf ./peer1.conf
+          sudo chmod 644 ./peer1.conf
+          gateway=$(sudo docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')
+          image=$(sudo docker compose config --format json | jq -r '.services.wireguard.image')
+          sed "s|^Endpoint = .*|Endpoint = ${gateway}:51820|" ./peer1.conf > ./client-wg0.conf
+          cat ./client-wg0.conf
+          sudo docker run -d --name wg-client --cap-add=NET_ADMIN \
+            --sysctl net.ipv4.conf.all.src_valid_mark=1 \
+            -v "$(pwd)/client-wg0.conf:/etc/wireguard/wg0.conf" \
+            "$image"
+
+      - name: Trigger a handshake attempt
+        run: sudo docker exec wg-client sh -c "ping -c 2 -W 2 10.13.13.1" || true
+
+      - name: Verify WireGuard handshake succeeded
+        run: |
+          for i in $(seq 1 12); do
+            output=$(sudo docker exec wg-client wg show wg0)
+            if echo "$output" | grep -q "latest handshake"; then
+              echo "$output"
+              echo "handshake confirmed"
+              exit 0
+            fi
+            echo "no handshake yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          echo "$output"
+          sudo docker logs wg-client
+          echo "no WireGuard handshake after 60s"
+          exit 1
+
+      - name: Clean up client container
+        if: always()
+        run: sudo docker rm -f wg-client || true
+
   home-smoke-test:
     runs-on: ubuntu-latest
     steps:
