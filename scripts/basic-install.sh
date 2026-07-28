@@ -66,7 +66,8 @@ echo -e "    ${YELLOW}[5/7]${NC} Configuring permissions..."
 sudo usermod -aG docker "$REAL_USER"
 
 echo -e "    ${YELLOW}[6/7]${NC} Configuring and enabling fail2ban (SSH brute-force protection)..."
-sudo tee /etc/fail2ban/jail.local > /dev/null <<EOF
+sudo mkdir -p /etc/fail2ban/jail.d
+sudo tee /etc/fail2ban/jail.d/sshd.local > /dev/null <<EOF
 [sshd]
 enabled = true
 port = ssh

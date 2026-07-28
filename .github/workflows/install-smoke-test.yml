@@ -26,7 +26,7 @@ jobs:
       - name: Verify fail2ban is active
         run: |
           sudo systemctl is-active --quiet fail2ban
-          sudo fail2ban-client status sshd | grep -q 'Currently banned'
+          sudo fail2ban-client status sshd > /dev/null
 
       - name: Verify wireguard container is running
         run: |
@@ -133,7 +133,7 @@ jobs:
       - name: Verify fail2ban is active
         run: |
           sudo systemctl is-active --quiet fail2ban
-          sudo fail2ban-client status sshd | grep -q 'Currently banned'
+          sudo fail2ban-client status sshd > /dev/null
 
       # SECURITY: this reconfigures the runner's own DNS resolver
       # Safe only because this is a GitHub runner destroyed after the job
