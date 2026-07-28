@@ -78,7 +78,8 @@ if ! sudo iptables -t nat -C POSTROUTING -o "$IFACE" -j MASQUERADE 2>/dev/null; 
     echo "      -> Added NAT Masquerade rule."
 fi
 
-# Default-deny: only traffic explicitly accepted above gets through.
+# Default-deny (IPv4 only; this VPS has no IPv6 configured, so ip6tables is left untouched):
+# only traffic explicitly accepted above gets through.
 sudo iptables -P INPUT DROP
 sudo iptables -P FORWARD DROP
 
