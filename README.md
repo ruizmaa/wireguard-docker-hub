@@ -200,7 +200,7 @@ The WireGuard interface is configured via environment variables, set in `.env` (
 | `PEERS` | `1` | Number of peers to generate (e.g., `2`) or a list of names (e.g., `phone,laptop`). |
 | `PEERDNS` | `auto` | DNS server for clients. If unset (`auto`), uses the container's CoreDNS. |
 | `INTERNAL_SUBNET` | `10.13.13.0` | Internal VPN IP range. Change only if it clashes with your local network. |
-| `ALLOWEDIPS` | `0.0.0.0/0` | Defines routing. `0.0.0.0/0` forces **Full Tunnel** (all traffic goes through VPN). |
+| `ALLOWEDIPS` | `0.0.0.0/0,::/0` | Defines routing. `0.0.0.0/0,::0` forces **Full Tunnel** (all IPv4 and IPv6 traffic goes through the VPN). |
 | `PERSISTENTKEEPALIVE_PEERS` | `all` | Set to `all` (or a list of peers) to send "ping" packets every 25s to keep the tunnel open. |
 | `LOG_CONFS` | `true` | If `true`, outputs the QR codes to the Docker logs on startup. |
 
