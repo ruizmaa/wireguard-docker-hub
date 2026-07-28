@@ -10,7 +10,7 @@ cd "$SCRIPT_DIR/.." || exit
 ./wireguard.sh update --yes
 status=$?
 
-docker compose up -d || status=1
+docker compose up -d --remove-orphans || status=1
 
 docker image prune -f
 

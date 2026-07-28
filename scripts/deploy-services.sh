@@ -10,7 +10,7 @@ cd "$SCRIPT_DIR/.." || exit
 ./services/update.sh --yes
 status=$?
 
-docker compose -f services/docker-compose.yml up -d || status=1
+docker compose -f services/docker-compose.yml up -d --remove-orphans || status=1
 
 docker image prune -f
 
