@@ -37,7 +37,7 @@ sudo --preserve-env=REAL_USER bash "$SCRIPT_DIR/basic-install.sh"
 # Detect and inject public IP
 echo ""
 echo -e "\n${YELLOW}>>> STEP 2: Configuring Public IP & Permissions...${NC}"
-PUBLIC_IP=$(curl -fsSL https://ifconfig.me)
+PUBLIC_IP=$(curl -4fsSL --max-time 5 https://ifconfig.me/ip)
 if ! [[ "$PUBLIC_IP" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] \
     || [ "${BASH_REMATCH[1]}" -gt 255 ] || [ "${BASH_REMATCH[2]}" -gt 255 ] \
     || [ "${BASH_REMATCH[3]}" -gt 255 ] || [ "${BASH_REMATCH[4]}" -gt 255 ]; then
