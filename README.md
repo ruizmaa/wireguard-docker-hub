@@ -199,6 +199,16 @@ The WireGuard interface is configured via environment variables, set in `.env` (
 > The installer automatically writes `PUID`/`PGID`/`SERVERURL` to `.env` to match your system user and public IP.  
 > If installing manually, set them to `id -u` / `id -g` in `.env` to avoid permission issues.
 
+## Checking fail2ban
+
+`basic-install.sh` installs and enables `fail2ban` automatically, with an `sshd` jail that bans an IP for 1h after 5 failed attempts in 10 minutes. No custom tooling needed to inspect it, `fail2ban-client` already covers it:
+
+```bash
+sudo fail2ban-client status sshd                # current/total ban counts, currently banned IPs
+sudo fail2ban-client get sshd banip --with-time # banned IPs with time remaining
+sudo grep ' Ban ' /var/log/fail2ban.log         # full history, including already-expired bans
+```
+
 ## Keeping images up to date
 
 `docker-compose.yml` (WireGuard) runs on the **VPS**. `services/docker-compose.yml` runs on the **home server**. Both pin specific image versions, and each machine deploys independently, a change to one compose file never touches the other machine. The flow:
