@@ -27,8 +27,8 @@ echo -e "${CYAN}==============================================${NC}"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$SCRIPT_DIR/.."
-COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
-WG_CONFIG="$PROJECT_ROOT/config/wg_confs/wg0.conf" 
+ENV_FILE="$PROJECT_ROOT/.env"
+WG_CONFIG="$PROJECT_ROOT/config/wg_confs/wg0.conf"
 TIMEOUT=0
 
 # Run base Docker installation
@@ -43,19 +43,15 @@ PUBLIC_IP=$(curl -s ifconfig.me)
 echo "    Detected IP: $PUBLIC_IP"
 echo "    Using REAL_USER=$REAL_USER (UID=$REAL_UID, GID=$REAL_GID)"
 
-if [ -f "$COMPOSE_FILE" ]; then
-    # Replaces SERVERURL
-    sed -i "s|SERVERURL=.*|SERVERURL=$PUBLIC_IP|g" "$COMPOSE_FILE"
+touch "$ENV_FILE"
+sed -i "/^SERVERURL=/d;/^PUID=/d;/^PGID=/d" "$ENV_FILE"
+{
+    echo "SERVERURL=$PUBLIC_IP"
+    echo "PUID=$REAL_UID"
+    echo "PGID=$REAL_GID"
+} >> "$ENV_FILE"
 
-    # Replaces PUID/PGID if present
-    sed -i "s/PUID=[0-9]\+/PUID=$REAL_UID/" "$COMPOSE_FILE"
-    sed -i "s/PGID=[0-9]\+/PGID=$REAL_GID/" "$COMPOSE_FILE"
-
-    echo -e "    ${GREEN}IP and PUID/PGID injected into docker-compose.yml${NC}"
-else
-    echo -e "    ${RED}Error: docker-compose.yml not found!${NC}"
-    exit 1
-fi
+echo -e "    ${GREEN}IP and PUID/PGID written to .env${NC}"
 
 # Start Docker (to generate configs)
 echo ""
@@ -93,6 +89,7 @@ sudo docker compose restart > /dev/null
 if [ -n "$REAL_USER" ]; then
     echo "    Fixing file permissions for user: $REAL_USER"
     sudo chown -R "$REAL_USER:$REAL_USER" "$PROJECT_ROOT/config"
+    sudo chown "$REAL_USER:$REAL_USER" "$ENV_FILE"
 fi
 
 echo ""

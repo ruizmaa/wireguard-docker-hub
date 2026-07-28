@@ -8,7 +8,7 @@ services:
       - "53:53/udp"
       - "8080:80"
     environment:
-      TZ: Etc/UTC  # <your_time_zone>
+      TZ: ${TZ:-Etc/UTC}  # <your_time_zone>
       # WEBPASSWORD: <your_password>  # Can be changed with pihole pihole -a -p
       FTLCONF_dns_listeningMode: 'ALL'  # Listen on all interfaces
     volumes:
@@ -29,12 +29,12 @@ services:
     environment:
       - PUID=1000  # You can check your PUID with the command `id`
       - PGID=1000  # You can check your PGID with the command `id`
-      - TZ=Etc/UTC
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
     volumes:
       - syncthing_config:/config
-      - /path/to/data1:/data1
-      # - /path/to/data2:/data2
-      # Add more data paths as needed
+      - ${SYNCTHING_MOUNT_1:-/path/to/data1:/data1}
+      - ${SYNCTHING_MOUNT_2:-/path/to/data2:/data2}
+      # Add more data paths as needed (SYNCTHING_MOUNT_3, etc.)
 
   jellyfin:
     container_name: jellyfin
@@ -46,13 +46,13 @@ services:
     environment:
       - PUID=1000  # You can check your PUID with the command `id`
       - PGID=1000  # You can check your PGID with the command `id`
-      - TZ=Etc/UTC
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
       # - JELLYFIN_PublishedServerUrl=http://jellyfin.home:8096  # Server address shown to Jellyfin apps
     volumes:
       - jellyfin_config:/config
       - jellyfin_cache:/cache
-      - /path/to/media:/media  # Change to your path (e.g., /mnt/usb, /mnt/hdd)
-      # - /path/to/media2:/media2  # Add more media paths as needed
+      - ${JELLYFIN_MEDIA_1:-/path/to/media:/media}
+      # - ${JELLYFIN_MEDIA_2:-/path/to/media2:/media2}  # Add more media paths as needed
 
 volumes:
   pihole_etc:

@@ -126,12 +126,13 @@ sudo ./scripts/basic-install.sh
 
 ##### 2. Configure
 
-Edit the compose file to set your `SERVERURL` (IP or Domain), `INTERNAL_SUBNET`, `PEERS`, `PEERDNS`, `TZ` and so more...
+Copy `.env.example` to `.env` and set your `SERVERURL` (IP or Domain), `INTERNAL_SUBNET`, `PEERS`, `PEERDNS`, `TZ` and so more...
 
 You can take a quick look at the [configuration section](#configuration) below or check the [image documentation](https://github.com/linuxserver/docker-wireguard).
 
 ```bash
-nano docker-compose.yml
+cp .env.example .env
+nano .env
 ```
 
 ##### 3. Apply Network Fixes
@@ -176,7 +177,7 @@ Finally you can connect your devices.
 
 ## Configuration
 
-The WireGuard interface is configured via environment variables in `docker-compose.yml`:
+The WireGuard interface is configured via environment variables, set in `.env` (copy `.env.example` to `.env` first, see [Configure](#2-configure)) and read by `docker-compose.yml`:
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
@@ -192,8 +193,8 @@ The WireGuard interface is configured via environment variables in `docker-compo
 | `LOG_CONFS` | `true` | If `true`, outputs the QR codes to the Docker logs on startup. |
 
 > [!NOTE]
-> The installer automatically updates `PUID`/`PGID` to match your system user.  
-> If installing manually, set them to `id -u` / `id -g` to avoid permission issues.
+> The installer automatically writes `PUID`/`PGID`/`SERVERURL` to `.env` to match your system user and public IP.  
+> If installing manually, set them to `id -u` / `id -g` in `.env` to avoid permission issues.
 
 ## Keeping images up to date
 
