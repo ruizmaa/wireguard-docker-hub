@@ -8,6 +8,10 @@ This document details the deployment of dockerized self-hosted services running 
 
 Follow the [official documentation](https://docs.docker.com/engine/install/) to install it.
 
+### `jq` installed
+
+Required by `services/update.sh` (and the automated deploy) to read the pinned image tags from `services/docker-compose.yml`. Install it via your distro's package manager (e.g. `sudo apt install jq`).
+
 ## Services
 
 The services are defined in `services/docker-compose.yml`. Copy the services you need to your main `docker-compose.yml` or run them directly from that directory.

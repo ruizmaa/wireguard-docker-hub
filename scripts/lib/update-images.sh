@@ -1,6 +1,7 @@
 #!/bin/bash
 # scripts/lib/update-images.sh
 #
+# Shared by wireguard.sh's `update` subcommand and services/update.sh.
 # Usage (after sourcing): update_compose_images <compose_file> [--yes]
 
 GREEN='\033[0;32m'
