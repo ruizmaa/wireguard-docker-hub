@@ -6,7 +6,6 @@ services:
     # Required capabilities for managing network interfaces
     cap_add:
       - NET_ADMIN
-      - SYS_MODULE
 
     # NETWORK MODE: HOST
     # 'host' mode is used to bypass Docker's NAT stack.
