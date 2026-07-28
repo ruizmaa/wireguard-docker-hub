@@ -1,4 +1,6 @@
 #!/bin/bash
+# Applies MTU and iptables/NAT fixes required for WireGuard on a VPS.
+# Run manually (or via easy-install.sh) after the container has generated wg0.conf.
 set -e
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true

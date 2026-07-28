@@ -1,6 +1,4 @@
 #!/bin/bash
-# scripts/deploy-services.sh
-#
 # Run on the home server after a checkout of main (by the deploy-services
 # workflow's self-hosted runner). Applies any pinned version bump to the
 # services (pihole/syncthing/jellyfin) compose stack only.

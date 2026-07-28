@@ -1,4 +1,6 @@
 #!/bin/bash
+# Main entrypoint to manage the WireGuard stack (start/stop/logs/peers/updates).
+# Run manually from the project root, e.g. ./wireguard.sh start.
 
 cd "$(dirname "$0")" || exit
 

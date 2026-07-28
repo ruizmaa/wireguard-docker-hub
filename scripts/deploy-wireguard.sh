@@ -1,6 +1,4 @@
 #!/bin/bash
-# scripts/deploy-wireguard.sh
-#
 # Run on the VPS after a checkout of main (by the deploy-wireguard workflow's
 # self-hosted runner). Applies any pinned version bump to the root
 # (WireGuard) compose stack only.

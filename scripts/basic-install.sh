@@ -1,4 +1,6 @@
 #!/bin/bash
+# Installs Docker Engine and base system dependencies.
+# Invoked by easy-install.sh; can also be run manually/standalone.
 set -e
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true

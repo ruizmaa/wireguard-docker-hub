@@ -1,4 +1,6 @@
 #!/bin/bash
+# Wipes and regenerates all WireGuard configs/keys from docker-compose.yml.
+# Run manually via ./wireguard.sh regenerate; destructive, asks for confirmation.
 set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

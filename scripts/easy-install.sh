@@ -1,4 +1,6 @@
 #!/bin/bash
+# Full automated installer: Docker setup, .env config, container start and network fixes.
+# Run manually once on a fresh VPS, e.g. sudo ./scripts/easy-install.sh.
 set -e
 
 # Detect real user (if not already defined)

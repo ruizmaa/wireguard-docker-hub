@@ -1,4 +1,6 @@
 #!/bin/bash
+# Reports current status of kernel forwarding, MTU and firewall rules.
+# Run manually to verify, or automatically as the last step of fix-vps-net.sh.
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
