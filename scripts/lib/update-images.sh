@@ -1,13 +1,9 @@
 #!/bin/bash
-# scripts/lib/update-images.sh
-#
 # Shared by wireguard.sh's `update` subcommand and services/update.sh.
 # Usage (after sourcing): update_compose_images <compose_file> [--yes]
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+# shellcheck source=scripts/lib/colors.sh
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/colors.sh"
 
 update_compose_images() {
     local compose_file="$1"

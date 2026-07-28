@@ -14,18 +14,14 @@ export REAL_USER
 REAL_UID=$(id -u "$REAL_USER")
 REAL_GID=$(id -g "$REAL_USER")
 
-# Colors
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/colors.sh
+source "$SCRIPT_DIR/lib/colors.sh"
 
 echo -e "${CYAN}==============================================${NC}"
 echo -e "${CYAN}   WIREGUARD HUB - AUTOMATED INSTALLER        ${NC}"
 echo -e "${CYAN}==============================================${NC}"
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$SCRIPT_DIR/.."
 ENV_FILE="$PROJECT_ROOT/.env"
 WG_CONFIG="$PROJECT_ROOT/config/wg_confs/wg0.conf"
