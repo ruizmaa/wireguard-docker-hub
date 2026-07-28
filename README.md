@@ -50,7 +50,7 @@ graph TD
 > - **Preserve Real IPs**
 
 > [!NOTE]
-> By default the tunnel only reaches the home server's own services, not your whole LAN. The home server peer's `AllowedIPs` on the VPS is scoped to its own tunnel IP (separate from the client `ALLOWEDIPS` env var below, which stays `0.0.0.0/0` on purpose). To bridge your full LAN, widen that peer's `AllowedIPs` to your LAN subnet specifically, never to `0.0.0.0/0`.
+> By default the tunnel only reaches the home server's own services, not your whole LAN. The home server peer's `AllowedIPs` on the VPS is scoped to its own tunnel IP (separate from the client `ALLOWEDIPS` env var below, which stays full-tunnel `0.0.0.0/0,::/0` on purpose). To bridge your full LAN, widen that peer's `AllowedIPs` to your LAN subnet specifically, never to `0.0.0.0/0`.
 
 ## Related documentation
 
@@ -89,6 +89,15 @@ chmod +x wireguard.sh scripts/*.sh
 #### A: 🚀 Quick Start (automated)
 
 Recommended for fresh VPS installations. This script handles the full lifecycle: installs Docker, hardens SSH and removes the cloud image's default passwordless sudo, auto-detects your Public IP, updates configuration, starts the container, and applies network patches.
+
+> [!WARNING]
+> **Set a password for your user first.** Fresh cloud images (Oracle, AWS, etc.) typically create their default user with SSH-key-only login and **no password at all**, relying entirely on passwordless sudo (`NOPASSWD:ALL`) for admin access. This script removes that passwordless sudo. If it detects your user has no password to fall back on, it skips the removal and warns instead of locking you out, but you're then stuck with passwordless sudo until you set one and re-run it.
+>
+> ```bash
+> sudo passwd "$USER"
+> ```
+>
+> Run this and save the password before continuing, so the removal actually happens on the first pass.
 
 ```bash
 sudo ./scripts/easy-install.sh
@@ -191,7 +200,7 @@ The WireGuard interface is configured via environment variables, set in `.env` (
 | `PEERS` | `1` | Number of peers to generate (e.g., `2`) or a list of names (e.g., `phone,laptop`). |
 | `PEERDNS` | `auto` | DNS server for clients. If unset (`auto`), uses the container's CoreDNS. |
 | `INTERNAL_SUBNET` | `10.13.13.0` | Internal VPN IP range. Change only if it clashes with your local network. |
-| `ALLOWEDIPS` | `0.0.0.0/0` | Defines routing. `0.0.0.0/0` forces **Full Tunnel** (all traffic goes through VPN). |
+| `ALLOWEDIPS` | `0.0.0.0/0,::/0` | Defines routing. `0.0.0.0/0` forces **Full Tunnel** for IPv4. `::/0` prevents IPv6 traffic from leaking outside the tunnel on clients with native IPv6. But the VPS itself doesn't configure IPv6 forwarding/NAT, so this blackholes IPv6 rather than routing it: IPv6-only destinations become unreachable instead of bypassing the VPN. |
 | `PERSISTENTKEEPALIVE_PEERS` | `all` | Set to `all` (or a list of peers) to send "ping" packets every 25s to keep the tunnel open. |
 | `LOG_CONFS` | `true` | If `true`, outputs the QR codes to the Docker logs on startup. |
 

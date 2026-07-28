@@ -59,15 +59,29 @@ add_rule() {
     fi
 }
 
+# Baseline accepts, always added before the default-deny policy below so the
+# current SSH session (and WireGuard) never gets locked out.
+SSH_PORT=$(sudo sshd -T 2>/dev/null | awk '/^port / {print $2; exit}')
+SSH_PORT=${SSH_PORT:-22}
+add_rule INPUT -i lo -j ACCEPT
+add_rule INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+add_rule INPUT -p icmp -j ACCEPT
+add_rule INPUT -p tcp --dport "$SSH_PORT" -j ACCEPT
+
 add_rule INPUT -p udp --dport 51820 -j ACCEPT
 add_rule INPUT -i wg0 -j ACCEPT
 add_rule FORWARD -i wg0 -j ACCEPT
-add_rule FORWARD -o wg0 -j ACCEPT
+add_rule FORWARD -o wg0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 if ! sudo iptables -t nat -C POSTROUTING -o "$IFACE" -j MASQUERADE 2>/dev/null; then
     sudo iptables -t nat -A POSTROUTING -o "$IFACE" -j MASQUERADE
     echo "      -> Added NAT Masquerade rule."
 fi
+
+# Default-deny (IPv4 only; this VPS has no IPv6 configured, so ip6tables is left untouched):
+# only traffic explicitly accepted above gets through.
+sudo iptables -P INPUT DROP
+sudo iptables -P FORWARD DROP
 
 # Rules persistently
 echo -e "    ${YELLOW}[6/7] Saving firewall rules...${NC}"

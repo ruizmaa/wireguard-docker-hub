@@ -39,3 +39,14 @@ print_status "Firewall Input Rule" "$s5"
 
 if sudo iptables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null; then s6=0; else s6=1; fi
 print_status "Firewall UDP 51820 Open" "$s6"
+
+SSH_PORT=$(sudo sshd -T 2>/dev/null | awk '/^port / {print $2; exit}')
+SSH_PORT=${SSH_PORT:-22}
+if sudo iptables -C INPUT -p tcp --dport "$SSH_PORT" -j ACCEPT 2>/dev/null; then s7=0; else s7=1; fi
+print_status "Firewall SSH Rule" "$s7"
+
+if sudo iptables -S INPUT 2>/dev/null | head -n1 | grep -qE '^-P INPUT DROP$'; then s8=0; else s8=1; fi
+print_status "Firewall INPUT Default-Deny" "$s8"
+
+if sudo iptables -S FORWARD 2>/dev/null | head -n1 | grep -qE '^-P FORWARD DROP$'; then s9=0; else s9=1; fi
+print_status "Firewall FORWARD Default-Deny" "$s9"

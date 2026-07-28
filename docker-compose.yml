@@ -26,7 +26,7 @@ services:
       - PERSISTENTKEEPALIVE_PEERS=all
 
       - INTERNAL_SUBNET=${INTERNAL_SUBNET:-10.13.13.0}
-      - ALLOWEDIPS=${ALLOWEDIPS:-0.0.0.0/0}  # 0.0.0.0/0 routes all traffic through the VPN
+      - ALLOWEDIPS=${ALLOWEDIPS:-0.0.0.0/0,::/0}  # full IPv4 tunnel; ::/0 blackholes IPv6 (no leak) since this VPS doesn't route IPv6
 
       - LOG_CONFS=true  # This shows the QRs when starting the container
     volumes:
