@@ -89,6 +89,15 @@ jobs:
           echo "no WireGuard handshake after 60s"
           exit 1
 
+      - name: Verify tunnel forwards traffic to the internet
+        run: |
+          if ! sudo docker exec wg-client ping -c 3 -W 3 1.1.1.1; then
+            echo "wg-client completed the handshake but could not reach 1.1.1.1 through the tunnel"
+            sudo docker exec wireguard wg show wg0
+            exit 1
+          fi
+          echo "external ping through the tunnel succeeded"
+
       - name: Clean up client container
         if: always()
         run: sudo docker rm -f wg-client || true
