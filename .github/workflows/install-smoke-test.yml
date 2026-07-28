@@ -93,7 +93,16 @@ jobs:
         run: |
           if ! sudo docker exec wg-client ping -c 3 -W 3 1.1.1.1; then
             echo "wg-client completed the handshake but could not reach 1.1.1.1 through the tunnel"
+            echo "--- wg0 state ---"
             sudo docker exec wireguard wg show wg0
+            echo "--- host FORWARD chain ---"
+            sudo iptables -L FORWARD -n -v
+            echo "--- host NAT POSTROUTING chain ---"
+            sudo iptables -t nat -L POSTROUTING -n -v
+            echo "--- host default route ---"
+            ip route show default
+            echo "--- host ip forward ---"
+            sysctl net.ipv4.ip_forward
             exit 1
           fi
           echo "external ping through the tunnel succeeded"
