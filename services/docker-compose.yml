@@ -4,9 +4,9 @@ services:
     image: pihole/pihole:2026.07.2
     restart: unless-stopped
     ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-      - "8080:80"
+      - "${PIHOLE_DNS_PORT:-53}:53/tcp"
+      - "${PIHOLE_DNS_PORT:-53}:53/udp"
+      - "${PIHOLE_WEB_PORT:-8080}:80"
     environment:
       TZ: ${TZ:-Etc/UTC}  # <your_time_zone>
       # WEBPASSWORD: <your_password>  # Can be changed with pihole pihole -a -p
@@ -22,10 +22,10 @@ services:
     restart: unless-stopped
     hostname: minipc-syncthing
     ports:
-      - 8384:8384         # Web GUI
-      - 22000:22000/tcp
-      - 22000:22000/udp
-      - 21027:21027/udp
+      - ${SYNCTHING_WEB_PORT:-8384}:8384         # Web GUI
+      - ${SYNCTHING_SYNC_PORT:-22000}:22000/tcp
+      - ${SYNCTHING_SYNC_PORT:-22000}:22000/udp
+      - ${SYNCTHING_DISCOVERY_PORT:-21027}:21027/udp
     environment:
       - PUID=1000  # You can check your PUID with the command `id`
       - PGID=1000  # You can check your PGID with the command `id`
@@ -41,8 +41,8 @@ services:
     image: lscr.io/linuxserver/jellyfin:10.11.11
     restart: unless-stopped
     ports:
-      - 8096:8096/tcp  # Web GUI
-      - 7359:7359/udp  # Auto discovery
+      - ${JELLYFIN_WEB_PORT:-8096}:8096/tcp  # Web GUI
+      - ${JELLYFIN_DISCOVERY_PORT:-7359}:7359/udp  # Auto discovery
     environment:
       - PUID=1000  # You can check your PUID with the command `id`
       - PGID=1000  # You can check your PGID with the command `id`
