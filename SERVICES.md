@@ -197,3 +197,5 @@ This also blocks IPv6 entirely on the home server: nothing in this project needs
 
 > [!WARNING]
 > If a trusted device's IP or MAC ever changes, you'll lose LAN access to SSH too. The WireGuard tunnel is unaffected by this allowlist, so you can always fall back to connecting through the VPN to fix it.
+
+The script also pings each device and warns (without blocking) if it doesn't answer or answers with a different MAC. Repeated again at the end of the output too.

@@ -86,6 +86,30 @@ done
 echo "      -> Trusted devices: ${DEVICE_LIST[*]}"
 echo "      -> Ports: SSH $SSH_PORT, Pi-hole $PIHOLE_WEB_PORT/$PIHOLE_DNS_PORT, Jellyfin $JELLYFIN_WEB_PORT/$JELLYFIN_DISCOVERY_PORT, Syncthing $SYNCTHING_WEB_PORT/$SYNCTHING_SYNC_PORT/$SYNCTHING_DISCOVERY_PORT"
 
+echo -e "    ${YELLOW}[2/7] Checking trusted devices answer on the LAN...${NC}"
+# Never blocks the script, a device can be legitimately offline or block ICMP
+# Collected into DEVICE_WARNINGS to repeat at the end, past all the noisy apt/iptables output
+DEVICE_WARNINGS=()
+for i in "${!TRUSTED_IPS[@]}"; do
+    ip="${TRUSTED_IPS[$i]}"
+    mac="${TRUSTED_MACS[$i]}"
+    # Forces an ARP refresh so the neighbor table below isn't stale
+    sudo ping -c 1 -W 1 "$ip" > /dev/null 2>&1 || true
+    # Whatever MAC is actually answering at that IP right now, if any
+    seen_mac=$(sudo ip neigh show "$ip" 2>/dev/null | awk '{for (j=1;j<=NF;j++) if ($j=="lladdr") print $(j+1)}' | head -n1) || true
+    if [ -z "$seen_mac" ]; then
+        msg="$ip didn't answer on the LAN (device off, wrong IP, or it blocks ICMP)."
+        echo -e "      ${YELLOW}-> WARNING: $msg${NC}"
+        DEVICE_WARNINGS+=("$msg")
+    elif [ "${seen_mac,,}" != "${mac,,}" ]; then
+        msg="$ip answered with MAC $seen_mac, not the configured $mac (typo, or a stale DHCP lease?)."
+        echo -e "      ${YELLOW}-> WARNING: $msg${NC}"
+        DEVICE_WARNINGS+=("$msg")
+    else
+        echo "      -> $ip@$mac confirmed on the LAN"
+    fi
+done
+
 # Inserts at the top, skipping it if already there. Only safe for rules whose exact text never changes
 add_rule() {
     if ! sudo iptables -C "$@" 2>/dev/null; then
@@ -98,19 +122,19 @@ rebuild_chain() {
     sudo iptables -F "$1"
 }
 
-echo -e "    ${YELLOW}[2/6] Installing required packages...${NC}"
+echo -e "    ${YELLOW}[3/7] Installing required packages...${NC}"
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
 sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
 sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq iptables-persistent netfilter-persistent > /dev/null
 
-echo -e "    ${YELLOW}[3/6] Rebuilding the trusted-devices allowlist...${NC}"
+echo -e "    ${YELLOW}[4/7] Rebuilding the trusted-devices allowlist...${NC}"
 rebuild_chain TRUSTED_LAN
 for i in "${!TRUSTED_IPS[@]}"; do
     sudo iptables -A TRUSTED_LAN -s "${TRUSTED_IPS[$i]}" -m mac --mac-source "${TRUSTED_MACS[$i]}" -j ACCEPT
 done
 
-echo -e "    ${YELLOW}[4/6] Applying firewall rules...${NC}"
+echo -e "    ${YELLOW}[5/7] Applying firewall rules...${NC}"
 
 # Never locks out this SSH session or the WireGuard tunnel
 add_rule INPUT -i lo -j ACCEPT
@@ -139,7 +163,7 @@ sudo iptables -I DOCKER-USER -j DOCKER_GUARD
 # Only INPUT needs a default-deny here. FORWARD is already gated by DOCKER_GUARD above
 sudo iptables -P INPUT DROP
 
-echo -e "    ${YELLOW}[5/6] Blocking IPv6 (unused by this project)...${NC}"
+echo -e "    ${YELLOW}[6/7] Blocking IPv6 (unused by this project)...${NC}"
 # Same baseline accepts as IPv4: loopback, existing connections, and ICMPv6 (needed for neighbor discovery)
 sudo ip6tables -C INPUT -i lo -j ACCEPT 2>/dev/null || sudo ip6tables -I INPUT -i lo -j ACCEPT
 sudo ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
@@ -149,8 +173,16 @@ sudo ip6tables -C INPUT -p icmpv6 -j ACCEPT 2>/dev/null || sudo ip6tables -I INP
 sudo ip6tables -P INPUT DROP
 sudo ip6tables -P FORWARD DROP
 
-echo -e "    ${YELLOW}[6/6] Saving firewall rules...${NC}"
+echo -e "    ${YELLOW}[7/7] Saving firewall rules...${NC}"
 sudo netfilter-persistent save > /dev/null
 
 echo -e "    ${GREEN}Done.${NC} SSH/Pi-hole/Jellyfin/Syncthing are now reachable only from: ${DEVICE_LIST[*]}"
 echo "    VPN access via $WG_IFACE is unaffected. IPv6 is blocked entirely."
+
+if [ "${#DEVICE_WARNINGS[@]}" -gt 0 ]; then
+    echo ""
+    echo -e "    ${YELLOW}Reminder: ${#DEVICE_WARNINGS[@]} trusted device(s) didn't check out earlier --${NC}"
+    for msg in "${DEVICE_WARNINGS[@]}"; do
+        echo -e "      ${YELLOW}-> $msg${NC}"
+    done
+fi

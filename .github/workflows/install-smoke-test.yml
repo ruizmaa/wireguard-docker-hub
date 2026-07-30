@@ -299,7 +299,13 @@ jobs:
           echo "TRUSTED_LAN_DEVICES=10.99.99.10@${TRUSTED_MAC}" >> .env
 
       - name: Run fix-home-net.sh
-        run: sudo ./scripts/fix-home-net.sh
+        run: |
+          output=$(sudo ./scripts/fix-home-net.sh 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q WARNING; then
+            echo "fix-home-net.sh warned about the trusted peer, which should have matched. False positive?"
+            exit 1
+          fi
 
       - name: Verify trusted LAN peer can reach jellyfin
         run: |
