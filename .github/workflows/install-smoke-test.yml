@@ -30,8 +30,8 @@ jobs:
 
       - name: Verify root SSH login and password auth are disabled
         run: |
-          sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
-          sudo sshd -T 2>/dev/null | grep -q '^passwordauthentication no$'
+          sudo sshd -T 2>/dev/null | grep '^permitrootlogin no$' >/dev/null
+          sudo sshd -T 2>/dev/null | grep '^passwordauthentication no$' >/dev/null
 
       - name: Verify unattended-upgrades is active
         run: sudo systemctl is-active --quiet unattended-upgrades
@@ -145,8 +145,8 @@ jobs:
 
       - name: Verify root SSH login and password auth are disabled
         run: |
-          sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
-          sudo sshd -T 2>/dev/null | grep -q '^passwordauthentication no$'
+          sudo sshd -T 2>/dev/null | grep '^permitrootlogin no$' >/dev/null
+          sudo sshd -T 2>/dev/null | grep '^passwordauthentication no$' >/dev/null
 
       - name: Verify unattended-upgrades is active
         run: sudo systemctl is-active --quiet unattended-upgrades
@@ -330,7 +330,7 @@ jobs:
 
       - name: Read the real SSH port
         run: |
-          port=$(sudo sshd -T 2>/dev/null | awk '/^port / {print $2; exit}')
+          port=$(sudo sshd -T 2>/dev/null | awk '/^port / && !p {print $2; p=1}')
           echo "SSH_PORT=${port:-22}" >> "$GITHUB_ENV"
 
       - name: Verify trusted LAN peer can reach SSH

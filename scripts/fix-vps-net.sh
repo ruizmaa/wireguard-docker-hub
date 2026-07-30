@@ -61,7 +61,7 @@ add_rule() {
 
 # Baseline accepts, always added before the default-deny policy below so the
 # current SSH session (and WireGuard) never gets locked out.
-SSH_PORT=$(sudo sshd -T 2>/dev/null | awk '/^port / {print $2; exit}')
+SSH_PORT=$(sudo sshd -T 2>/dev/null | awk '/^port / && !p {print $2; p=1}')
 SSH_PORT=${SSH_PORT:-22}
 add_rule INPUT -i lo -j ACCEPT
 add_rule INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
