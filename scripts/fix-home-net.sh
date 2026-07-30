@@ -92,12 +92,6 @@ add_rule() {
         sudo iptables -I "$@"
     fi
 }
-# Appends at the bottom, skipping it if already there. Keeps rules in the order they're added
-append_rule() {
-    if ! sudo iptables -C "$@" 2>/dev/null; then
-        sudo iptables -A "$@"
-    fi
-}
 # Empties the chain (creating it first if missing). It gets rebuilt from scratch every run
 rebuild_chain() {
     sudo iptables -N "$1" 2>/dev/null || true
@@ -138,7 +132,7 @@ sudo iptables -A DOCKER_GUARD -i "$WG_IFACE" -j ACCEPT
 # Matched by NAT state, not port, so any published port is covered automatically
 sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j TRUSTED_LAN
 sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j DROP
-append_rule DOCKER-USER -j DOCKER_GUARD
+add_rule DOCKER-USER -j DOCKER_GUARD
 
 # Only INPUT needs a default-deny here. FORWARD is already gated by DOCKER_GUARD above
 sudo iptables -P INPUT DROP
