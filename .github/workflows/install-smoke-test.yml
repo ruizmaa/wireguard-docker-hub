@@ -315,14 +315,21 @@ jobs:
           sudo iptables -L TRUSTED_LAN -v -n --line-numbers
           sudo iptables -L DOCKER -v -n --line-numbers
 
-      # TEMPORARY: prints the actual response instead of just curl's exit code,
-      # to debug an HTTP-level (not firewall-level) failure seen in CI.
       - name: Verify trusted LAN peer can reach jellyfin
         run: |
-          response=$(sudo ip netns exec trusted-peer curl -s --max-time 5 -w "\nHTTP_STATUS:%{http_code}" http://10.99.99.1:8096/health)
-          echo "$response"
-          status=$(echo "$response" | grep -oP 'HTTP_STATUS:\K[0-9]+')
-          [ "$status" = "200" ]
+          for i in $(seq 1 12); do
+            response=$(sudo ip netns exec trusted-peer curl -s --max-time 5 -w "\nHTTP_STATUS:%{http_code}" http://10.99.99.1:8096/health)
+            status=$(echo "$response" | grep -oP 'HTTP_STATUS:\K[0-9]+')
+            if [ "$status" = "200" ]; then
+              echo "$response"
+              echo "trusted peer reached jellyfin"
+              exit 0
+            fi
+            echo "not healthy yet (attempt $i/12): $response, retrying in 5s..."
+            sleep 5
+          done
+          echo "trusted peer never got a healthy response after 60s"
+          exit 1
 
       - name: Verify untrusted LAN peer cannot reach jellyfin
         run: |
