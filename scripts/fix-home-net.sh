@@ -132,7 +132,9 @@ sudo iptables -A DOCKER_GUARD -i "$WG_IFACE" -j ACCEPT
 # Matched by NAT state, not port, so any published port is covered automatically
 sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j TRUSTED_LAN
 sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j DROP
-add_rule DOCKER-USER -j DOCKER_GUARD
+# Re-insert at the top instead of add_rule, since it only checks existence, not position
+while sudo iptables -D DOCKER-USER -j DOCKER_GUARD 2>/dev/null; do :; done
+sudo iptables -I DOCKER-USER -j DOCKER_GUARD
 
 # Only INPUT needs a default-deny here. FORWARD is already gated by DOCKER_GUARD above
 sudo iptables -P INPUT DROP
