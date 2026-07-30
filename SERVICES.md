@@ -169,3 +169,31 @@ A media server for streaming your personal video, audio and photo collections to
 - Media path: map your host directories to `/media` (e.g. `/mnt/hdd/movies:/media`)
 
 > Set `JELLYFIN_MEDIA_1` (and `JELLYFIN_MEDIA_2`, etc.) in `.env` to your actual media library path, as a full `host_path:container_path` (e.g. `/mnt/hdd/movies:/media`).
+
+## Restricting LAN access to trusted devices
+
+By default, SSH and the services are reachable from any device on your home network. `scripts/fix-home-net.sh` restricts them to a fixed list of trusted devices only, without affecting VPN access (WireGuard-tunneled traffic is always trusted, since it's already authenticated by the peer's key).
+
+1. Give your trusted devices a DHCP reservation on your router, so their IPs don't change.
+2. Find each device's MAC address (in its own network settings, or your router's DHCP/client list) and set `TRUSTED_LAN_DEVICES` in `services/.env` to a comma-separated list of `IP@MAC` pairs, no spaces. Both have to match:
+
+   ```bash
+   TRUSTED_LAN_DEVICES=192.168.1.11@aa:bb:cc:dd:ee:ff,192.168.1.2@11:22:33:44:55:66
+   ```
+
+3. Run the script:
+
+   ```bash
+   sudo ./scripts/fix-home-net.sh
+   ```
+
+To add or remove a device, edit `TRUSTED_LAN_DEVICES` and re-run the script. It rebuilds the allowlist from scratch each time, so it always matches exactly what's currently in `.env`.
+
+If you change the SSH port, re-run the script too. It reads the live SSH port each time it runs and bakes that value into the rule, so the old port stays enforced until you do.
+
+Adding a new service or changing a port doesn't need a re-run. Docker-published services are gated by NAT state, not by a list of specific ports, so any current or future published port is already covered.
+
+This also blocks IPv6 entirely on the home server: nothing in this project needs it (the WireGuard tunnel is IPv4-only) and IPv6 addresses can change on their own, unlike a DHCP-reserved IPv4. So there's no stable identifier to allowlist against.
+
+> [!WARNING]
+> If a trusted device's IP or MAC ever changes, you'll lose LAN access to SSH too. The WireGuard tunnel is unaffected by this allowlist, so you can always fall back to connecting through the VPN to fix it.

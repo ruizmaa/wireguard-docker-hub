@@ -1,0 +1,160 @@
+#!/bin/bash
+# Restricts SSH/services to trusted LAN devices
+# VPN is always allowed. Re-run after changing TRUSTED_LAN_DEVICES in services/.env.
+set -e
+export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/colors.sh
+source "$SCRIPT_DIR/lib/colors.sh"
+ENV_FILE="$SCRIPT_DIR/../services/.env"
+WG_IFACE="wg0"
+
+# Reads KEY from services/.env, or $2 if unset/empty
+read_env() {
+    local value
+    value=$(grep -E "^$1=" "$ENV_FILE" | tail -n1 | cut -d= -f2-)
+    if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then
+        value="${BASH_REMATCH[1]}"
+    fi
+    echo "${value:-$2}"
+}
+
+echo -e "    ${YELLOW}[1/6] Reading configuration...${NC}"
+if [ ! -f "$ENV_FILE" ]; then
+    echo -e "    ${RED}-> ERROR: $ENV_FILE not found. Copy .env.example to services/.env and set TRUSTED_LAN_DEVICES first.${NC}"
+    exit 1
+fi
+
+TRUSTED_LAN_DEVICES=$(read_env TRUSTED_LAN_DEVICES "")
+if [ -z "$TRUSTED_LAN_DEVICES" ]; then
+    echo -e "    ${RED}-> ERROR: TRUSTED_LAN_DEVICES is empty in $ENV_FILE.${NC}"
+    echo "      Set it to a comma-separated list of your trusted devices' IP@MAC pairs first (no spaces), e.g.:"
+    echo "      TRUSTED_LAN_DEVICES=192.168.1.10@aa:bb:cc:dd:ee:ff,192.168.1.11@11:22:33:44:55:66"
+    exit 1
+fi
+
+PIHOLE_WEB_PORT=$(read_env PIHOLE_WEB_PORT 8080)
+PIHOLE_DNS_PORT=$(read_env PIHOLE_DNS_PORT 53)
+JELLYFIN_WEB_PORT=$(read_env JELLYFIN_WEB_PORT 8096)
+JELLYFIN_DISCOVERY_PORT=$(read_env JELLYFIN_DISCOVERY_PORT 7359)
+SYNCTHING_WEB_PORT=$(read_env SYNCTHING_WEB_PORT 8384)
+SYNCTHING_SYNC_PORT=$(read_env SYNCTHING_SYNC_PORT 22000)
+SYNCTHING_DISCOVERY_PORT=$(read_env SYNCTHING_DISCOVERY_PORT 21027)
+SSH_PORT=$(sudo sshd -T 2>/dev/null | awk '/^port / {print $2; exit}')
+SSH_PORT=${SSH_PORT:-22}
+
+# Requires both IP and MAC per device
+# An IP alone can be spoofed by anyone on the LAN
+IFS=',' read -ra DEVICE_LIST <<< "$TRUSTED_LAN_DEVICES"
+TRUSTED_IPS=()
+TRUSTED_MACS=()
+for device in "${DEVICE_LIST[@]}"; do
+    # Each entry looks like IP@MAC , split it in two
+    ip="${device%%@*}"
+    mac="${device#*@}"
+    if [[ "$device" != *"@"* ]]; then
+        echo -e "    ${RED}-> ERROR: '$device' is missing the @MAC part (expected IP@MAC).${NC}"
+        exit 1
+    fi
+    if ! [[ "$ip" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] \
+        || [ "${BASH_REMATCH[1]}" -gt 255 ] || [ "${BASH_REMATCH[2]}" -gt 255 ] \
+        || [ "${BASH_REMATCH[3]}" -gt 255 ] || [ "${BASH_REMATCH[4]}" -gt 255 ]; then
+        echo -e "    ${RED}-> ERROR: '$ip' is not a valid IPv4 address.${NC}"
+        exit 1
+    fi
+    if ! [[ "$mac" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; then
+        echo -e "    ${RED}-> ERROR: '$mac' is not a valid MAC address (expected aa:bb:cc:dd:ee:ff).${NC}"
+        exit 1
+    fi
+    TRUSTED_IPS+=("$ip")
+    TRUSTED_MACS+=("$mac")
+done
+
+# Validate everything before touching the firewall
+for name in SSH_PORT PIHOLE_WEB_PORT PIHOLE_DNS_PORT JELLYFIN_WEB_PORT \
+    JELLYFIN_DISCOVERY_PORT SYNCTHING_WEB_PORT SYNCTHING_SYNC_PORT SYNCTHING_DISCOVERY_PORT; do
+    value="${!name}"
+    if ! [[ "$value" =~ ^[0-9]+$ ]] || [ "$value" -lt 1 ] || [ "$value" -gt 65535 ]; then
+        echo -e "    ${RED}-> ERROR: $name='$value' is not a valid port (1-65535).${NC}"
+        exit 1
+    fi
+done
+echo "      -> Trusted devices: ${DEVICE_LIST[*]}"
+echo "      -> Ports: SSH $SSH_PORT, Pi-hole $PIHOLE_WEB_PORT/$PIHOLE_DNS_PORT, Jellyfin $JELLYFIN_WEB_PORT/$JELLYFIN_DISCOVERY_PORT, Syncthing $SYNCTHING_WEB_PORT/$SYNCTHING_SYNC_PORT/$SYNCTHING_DISCOVERY_PORT"
+
+# Inserts at the top, skipping it if already there. Only safe for rules whose exact text never changes
+add_rule() {
+    if ! sudo iptables -C "$@" 2>/dev/null; then
+        sudo iptables -I "$@"
+    fi
+}
+# Appends at the bottom, skipping it if already there. Keeps rules in the order they're added
+append_rule() {
+    if ! sudo iptables -C "$@" 2>/dev/null; then
+        sudo iptables -A "$@"
+    fi
+}
+# Empties the chain (creating it first if missing). It gets rebuilt from scratch every run
+rebuild_chain() {
+    sudo iptables -N "$1" 2>/dev/null || true
+    sudo iptables -F "$1"
+}
+
+echo -e "    ${YELLOW}[2/6] Installing required packages...${NC}"
+echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
+echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
+sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq iptables-persistent netfilter-persistent > /dev/null
+
+echo -e "    ${YELLOW}[3/6] Rebuilding the trusted-devices allowlist...${NC}"
+rebuild_chain TRUSTED_LAN
+for i in "${!TRUSTED_IPS[@]}"; do
+    sudo iptables -A TRUSTED_LAN -s "${TRUSTED_IPS[$i]}" -m mac --mac-source "${TRUSTED_MACS[$i]}" -j ACCEPT
+done
+
+echo -e "    ${YELLOW}[4/6] Applying firewall rules...${NC}"
+
+# Never locks out this SSH session or the WireGuard tunnel
+add_rule INPUT -i lo -j ACCEPT
+add_rule INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+add_rule INPUT -p icmp -j ACCEPT
+add_rule INPUT -i "$WG_IFACE" -j ACCEPT
+
+# SSH is a host process, so INPUT filtering works here
+rebuild_chain HOST_GUARD
+sudo iptables -A HOST_GUARD -p tcp --dport "$SSH_PORT" -j TRUSTED_LAN
+add_rule INPUT -j HOST_GUARD
+
+# Docker DNATs published ports before INPUT is checked, so this guards DOCKER-USER instead
+rebuild_chain DOCKER_GUARD
+# Needed for reply traffic, or every connection breaks after the first packet
+sudo iptables -A DOCKER_GUARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# Trust the VPN tunnel too. It has no MAC, so TRUSTED_LAN could never match it
+sudo iptables -A DOCKER_GUARD -i "$WG_IFACE" -j ACCEPT
+# Matched by NAT state, not port, so any published port is covered automatically
+sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j TRUSTED_LAN
+sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j DROP
+append_rule DOCKER-USER -j DOCKER_GUARD
+
+# Only INPUT needs a default-deny here. FORWARD is already gated by DOCKER_GUARD above
+sudo iptables -P INPUT DROP
+
+echo -e "    ${YELLOW}[5/6] Blocking IPv6 (unused by this project)...${NC}"
+# Same baseline accepts as IPv4: loopback, existing connections, and ICMPv6 (needed for neighbor discovery)
+sudo ip6tables -C INPUT -i lo -j ACCEPT 2>/dev/null || sudo ip6tables -I INPUT -i lo -j ACCEPT
+sudo ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
+    || sudo ip6tables -I INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+sudo ip6tables -C INPUT -p icmpv6 -j ACCEPT 2>/dev/null || sudo ip6tables -I INPUT -p icmpv6 -j ACCEPT
+# No IPv6 allowlist at all. This project doesn't use it, so just block everything
+sudo ip6tables -P INPUT DROP
+sudo ip6tables -P FORWARD DROP
+
+echo -e "    ${YELLOW}[6/6] Saving firewall rules...${NC}"
+sudo netfilter-persistent save > /dev/null
+
+echo -e "    ${GREEN}Done.${NC} SSH/Pi-hole/Jellyfin/Syncthing are now reachable only from: ${DEVICE_LIST[*]}"
+echo "    VPN access via $WG_IFACE is unaffected. IPv6 is blocked entirely."
