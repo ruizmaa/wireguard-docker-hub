@@ -23,7 +23,7 @@ read_env() {
     echo "${value:-$2}"
 }
 
-echo -e "    ${YELLOW}[1/6] Reading configuration...${NC}"
+echo -e "    ${YELLOW}[1/7] Reading configuration...${NC}"
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "    ${RED}-> ERROR: $ENV_FILE not found. Copy .env.example to services/.env and set TRUSTED_LAN_DEVICES first.${NC}"
     exit 1
