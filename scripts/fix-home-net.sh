@@ -1,7 +1,7 @@
 #!/bin/bash
 # Restricts SSH/services to trusted LAN devices
 # VPN is always allowed. Re-run after changing TRUSTED_LAN_DEVICES in services/.env.
-set -e
+set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
@@ -16,7 +16,7 @@ WG_IFACE="wg0"
 # Reads KEY from services/.env, or $2 if unset/empty
 read_env() {
     local value
-    value=$(grep -E "^$1=" "$ENV_FILE" | tail -n1 | cut -d= -f2-)
+    value=$(grep -E "^$1=" "$ENV_FILE" | tail -n1 | cut -d= -f2-) || true
     if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then
         value="${BASH_REMATCH[1]}"
     fi
