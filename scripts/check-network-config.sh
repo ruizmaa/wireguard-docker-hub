@@ -50,3 +50,9 @@ print_status "Firewall INPUT Default-Deny" "$s8"
 
 if sudo iptables -S FORWARD 2>/dev/null | head -n1 | grep -qE '^-P FORWARD DROP$'; then s9=0; else s9=1; fi
 print_status "Firewall FORWARD Default-Deny" "$s9"
+
+if sudo ip6tables -S INPUT 2>/dev/null | head -n1 | grep -qE '^-P INPUT DROP$'; then s10=0; else s10=1; fi
+print_status "Firewall IPv6 INPUT Default-Deny" "$s10"
+
+if sudo ip6tables -S FORWARD 2>/dev/null | head -n1 | grep -qE '^-P FORWARD DROP$'; then s11=0; else s11=1; fi
+print_status "Firewall IPv6 FORWARD Default-Deny" "$s11"

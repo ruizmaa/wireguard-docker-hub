@@ -13,12 +13,12 @@ source "$SCRIPT_DIR/lib/colors.sh"
 WG_CONF="$SCRIPT_DIR/../config/wg_confs/wg0.conf"
 IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
 
-echo -e "    ${YELLOW}[1/7] Detecting interface...${NC}"
+echo -e "    ${YELLOW}[1/8] Detecting interface...${NC}"
 echo "      -> Detected Interface: $IFACE"
 echo "      -> Config Path: $WG_CONF"
 
 # Install required packages
-echo -e "    ${YELLOW}[2/7] Installing required packages for network fixes...${NC}"
+echo -e "    ${YELLOW}[2/8] Installing required packages for network fixes...${NC}"
 sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
 sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq > /dev/null
 
@@ -27,7 +27,7 @@ echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo deb
 sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq iptables-persistent netfilter-persistent > /dev/null
 
 # Kernel settings
-echo -e "    ${YELLOW}[3/7] Configuring Kernel Forwarding...${NC}"
+echo -e "    ${YELLOW}[3/8] Configuring Kernel Forwarding...${NC}"
 cat <<EOF | sudo tee /etc/sysctl.d/99-wireguard-optimize.conf > /dev/null
 net.ipv4.ip_forward=1
 net.ipv4.conf.all.src_valid_mark=1
@@ -35,7 +35,7 @@ EOF
 sudo sysctl -p /etc/sysctl.d/99-wireguard-optimize.conf > /dev/null
 
 # Fix MTU
-echo -e "    ${YELLOW}[4/7] Checking MTU configuration...${NC}"
+echo -e "    ${YELLOW}[4/8] Checking MTU configuration...${NC}"
 if [ -f "$WG_CONF" ]; then
     if grep -qE "MTU\s*=" "$WG_CONF"; then
         echo "      -> MTU was already configured."
@@ -50,7 +50,7 @@ else
 fi
 
 # NAT (Masquerade) rules
-echo -e "    ${YELLOW}[5/7] Applying Firewall rules...${NC}"
+echo -e "    ${YELLOW}[5/8] Applying Firewall rules...${NC}"
 sudo iptables -D FORWARD -j REJECT --reject-with icmp-host-prohibited 2> /dev/null || true
 
 add_rule() {
@@ -78,15 +78,25 @@ if ! sudo iptables -t nat -C POSTROUTING -o "$IFACE" -j MASQUERADE 2>/dev/null; 
     echo "      -> Added NAT Masquerade rule."
 fi
 
-# Default-deny (IPv4 only; this VPS has no IPv6 configured, so ip6tables is left untouched):
+# Default-deny (IPv4 only; see the IPv6 step below for the v6 equivalent):
 # only traffic explicitly accepted above gets through.
 sudo iptables -P INPUT DROP
 sudo iptables -P FORWARD DROP
 
+echo -e "    ${YELLOW}[6/8] Blocking IPv6 (unused by this project; the WireGuard tunnel is IPv4-only)...${NC}"
+# Same baseline accepts as IPv4: loopback, existing connections, and ICMPv6 (needed for neighbor discovery)
+sudo ip6tables -C INPUT -i lo -j ACCEPT 2>/dev/null || sudo ip6tables -I INPUT -i lo -j ACCEPT
+sudo ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
+    || sudo ip6tables -I INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+sudo ip6tables -C INPUT -p icmpv6 -j ACCEPT 2>/dev/null || sudo ip6tables -I INPUT -p icmpv6 -j ACCEPT
+# No IPv6 allowlist at all: this project doesn't use it, whether or not this VPS has an address assigned
+sudo ip6tables -P INPUT DROP
+sudo ip6tables -P FORWARD DROP
+
 # Rules persistently
-echo -e "    ${YELLOW}[6/7] Saving firewall rules...${NC}"
+echo -e "    ${YELLOW}[7/8] Saving firewall rules...${NC}"
 sudo netfilter-persistent save > /dev/null
 
 # Final configuration check
-echo -e "    ${YELLOW}[7/7] Final network configuration check:${NC}"
+echo -e "    ${YELLOW}[8/8] Final network configuration check:${NC}"
 bash "$SCRIPT_DIR/check-network-config.sh"
