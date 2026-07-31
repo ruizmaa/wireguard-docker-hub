@@ -37,13 +37,6 @@ if [ -z "$TRUSTED_LAN_DEVICES" ]; then
     exit 1
 fi
 
-PIHOLE_WEB_PORT=$(read_env PIHOLE_WEB_PORT 8080)
-PIHOLE_DNS_PORT=$(read_env PIHOLE_DNS_PORT 53)
-JELLYFIN_WEB_PORT=$(read_env JELLYFIN_WEB_PORT 8096)
-JELLYFIN_DISCOVERY_PORT=$(read_env JELLYFIN_DISCOVERY_PORT 7359)
-SYNCTHING_WEB_PORT=$(read_env SYNCTHING_WEB_PORT 8384)
-SYNCTHING_SYNC_PORT=$(read_env SYNCTHING_SYNC_PORT 22000)
-SYNCTHING_DISCOVERY_PORT=$(read_env SYNCTHING_DISCOVERY_PORT 21027)
 SSH_PORT=$(sudo sshd -T 2>/dev/null | awk '/^port / && !p {print $2; p=1}')
 SSH_PORT=${SSH_PORT:-22}
 
@@ -74,17 +67,13 @@ for device in "${DEVICE_LIST[@]}"; do
     TRUSTED_MACS+=("$mac")
 done
 
-# Validate everything before touching the firewall
-for name in SSH_PORT PIHOLE_WEB_PORT PIHOLE_DNS_PORT JELLYFIN_WEB_PORT \
-    JELLYFIN_DISCOVERY_PORT SYNCTHING_WEB_PORT SYNCTHING_SYNC_PORT SYNCTHING_DISCOVERY_PORT; do
-    value="${!name}"
-    if ! [[ "$value" =~ ^[0-9]+$ ]] || [ "$value" -lt 1 ] || [ "$value" -gt 65535 ]; then
-        echo -e "    ${RED}-> ERROR: $name='$value' is not a valid port (1-65535).${NC}"
-        exit 1
-    fi
-done
+# The SSH port must be a valid port number
+if ! [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || [ "$SSH_PORT" -lt 1 ] || [ "$SSH_PORT" -gt 65535 ]; then
+    echo -e "    ${RED}-> ERROR: SSH_PORT='$SSH_PORT' is not a valid port (1-65535).${NC}"
+    exit 1
+fi
 echo "      -> Trusted devices: ${DEVICE_LIST[*]}"
-echo "      -> Ports: SSH $SSH_PORT, Pi-hole $PIHOLE_WEB_PORT/$PIHOLE_DNS_PORT, Jellyfin $JELLYFIN_WEB_PORT/$JELLYFIN_DISCOVERY_PORT, Syncthing $SYNCTHING_WEB_PORT/$SYNCTHING_SYNC_PORT/$SYNCTHING_DISCOVERY_PORT"
+echo "      -> SSH port: $SSH_PORT"
 
 echo -e "    ${YELLOW}[2/8] Checking trusted devices answer on the LAN...${NC}"
 # Never blocks the script, a device can be legitimately offline or block ICMP
