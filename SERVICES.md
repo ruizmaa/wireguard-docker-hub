@@ -38,7 +38,10 @@ docker compose ps
 
 ### [Pi-hole](https://hub.docker.com/r/pihole/pihole)
 
-A network-wide ad blocking software acting as a DNS sinkhole.
+A DNS sinkhole that protects your devices from unwanted content.
+
+> [!NOTE]
+> If you enable [trusted-device LAN restriction](#restricting-lan-access-to-trusted-devices), only your trusted devices and VPN clients can use Pi-hole (DNS included, not just the admin panel). The rest of your network won't be able to reach it.
 
 #### Pi-hole **Configuration**
 
@@ -178,7 +181,7 @@ By default, SSH and the services are reachable from any device on your home netw
 2. Find each device's MAC address (in its own network settings, or your router's DHCP/client list) and set `TRUSTED_LAN_DEVICES` in `services/.env` to a comma-separated list of `IP@MAC` pairs, no spaces. Both have to match:
 
    ```bash
-   TRUSTED_LAN_DEVICES=192.168.1.11@aa:bb:cc:dd:ee:ff,192.168.1.2@11:22:33:44:55:66
+   TRUSTED_LAN_DEVICES=192.168.1.1@aa:bb:cc:dd:ee:ff,192.168.1.2@11:22:33:44:55:66
    ```
 
 3. Run the script:
