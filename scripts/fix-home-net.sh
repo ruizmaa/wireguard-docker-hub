@@ -44,7 +44,7 @@ JELLYFIN_DISCOVERY_PORT=$(read_env JELLYFIN_DISCOVERY_PORT 7359)
 SYNCTHING_WEB_PORT=$(read_env SYNCTHING_WEB_PORT 8384)
 SYNCTHING_SYNC_PORT=$(read_env SYNCTHING_SYNC_PORT 22000)
 SYNCTHING_DISCOVERY_PORT=$(read_env SYNCTHING_DISCOVERY_PORT 21027)
-SSH_PORT=$(sudo sshd -T | awk '/^port / && !p {print $2; p=1}')
+SSH_PORT=$(sudo sshd -T 2>/dev/null | awk '/^port / && !p {print $2; p=1}')
 SSH_PORT=${SSH_PORT:-22}
 
 # Requires both IP and MAC per device
