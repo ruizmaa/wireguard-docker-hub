@@ -166,6 +166,12 @@ sudo ./scripts/fix-vps-net.sh
 sudo ./wireguard.sh restart
 ```
 
+`fix-vps-net.sh` finishes by running `scripts/check-network-config-vps.sh`, which reports the status of every rule it just applied. You can also run it on its own at any time, without touching the firewall, to check the current state:
+
+```bash
+sudo ./scripts/check-network-config-vps.sh
+```
+
 ##### 4. Refresh Session
 
 To apply Docker permissions (use docker without sudo) and terminal fixes, you must log out and log back in.

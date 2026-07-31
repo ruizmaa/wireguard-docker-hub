@@ -99,4 +99,4 @@ sudo netfilter-persistent save > /dev/null
 
 # Final configuration check
 echo -e "    ${YELLOW}[8/8] Final network configuration check:${NC}"
-bash "$SCRIPT_DIR/check-network-config.sh"
+bash "$SCRIPT_DIR/check-network-config-vps.sh"

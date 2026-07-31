@@ -199,3 +199,9 @@ This also blocks IPv6 entirely on the home server: nothing in this project needs
 > If a trusted device's IP or MAC ever changes, you'll lose LAN access to SSH too. The WireGuard tunnel is unaffected by this allowlist, so you can always fall back to connecting through the VPN to fix it.
 
 The script also pings each device and warns (without blocking) if it doesn't answer or answers with a different MAC. Repeated again at the end of the output too.
+
+`fix-home-net.sh` finishes by running `scripts/check-network-config-home.sh`, which reports the status of every rule it just applied. You can also run it on its own at any time, without touching the firewall, to check the current state:
+
+```bash
+sudo ./scripts/check-network-config-home.sh
+```

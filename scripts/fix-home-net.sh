@@ -23,7 +23,7 @@ read_env() {
     echo "${value:-$2}"
 }
 
-echo -e "    ${YELLOW}[1/7] Reading configuration...${NC}"
+echo -e "    ${YELLOW}[1/8] Reading configuration...${NC}"
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "    ${RED}-> ERROR: $ENV_FILE not found. Copy .env.example to services/.env and set TRUSTED_LAN_DEVICES first.${NC}"
     exit 1
@@ -86,7 +86,7 @@ done
 echo "      -> Trusted devices: ${DEVICE_LIST[*]}"
 echo "      -> Ports: SSH $SSH_PORT, Pi-hole $PIHOLE_WEB_PORT/$PIHOLE_DNS_PORT, Jellyfin $JELLYFIN_WEB_PORT/$JELLYFIN_DISCOVERY_PORT, Syncthing $SYNCTHING_WEB_PORT/$SYNCTHING_SYNC_PORT/$SYNCTHING_DISCOVERY_PORT"
 
-echo -e "    ${YELLOW}[2/7] Checking trusted devices answer on the LAN...${NC}"
+echo -e "    ${YELLOW}[2/8] Checking trusted devices answer on the LAN...${NC}"
 # Never blocks the script, a device can be legitimately offline or block ICMP
 # Collected into DEVICE_WARNINGS to repeat at the end, past all the noisy apt/iptables output
 DEVICE_WARNINGS=()
@@ -122,19 +122,19 @@ rebuild_chain() {
     sudo iptables -F "$1"
 }
 
-echo -e "    ${YELLOW}[3/7] Installing required packages...${NC}"
+echo -e "    ${YELLOW}[3/8] Installing required packages...${NC}"
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
 sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
 sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq iptables-persistent netfilter-persistent > /dev/null
 
-echo -e "    ${YELLOW}[4/7] Rebuilding the trusted-devices allowlist...${NC}"
+echo -e "    ${YELLOW}[4/8] Rebuilding the trusted-devices allowlist...${NC}"
 rebuild_chain TRUSTED_LAN
 for i in "${!TRUSTED_IPS[@]}"; do
     sudo iptables -A TRUSTED_LAN -s "${TRUSTED_IPS[$i]}" -m mac --mac-source "${TRUSTED_MACS[$i]}" -j ACCEPT
 done
 
-echo -e "    ${YELLOW}[5/7] Applying firewall rules...${NC}"
+echo -e "    ${YELLOW}[5/8] Applying firewall rules...${NC}"
 
 # Never locks out this SSH session or the WireGuard tunnel
 add_rule INPUT -i lo -j ACCEPT
@@ -151,8 +151,9 @@ add_rule INPUT -j HOST_GUARD
 rebuild_chain DOCKER_GUARD
 # Needed for reply traffic, or every connection breaks after the first packet
 sudo iptables -A DOCKER_GUARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-# Trust the VPN tunnel too. It has no MAC, so TRUSTED_LAN could never match it
-sudo iptables -A DOCKER_GUARD -i "$WG_IFACE" -j ACCEPT
+# Trust the VPN tunnel too, but only to reach a published port
+# Without ctstate DNAT this would accept any forwarded wg0 traffic, to any destination
+sudo iptables -A DOCKER_GUARD -i "$WG_IFACE" -m conntrack --ctstate DNAT -j ACCEPT
 # Matched by NAT state, not port, so any published port is covered automatically
 sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j TRUSTED_LAN
 sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j DROP
@@ -160,10 +161,11 @@ sudo iptables -A DOCKER_GUARD -m conntrack --ctstate DNAT -j DROP
 while sudo iptables -D DOCKER-USER -j DOCKER_GUARD 2>/dev/null; do :; done
 sudo iptables -I DOCKER-USER -j DOCKER_GUARD
 
-# Only INPUT needs a default-deny here. FORWARD is already gated by DOCKER_GUARD above
 sudo iptables -P INPUT DROP
+# Backstop for anything reaching FORWARD that DOCKER_GUARD didn't explicitly accept or drop
+sudo iptables -P FORWARD DROP
 
-echo -e "    ${YELLOW}[6/7] Blocking IPv6 (unused by this project)...${NC}"
+echo -e "    ${YELLOW}[6/8] Blocking IPv6 (unused by this project)...${NC}"
 # Same baseline accepts as IPv4: loopback, existing connections, and ICMPv6 (needed for neighbor discovery)
 sudo ip6tables -C INPUT -i lo -j ACCEPT 2>/dev/null || sudo ip6tables -I INPUT -i lo -j ACCEPT
 sudo ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
@@ -173,8 +175,11 @@ sudo ip6tables -C INPUT -p icmpv6 -j ACCEPT 2>/dev/null || sudo ip6tables -I INP
 sudo ip6tables -P INPUT DROP
 sudo ip6tables -P FORWARD DROP
 
-echo -e "    ${YELLOW}[7/7] Saving firewall rules...${NC}"
+echo -e "    ${YELLOW}[7/8] Saving firewall rules...${NC}"
 sudo netfilter-persistent save > /dev/null
+
+echo -e "    ${YELLOW}[8/8] Final network configuration check:${NC}"
+bash "$SCRIPT_DIR/check-network-config-home.sh"
 
 echo -e "    ${GREEN}Done.${NC} SSH/Pi-hole/Jellyfin/Syncthing are now reachable only from: ${DEVICE_LIST[*]}"
 echo "    VPN access via $WG_IFACE is unaffected. IPv6 is blocked entirely."

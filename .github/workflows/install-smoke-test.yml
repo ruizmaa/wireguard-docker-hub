@@ -53,10 +53,10 @@ jobs:
 
       - name: Run network config check
         run: |
-          output=$(sudo ./scripts/check-network-config.sh 2>&1)
+          output=$(sudo ./scripts/check-network-config-vps.sh 2>&1)
           echo "$output"
           if echo "$output" | grep -q ERROR; then
-            echo "check-network-config.sh reported at least one ERROR"
+            echo "check-network-config-vps.sh reported at least one ERROR"
             exit 1
           fi
 
@@ -307,6 +307,15 @@ jobs:
             exit 1
           fi
 
+      - name: Run home network config check
+        run: |
+          output=$(sudo ./scripts/check-network-config-home.sh 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q ERROR; then
+            echo "check-network-config-home.sh reported at least one ERROR"
+            exit 1
+          fi
+
       - name: Verify trusted LAN peer can reach jellyfin
         run: |
           for i in $(seq 1 12); do
@@ -353,6 +362,15 @@ jobs:
 
       - name: Verify simulated WireGuard peer can reach SSH
         run: sudo ip netns exec vpn-peer timeout 3 bash -c "echo > /dev/tcp/10.13.13.1/$SSH_PORT"
+
+      # The wg0 DOCKER_GUARD rule must only accept DNAT'd (published-service) traffic
+      - name: Verify simulated WireGuard peer cannot reach non-published LAN traffic
+        run: |
+          if sudo ip netns exec vpn-peer ping -c 2 -W 2 10.99.99.10; then
+            echo "vpn-peer reached the trusted LAN peer directly -- FORWARD is not blocking non-published traffic"
+            exit 1
+          fi
+          echo "vpn-peer correctly blocked from reaching LAN traffic that isn't a published service"
 
       - name: Verify container egress still works
         run: sudo docker exec jellyfin curl -sf --max-time 5 -o /dev/null http://example.com/
