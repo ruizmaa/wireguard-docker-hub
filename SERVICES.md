@@ -20,6 +20,8 @@ The services are defined in `services/docker-compose.yml`. Copy the services you
 
 Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) and Jellyfin (`JELLYFIN_MEDIA_1`, `JELLYFIN_MEDIA_2`, etc.) data mounts, each a full `host_path:container_path`.
 
+The host ports (`PIHOLE_WEB_PORT`, `PIHOLE_DNS_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+
 Start the services:
 
 ```bash
@@ -36,7 +38,10 @@ docker compose ps
 
 ### [Pi-hole](https://hub.docker.com/r/pihole/pihole)
 
-A network-wide ad blocking software acting as a DNS sinkhole.
+A DNS sinkhole that protects your devices from unwanted content.
+
+> [!NOTE]
+> If you enable [trusted-device LAN restriction](#restricting-lan-access-to-trusted-devices), only your trusted devices and VPN clients can use Pi-hole (DNS included, not just the admin panel). The rest of your network won't be able to reach it.
 
 #### Pi-hole **Configuration**
 
@@ -167,3 +172,39 @@ A media server for streaming your personal video, audio and photo collections to
 - Media path: map your host directories to `/media` (e.g. `/mnt/hdd/movies:/media`)
 
 > Set `JELLYFIN_MEDIA_1` (and `JELLYFIN_MEDIA_2`, etc.) in `.env` to your actual media library path, as a full `host_path:container_path` (e.g. `/mnt/hdd/movies:/media`).
+
+## Restricting LAN access to trusted devices
+
+By default, SSH and the services are reachable from any device on your home network. `scripts/fix-home-net.sh` restricts them to a fixed list of trusted devices only, without affecting VPN access (WireGuard-tunneled traffic is always trusted, since it's already authenticated by the peer's key).
+
+1. Give your trusted devices a DHCP reservation on your router, so their IPs don't change.
+2. Find each device's MAC address (in its own network settings, or your router's DHCP/client list) and set `TRUSTED_LAN_DEVICES` in `services/.env` to a comma-separated list of `IP@MAC` pairs, no spaces. Both have to match:
+
+   ```bash
+   TRUSTED_LAN_DEVICES=192.168.1.1@aa:bb:cc:dd:ee:ff,192.168.1.2@11:22:33:44:55:66
+   ```
+
+3. Run the script:
+
+   ```bash
+   sudo ./scripts/fix-home-net.sh
+   ```
+
+To add or remove a device, edit `TRUSTED_LAN_DEVICES` and re-run the script. It rebuilds the allowlist from scratch each time, so it always matches exactly what's currently in `.env`.
+
+If you change the SSH port, re-run the script too. It reads the live SSH port each time it runs and bakes that value into the rule, so the old port stays enforced until you do.
+
+Adding a new service or changing a port doesn't need a re-run. Docker-published services are gated by NAT state, not by a list of specific ports, so any current or future published port is already covered.
+
+This also blocks IPv6 entirely on the home server: nothing in this project needs it (the WireGuard tunnel is IPv4-only) and IPv6 addresses can change on their own, unlike a DHCP-reserved IPv4. So there's no stable identifier to allowlist against.
+
+> [!WARNING]
+> If a trusted device's IP or MAC ever changes, you'll lose LAN access to SSH too. The WireGuard tunnel is unaffected by this allowlist, so you can always fall back to connecting through the VPN to fix it.
+
+The script also pings each device and warns (without blocking) if it doesn't answer or answers with a different MAC. Repeated again at the end of the output too.
+
+`fix-home-net.sh` finishes by running `scripts/check-network-config-home.sh`, which reports the status of every rule it just applied. You can also run it on its own at any time, without touching the firewall, to check the current state:
+
+```bash
+sudo ./scripts/check-network-config-home.sh
+```

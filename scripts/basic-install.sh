@@ -117,7 +117,7 @@ fi
 
 if [ "$REAL_USER" = "root" ]; then
     echo -e "      ${YELLOW}-> Skipped root-login/password-auth check (no non-root user detected).${NC}"
-elif sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$' && sudo sshd -T 2>/dev/null | grep -q '^passwordauthentication no$'; then
+elif sudo sshd -T 2>/dev/null | grep '^permitrootlogin no$' >/dev/null && sudo sshd -T 2>/dev/null | grep '^passwordauthentication no$' >/dev/null; then
     echo -e "      ${GREEN}-> Root SSH login and SSH password authentication are disabled.${NC}"
 else
     echo -e "      ${RED}-> Error: PermitRootLogin/PasswordAuthentication verification failed.${NC}"

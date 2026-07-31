@@ -30,8 +30,8 @@ jobs:
 
       - name: Verify root SSH login and password auth are disabled
         run: |
-          sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
-          sudo sshd -T 2>/dev/null | grep -q '^passwordauthentication no$'
+          sudo sshd -T 2>/dev/null | grep '^permitrootlogin no$' >/dev/null
+          sudo sshd -T 2>/dev/null | grep '^passwordauthentication no$' >/dev/null
 
       - name: Verify unattended-upgrades is active
         run: sudo systemctl is-active --quiet unattended-upgrades
@@ -53,10 +53,10 @@ jobs:
 
       - name: Run network config check
         run: |
-          output=$(sudo ./scripts/check-network-config.sh 2>&1)
+          output=$(sudo ./scripts/check-network-config-vps.sh 2>&1)
           echo "$output"
           if echo "$output" | grep -q ERROR; then
-            echo "check-network-config.sh reported at least one ERROR"
+            echo "check-network-config-vps.sh reported at least one ERROR"
             exit 1
           fi
 
@@ -145,8 +145,8 @@ jobs:
 
       - name: Verify root SSH login and password auth are disabled
         run: |
-          sudo sshd -T 2>/dev/null | grep -q '^permitrootlogin no$'
-          sudo sshd -T 2>/dev/null | grep -q '^passwordauthentication no$'
+          sudo sshd -T 2>/dev/null | grep '^permitrootlogin no$' >/dev/null
+          sudo sshd -T 2>/dev/null | grep '^passwordauthentication no$' >/dev/null
 
       - name: Verify unattended-upgrades is active
         run: sudo systemctl is-active --quiet unattended-upgrades
@@ -245,3 +245,141 @@ jobs:
           done
           echo "syncthing never became healthy after 60s"
           exit 1
+
+      # 127.0.0.1 bypasses the firewall entirely, so it can't test fix-home-net.sh
+      # These steps simulate real LAN devices and a VPN peer via netns/veth instead
+      - name: Set up simulated LAN peers and a fake WireGuard interface
+        run: |
+          # Bridge standing in for the shared home LAN segment
+          sudo ip link add br-lan-test type bridge
+          sudo ip addr add 10.99.99.1/24 dev br-lan-test
+          sudo ip link set br-lan-test up
+
+          # Trusted peer: its MAC/IP will go into TRUSTED_LAN_DEVICES below
+          sudo ip netns add trusted-peer
+          sudo ip link add vtrust type veth peer name vtrust-br
+          sudo ip link set vtrust netns trusted-peer
+          sudo ip link set vtrust-br master br-lan-test up
+          sudo ip netns exec trusted-peer ip addr add 10.99.99.10/24 dev vtrust
+          sudo ip netns exec trusted-peer ip link set vtrust up
+          sudo ip netns exec trusted-peer ip link set lo up
+          sudo ip netns exec trusted-peer ip route add default via 10.99.99.1
+
+          # Untrusted peer: same setup, but never added to the allowlist
+          sudo ip netns add untrusted-peer
+          sudo ip link add vuntr type veth peer name vuntr-br
+          sudo ip link set vuntr netns untrusted-peer
+          sudo ip link set vuntr-br master br-lan-test up
+          sudo ip netns exec untrusted-peer ip addr add 10.99.99.11/24 dev vuntr
+          sudo ip netns exec untrusted-peer ip link set vuntr up
+          sudo ip netns exec untrusted-peer ip link set lo up
+          sudo ip netns exec untrusted-peer ip route add default via 10.99.99.1
+
+          # fix-home-net.sh trusts anything arriving on an interface literally
+          # named wg0, regardless of source -- this stands in for the tunnel.
+          sudo ip netns add vpn-peer
+          sudo ip link add wg0 type veth peer name veth-vpn-peer
+          sudo ip link set veth-vpn-peer netns vpn-peer
+          sudo ip addr add 10.13.13.1/24 dev wg0
+          sudo ip link set wg0 up
+          sudo ip netns exec vpn-peer ip addr add 10.13.13.2/24 dev veth-vpn-peer
+          sudo ip netns exec vpn-peer ip link set veth-vpn-peer up
+          sudo ip netns exec vpn-peer ip link set lo up
+          sudo ip netns exec vpn-peer ip route add default via 10.13.13.1
+
+          # Passed on to the next step, since each step here runs in its own shell
+          echo "TRUSTED_MAC=$(sudo ip netns exec trusted-peer cat /sys/class/net/vtrust/address)" >> "$GITHUB_ENV"
+
+      - name: Configure TRUSTED_LAN_DEVICES for the simulated trusted peer
+        working-directory: services
+        run: |
+          # Only the trusted peer's IP@MAC goes in, so the untrusted one stays untrusted
+          cp ../.env.example .env
+          sed -i '/^TRUSTED_LAN_DEVICES=/d' .env
+          echo "TRUSTED_LAN_DEVICES=10.99.99.10@${TRUSTED_MAC}" >> .env
+
+      - name: Run fix-home-net.sh
+        run: |
+          output=$(sudo ./scripts/fix-home-net.sh 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q WARNING; then
+            echo "fix-home-net.sh warned about the trusted peer, which should have matched. False positive?"
+            exit 1
+          fi
+
+      - name: Run home network config check
+        run: |
+          output=$(sudo ./scripts/check-network-config-home.sh 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q ERROR; then
+            echo "check-network-config-home.sh reported at least one ERROR"
+            exit 1
+          fi
+
+      - name: Verify trusted LAN peer can reach jellyfin
+        run: |
+          for i in $(seq 1 12); do
+            response=$(sudo ip netns exec trusted-peer curl -s --max-time 5 -w "\nHTTP_STATUS:%{http_code}" http://10.99.99.1:8096/health) || true
+            status=$(echo "$response" | grep -oP 'HTTP_STATUS:\K[0-9]+' || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "$response"
+              echo "trusted peer reached jellyfin"
+              exit 0
+            fi
+            echo "not healthy yet (attempt $i/12): $response, retrying in 5s..."
+            sleep 5
+          done
+          echo "trusted peer never got a healthy response after 60s"
+          exit 1
+
+      - name: Verify untrusted LAN peer cannot reach jellyfin
+        run: |
+          if sudo ip netns exec untrusted-peer curl -sf --max-time 5 http://10.99.99.1:8096/health; then
+            echo "untrusted peer reached jellyfin -- firewall is not blocking it"
+            exit 1
+          fi
+          echo "untrusted peer correctly blocked"
+
+      - name: Verify simulated WireGuard peer can reach jellyfin
+        run: sudo ip netns exec vpn-peer curl -sf --max-time 5 http://10.13.13.1:8096/health
+
+      - name: Read the real SSH port
+        run: |
+          port=$(sudo sshd -T 2>/dev/null | awk '/^port / && !p {print $2; p=1}')
+          echo "SSH_PORT=${port:-22}" >> "$GITHUB_ENV"
+
+      - name: Verify trusted LAN peer can reach SSH
+        run: sudo ip netns exec trusted-peer timeout 3 bash -c "echo > /dev/tcp/10.99.99.1/$SSH_PORT"
+
+      - name: Verify untrusted LAN peer cannot reach SSH
+        run: |
+          set -euo pipefail
+          if sudo ip netns exec untrusted-peer timeout 3 bash -c "echo > /dev/tcp/10.99.99.1/$SSH_PORT"; then
+            echo "untrusted peer reached SSH -- firewall is not blocking it"
+            exit 1
+          fi
+          echo "untrusted peer correctly blocked from SSH"
+
+      - name: Verify simulated WireGuard peer can reach SSH
+        run: sudo ip netns exec vpn-peer timeout 3 bash -c "echo > /dev/tcp/10.13.13.1/$SSH_PORT"
+
+      # The wg0 DOCKER_GUARD rule must only accept DNAT'd (published-service) traffic
+      - name: Verify simulated WireGuard peer cannot reach non-published LAN traffic
+        run: |
+          if sudo ip netns exec vpn-peer ping -c 2 -W 2 10.99.99.10; then
+            echo "vpn-peer reached the trusted LAN peer directly -- FORWARD is not blocking non-published traffic"
+            exit 1
+          fi
+          echo "vpn-peer correctly blocked from reaching LAN traffic that isn't a published service"
+
+      - name: Verify container egress still works
+        run: sudo docker exec jellyfin curl -sf --max-time 5 -o /dev/null http://example.com/
+
+      - name: Clean up simulated network namespaces
+        if: always()
+        run: |
+          sudo ip netns del trusted-peer 2>/dev/null || true
+          sudo ip netns del untrusted-peer 2>/dev/null || true
+          sudo ip netns del vpn-peer 2>/dev/null || true
+          sudo ip link del br-lan-test 2>/dev/null || true
+          sudo ip link del wg0 2>/dev/null || true

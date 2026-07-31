@@ -166,6 +166,12 @@ sudo ./scripts/fix-vps-net.sh
 sudo ./wireguard.sh restart
 ```
 
+`fix-vps-net.sh` finishes by running `scripts/check-network-config-vps.sh`, which reports the status of every rule it just applied. You can also run it on its own at any time, without touching the firewall, to check the current state:
+
+```bash
+sudo ./scripts/check-network-config-vps.sh
+```
+
 ##### 4. Refresh Session
 
 To apply Docker permissions (use docker without sudo) and terminal fixes, you must log out and log back in.
@@ -200,7 +206,7 @@ The WireGuard interface is configured via environment variables, set in `.env` (
 | `PEERS` | `1` | Number of peers to generate (e.g., `2`) or a list of names (e.g., `phone,laptop`). |
 | `PEERDNS` | `auto` | DNS server for clients. If unset (`auto`), uses the container's CoreDNS. |
 | `INTERNAL_SUBNET` | `10.13.13.0` | Internal VPN IP range. Change only if it clashes with your local network. |
-| `ALLOWEDIPS` | `0.0.0.0/0,::/0` | Defines routing. `0.0.0.0/0` forces **Full Tunnel** for IPv4. `::/0` prevents IPv6 traffic from leaking outside the tunnel on clients with native IPv6. But the VPS itself doesn't configure IPv6 forwarding/NAT, so this blackholes IPv6 rather than routing it: IPv6-only destinations become unreachable instead of bypassing the VPN. |
+| `ALLOWEDIPS` | `0.0.0.0/0,::/0` | Defines routing. `0.0.0.0/0` forces **Full Tunnel** for IPv4. `::/0` prevents IPv6 traffic from leaking outside the tunnel on clients with native IPv6. But the VPS itself doesn't configure IPv6 forwarding/NAT, and `fix-vps-net.sh` blocks IPv6 on the VPS entirely, so this blackholes IPv6 rather than routing it: IPv6-only destinations become unreachable instead of bypassing the VPN. |
 | `PERSISTENTKEEPALIVE_PEERS` | `all` | Set to `all` (or a list of peers) to send "ping" packets every 25s to keep the tunnel open. |
 | `LOG_CONFS` | `true` | If `true`, outputs the QR codes to the Docker logs on startup. |
 
