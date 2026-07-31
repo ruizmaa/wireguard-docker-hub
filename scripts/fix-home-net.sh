@@ -13,15 +13,8 @@ source "$SCRIPT_DIR/lib/colors.sh"
 ENV_FILE="$SCRIPT_DIR/../services/.env"
 WG_IFACE="wg0"
 
-# Reads KEY from services/.env, or $2 if unset/empty
-read_env() {
-    local value
-    value=$(grep -E "^$1=" "$ENV_FILE" | tail -n1 | cut -d= -f2-) || true
-    if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then
-        value="${BASH_REMATCH[1]}"
-    fi
-    echo "${value:-$2}"
-}
+# shellcheck source=scripts/lib/env.sh
+source "$SCRIPT_DIR/lib/env.sh"
 
 echo -e "    ${YELLOW}[1/8] Reading configuration...${NC}"
 if [ ! -f "$ENV_FILE" ]; then

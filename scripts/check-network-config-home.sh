@@ -8,6 +8,9 @@ source "$SCRIPT_DIR/lib/colors.sh"
 ENV_FILE="$SCRIPT_DIR/../services/.env"
 WG_IFACE="wg0"
 
+# shellcheck source=scripts/lib/env.sh
+source "$SCRIPT_DIR/lib/env.sh"
+
 print_status() {
     # $1 = Message, $2 = Status (0=OK, 1=ERROR)
     if [ "$2" -eq 0 ]; then
@@ -71,10 +74,7 @@ print_status "Firewall IPv6 FORWARD Default-Deny" "$s15"
 
 # Per-device allowlist entries, read the same way fix-home-net.sh reads them
 if [ -f "$ENV_FILE" ]; then
-    TRUSTED_LAN_DEVICES=$(grep -E '^TRUSTED_LAN_DEVICES=' "$ENV_FILE" | tail -n1 | cut -d= -f2-) || true
-    if [[ "$TRUSTED_LAN_DEVICES" =~ ^\"(.*)\"$ || "$TRUSTED_LAN_DEVICES" =~ ^\'(.*)\'$ ]]; then
-        TRUSTED_LAN_DEVICES="${BASH_REMATCH[1]}"
-    fi
+    TRUSTED_LAN_DEVICES=$(read_env TRUSTED_LAN_DEVICES "")
     if [ -n "$TRUSTED_LAN_DEVICES" ]; then
         IFS=',' read -ra DEVICE_LIST <<< "$TRUSTED_LAN_DEVICES"
         for device in "${DEVICE_LIST[@]}"; do
