@@ -35,6 +35,12 @@ services:
       - ${SYNCTHING_MOUNT_1:-/path/to/data1:/data1}
       - ${SYNCTHING_MOUNT_2:-/path/to/data2:/data2}
       # Add more data paths as needed (SYNCTHING_MOUNT_3, etc.)
+    healthcheck:
+      test: curl -fkLsS -m 2 127.0.0.1:8384/rest/noauth/health | grep -o --color=never OK || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
 
   jellyfin:
     container_name: jellyfin
