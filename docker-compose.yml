@@ -33,6 +33,12 @@ services:
       - ./config:/config  # Make persistent the config and codes
       - /lib/modules:/lib/modules:ro  # For kernel module access (read-only: no need to write to the host's modules)
     restart: unless-stopped
+    healthcheck:
+      test: wg show wg0 || exit 1
+      interval: 1m
+      timeout: 5s
+      retries: 3
+      start_period: 1m
 
     # Not used with HOST mode
     # ports:
