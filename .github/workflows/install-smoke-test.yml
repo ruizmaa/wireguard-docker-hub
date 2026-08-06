@@ -215,7 +215,6 @@ jobs:
           echo "jellyfin never became healthy after 60s"
           exit 1
 
-
       # 127.0.0.1 bypasses the firewall entirely, so it can't test fix-home-net.sh
       # These steps simulate real LAN devices and a VPN peer via netns/veth instead
       - name: Set up simulated LAN peers and a fake WireGuard interface
