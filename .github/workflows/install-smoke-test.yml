@@ -38,18 +38,11 @@ jobs:
 
       - name: Verify wireguard container is running
         run: |
-          for i in $(seq 1 12); do
-            state=$(sudo docker compose ps --format json wireguard | jq -r '.State')
-            if [ "$state" = "running" ]; then
-              echo "wireguard container is running"
-              exit 0
-            fi
-            echo "wireguard container state is '$state' (attempt $i/12), retrying in 5s..."
-            sleep 5
-          done
-          echo "wireguard container state is '$state', expected 'running'"
-          sudo docker compose logs
-          exit 1
+          sudo docker compose up -d --wait --wait-timeout 120 || {
+            echo "wireguard container did not become ready in time"
+            sudo docker compose logs
+            exit 1
+          }
 
       - name: Run network config check
         run: |
@@ -184,23 +177,11 @@ jobs:
             echo "gave up after 5 pull attempts, not starting the stack"
             exit 1
           fi
-          sudo docker compose up -d
-
-      - name: Verify all services are running
-        working-directory: services
-        run: |
-          for i in $(seq 1 12); do
-            not_running=$(sudo docker compose ps --format json | jq -r 'select(.State != "running") | .Service')
-            if [ -z "$not_running" ]; then
-              echo "All services are running"
-              exit 0
-            fi
-            echo "Services not running yet (attempt $i/12): $not_running, retrying in 5s..."
-            sleep 5
-          done
-          echo "Services not running: $not_running"
-          sudo docker compose logs
-          exit 1
+          sudo docker compose up -d --wait --wait-timeout 120 || {
+            echo "services did not become ready in time"
+            sudo docker compose logs
+            exit 1
+          }
 
       - name: Install dig for DNS check
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
@@ -219,6 +200,8 @@ jobs:
           echo "pihole never resolved a DNS query after 60s"
           exit 1
 
+      # No compose healthcheck for jellyfin, its /health is unreliable during startup migrations
+      # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
       - name: Verify jellyfin responds
         run: |
           for i in $(seq 1 12); do
@@ -230,20 +213,6 @@ jobs:
             sleep 5
           done
           echo "jellyfin never became healthy after 60s"
-          exit 1
-
-      - name: Verify syncthing responds
-        run: |
-          for i in $(seq 1 12); do
-            status=$(curl -sf http://127.0.0.1:8384/rest/noauth/health 2>/dev/null | jq -r '.status' 2>/dev/null)
-            if [ "$status" = "OK" ]; then
-              echo "syncthing healthy"
-              exit 0
-            fi
-            echo "syncthing not ready yet (attempt $i/12), retrying in 5s..."
-            sleep 5
-          done
-          echo "syncthing never became healthy after 60s"
           exit 1
 
       # 127.0.0.1 bypasses the firewall entirely, so it can't test fix-home-net.sh
