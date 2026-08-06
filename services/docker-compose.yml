@@ -15,6 +15,7 @@ services:
       - pihole_etc:/etc/pihole
     cap_add:
       - NET_ADMIN
+    # healthcheck: already baked into this image, no need to add one
 
   syncthing:
     container_name: syncthing
@@ -59,6 +60,8 @@ services:
       - jellyfin_cache:/cache
       - ${JELLYFIN_MEDIA_1:-/path/to/media:/media}
       # - ${JELLYFIN_MEDIA_2:-/path/to/media2:/media2}  # Add more media paths as needed
+    # healthcheck: no HEALTHCHECK, its /health endpoint can't be used during startup migrations
+    # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
 
 volumes:
   pihole_etc:

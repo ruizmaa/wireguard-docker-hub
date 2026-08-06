@@ -200,6 +200,8 @@ jobs:
           echo "pihole never resolved a DNS query after 60s"
           exit 1
 
+      # No compose healthcheck for jellyfin, its /health is unreliable during startup migrations
+      # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
       - name: Verify jellyfin responds
         run: |
           for i in $(seq 1 12); do
