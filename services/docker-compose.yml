@@ -43,6 +43,20 @@ services:
       retries: 3
       start_period: 1m
 
+  homepage:
+    container_name: homepage
+    image: ghcr.io/gethomepage/homepage:v1.13.2
+    restart: unless-stopped
+    ports:
+      - "${HOMEPAGE_WEB_PORT:-3000}:3000"
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    volumes:
+      - ./homepage:/app/config
+    # healthcheck: already baked into this image, no need to add one
+
   jellyfin:
     container_name: jellyfin
     image: lscr.io/linuxserver/jellyfin:10.11.11
