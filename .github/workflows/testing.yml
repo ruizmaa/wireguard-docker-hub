@@ -31,5 +31,21 @@ jobs:
       - name: Validate services compose
         run: docker compose -f services/docker-compose.yml config >/dev/null
 
+      - name: Check all services are listed in Homepage config
+        run: |
+          services=$(docker compose -f services/docker-compose.yml config --services | grep -v '^homepage$')
+          content=$(tr -d '[:space:]_-' < services/homepage/services.yaml | tr '[:upper:]' '[:lower:]')
+          missing=""
+          for svc in $services; do
+            key=$(echo "$svc" | tr -d '[:space:]_-' | tr '[:upper:]' '[:lower:]')
+            if ! grep -qF "$key" <<< "$content"; then
+              missing="$missing $svc"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing from services/homepage/services.yaml:$missing"
+            exit 1
+          fi
+
       - name: ShellCheck
         run: find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck -x
