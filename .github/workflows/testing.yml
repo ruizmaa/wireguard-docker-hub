@@ -54,8 +54,12 @@ jobs:
                       collect_keys(item, out)
               elif isinstance(node, dict):
                   for key, value in node.items():
-                      out.add(norm(key))
-                      collect_keys(value, out)
+                      if isinstance(value, list):
+                          # nested group: descend, but the group name itself is not a card
+                          collect_keys(value, out)
+                      else:
+                          # leaf card: record it, don't descend into its fields (icon/href/widget...)
+                          out.add(norm(key))
 
 
           card_keys = set()

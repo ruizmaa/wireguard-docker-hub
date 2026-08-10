@@ -188,21 +188,22 @@ jobs:
             exit 1
           }
 
+      # /api/config/services always returns 422 regardless of Host, so host validation is verified via /api/services (200 only for allowlisted hosts)
       - name: Verify homepage blocks a host not in HOMEPAGE_ALLOWED_HOSTS
         run: |
-          body=$(curl -s -X POST -H "Host: ci-blocked.example:3000" http://127.0.0.1:3000/api/config/services)
-          echo "$body"
-          if ! echo "$body" | grep -q "Host validation failed"; then
-            echo "expected a Host validation failure for a host outside the allowlist"
+          status=$(curl -s -o /tmp/blocked.json -w '%{http_code}' -H "Host: ci-blocked.example:3000" http://127.0.0.1:3000/api/services)
+          cat /tmp/blocked.json
+          if [ "$status" != "400" ] || ! grep -q "Host validation failed" /tmp/blocked.json; then
+            echo "expected a 400 Host validation failure for a host outside the allowlist, got $status"
             exit 1
           fi
 
       - name: Verify homepage allows a host in HOMEPAGE_ALLOWED_HOSTS
         run: |
-          body=$(curl -s -X POST -H "Host: ci-allowed.example:3000" http://127.0.0.1:3000/api/config/services)
-          echo "$body"
-          if echo "$body" | grep -q "Host validation failed"; then
-            echo "expected the allowlisted host to pass host validation"
+          status=$(curl -s -o /tmp/allowed.json -w '%{http_code}' -H "Host: ci-allowed.example:3000" http://127.0.0.1:3000/api/services)
+          cat /tmp/allowed.json
+          if [ "$status" != "200" ]; then
+            echo "expected the allowlisted host to get the real service-card data (200), got $status"
             exit 1
           fi
 
