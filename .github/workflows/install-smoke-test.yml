@@ -161,6 +161,11 @@ jobs:
           # dockerd caches resolv.conf at startup, so restart it now that DNS is fixed.
           sudo systemctl restart docker
 
+      # Must exist before "docker compose up", since HOMEPAGE_ALLOWED_HOSTS is only read at container startup.
+      - name: Set HOMEPAGE_ALLOWED_HOSTS for the smoke test
+        working-directory: services
+        run: echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3000" > .env
+
       - name: Start services stack
         working-directory: services
         run: |
@@ -182,6 +187,24 @@ jobs:
             sudo docker compose logs
             exit 1
           }
+
+      - name: Verify homepage blocks a host not in HOMEPAGE_ALLOWED_HOSTS
+        run: |
+          body=$(curl -s -X POST -H "Host: ci-blocked.example:3000" http://127.0.0.1:3000/api/config/services)
+          echo "$body"
+          if ! echo "$body" | grep -q "Host validation failed"; then
+            echo "expected a Host validation failure for a host outside the allowlist"
+            exit 1
+          fi
+
+      - name: Verify homepage allows a host in HOMEPAGE_ALLOWED_HOSTS
+        run: |
+          body=$(curl -s -X POST -H "Host: ci-allowed.example:3000" http://127.0.0.1:3000/api/config/services)
+          echo "$body"
+          if echo "$body" | grep -q "Host validation failed"; then
+            echo "expected the allowlisted host to pass host validation"
+            exit 1
+          fi
 
       - name: Install dig for DNS check
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
