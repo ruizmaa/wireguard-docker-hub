@@ -34,18 +34,38 @@ jobs:
       - name: Check all services are listed in Homepage config
         run: |
           services=$(docker compose -f services/docker-compose.yml config --services | grep -v '^homepage$')
-          content=$(tr -d '[:space:]_-' < services/homepage/services.yaml | tr '[:upper:]' '[:lower:]')
-          missing=""
-          for svc in $services; do
-            key=$(echo "$svc" | tr -d '[:space:]_-' | tr '[:upper:]' '[:lower:]')
-            if ! grep -qF "$key" <<< "$content"; then
-              missing="$missing $svc"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "::error::Missing from services/homepage/services.yaml:$missing"
-            exit 1
-          fi
+          python3 - $services <<'PY'
+          import re
+          import sys
+
+          import yaml
+
+          with open("services/homepage/services.yaml") as f:
+              data = yaml.safe_load(f) or []
+
+
+          def norm(value):
+              return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+
+          def collect_keys(node, out):
+              if isinstance(node, list):
+                  for item in node:
+                      collect_keys(item, out)
+              elif isinstance(node, dict):
+                  for key, value in node.items():
+                      out.add(norm(key))
+                      collect_keys(value, out)
+
+
+          card_keys = set()
+          collect_keys(data, card_keys)
+
+          missing = [svc for svc in sys.argv[1:] if norm(svc) not in card_keys]
+          if missing:
+              print("::error::Missing from services/homepage/services.yaml: " + " ".join(missing))
+              sys.exit(1)
+          PY
 
       - name: ShellCheck
         run: find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck -x
