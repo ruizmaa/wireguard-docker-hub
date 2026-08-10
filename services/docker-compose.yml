@@ -53,6 +53,7 @@ services:
       - PUID=1000  # You can check your PUID with the command `id`
       - PGID=1000  # You can check your PGID with the command `id`
       - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+      - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}  # host[:port] you access this from: LAN IP, and WireGuard tunnel IP if used over the VPN
     volumes:
       - ./homepage:/app/config
     # healthcheck: already baked into this image, no need to add one

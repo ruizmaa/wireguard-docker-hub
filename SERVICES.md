@@ -45,6 +45,9 @@ A highly customizable homepage with quick access to all your self-hosted service
 - Web interface: `http://<SERVER_IP>:3000`
 - Config directory (bind mount): `services/homepage/` → `/app/config`
 
+> [!IMPORTANT]
+> Set `HOMEPAGE_ALLOWED_HOSTS` in `.env` to the host[:port] you access Homepage from (its LAN IP, e.g. `192.168.1.10:3000`, and its WireGuard tunnel IP, e.g. `10.13.13.2:3000`, if you also reach it over the VPN). Without it, the dashboard page loads but every widget (resources, service status, search suggestions...) fails with a "Host validation failed" error, since Homepage only trusts `localhost` by default for its internal API calls.
+
 All customization is done through YAML files inside `services/homepage/`, which are tracked in this repository:
 
 | File | Purpose |
