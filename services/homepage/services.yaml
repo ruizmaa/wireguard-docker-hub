@@ -1,13 +1,13 @@
 - Home Server:
     - Pi-hole:
         icon: pi-hole.png
-        href: http://localhost:8080/admin
+        href: "{{HOMEPAGE_VAR_PIHOLE_URL}}"
         description: DNS sinkhole
     - Jellyfin:
         icon: jellyfin.png
-        href: http://localhost:8096
+        href: "{{HOMEPAGE_VAR_JELLYFIN_URL}}"
         description: Media server
     - Syncthing:
         icon: syncthing.png
-        href: http://localhost:8384
+        href: "{{HOMEPAGE_VAR_SYNCTHING_URL}}"
         description: File synchronization
