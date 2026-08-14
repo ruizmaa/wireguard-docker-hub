@@ -53,11 +53,11 @@ services:
       - PUID=1000  # You can check your PUID with the command `id`
       - PGID=1000  # You can check your PGID with the command `id`
       - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
-      - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}  # host[:port] you access this from: LAN IP, and WireGuard tunnel IP if used over the VPN
+      - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS:?Set HOMEPAGE_ALLOWED_HOSTS in .env}  # host[:port] you access this from: LAN IP, and WireGuard tunnel IP if used over the VPN
       # Referenced as {{HOMEPAGE_VAR_*}} in services.yaml, so the dashboard links point at this server
-      - HOMEPAGE_VAR_PIHOLE_URL=http://${HOME_SERVER_HOST}:${PIHOLE_WEB_PORT:-8080}/admin
-      - HOMEPAGE_VAR_JELLYFIN_URL=http://${HOME_SERVER_HOST}:${JELLYFIN_WEB_PORT:-8096}
-      - HOMEPAGE_VAR_SYNCTHING_URL=http://${HOME_SERVER_HOST}:${SYNCTHING_WEB_PORT:-8384}
+      - HOMEPAGE_VAR_PIHOLE_URL=http://${HOME_SERVER_HOST:?Set HOME_SERVER_HOST in .env}:${PIHOLE_WEB_PORT:-8080}/admin
+      - HOMEPAGE_VAR_JELLYFIN_URL=http://${HOME_SERVER_HOST:?Set HOME_SERVER_HOST in .env}:${JELLYFIN_WEB_PORT:-8096}
+      - HOMEPAGE_VAR_SYNCTHING_URL=http://${HOME_SERVER_HOST:?Set HOME_SERVER_HOST in .env}:${SYNCTHING_WEB_PORT:-8384}
     volumes:
       - ./homepage:/app/config
       # Read-only, so the disk widget reports the host's real usage, not the container's

@@ -161,10 +161,13 @@ jobs:
           # dockerd caches resolv.conf at startup, so restart it now that DNS is fixed.
           sudo systemctl restart docker
 
-      # Must exist before "docker compose up", since HOMEPAGE_ALLOWED_HOSTS is only read at container startup.
-      - name: Set HOMEPAGE_ALLOWED_HOSTS for the smoke test
+      # Must exist before "docker compose up": HOMEPAGE_ALLOWED_HOSTS is read at container startup, and both
+      # are required (no default) in docker-compose.yml, so "up"/"config" refuse to run without them.
+      - name: Set required Homepage env vars for the smoke test
         working-directory: services
-        run: echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3000" > .env
+        run: |
+          echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3000" > .env
+          echo "HOME_SERVER_HOST=192.0.2.1" >> .env
 
       - name: Start services stack
         working-directory: services
