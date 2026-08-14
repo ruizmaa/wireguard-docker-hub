@@ -1,7 +1,8 @@
 - resources:
-    cpu: true
-    memory: true
-    disk: /
+    disk: /host
+    # cpu/memory disabled: they'd only show this container's own usage, not the whole machine's
+    # cpu: true
+    # memory: true
 - datetime:
     text_size: xl
     format:

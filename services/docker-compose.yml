@@ -60,6 +60,8 @@ services:
       - HOMEPAGE_VAR_SYNCTHING_URL=http://${HOME_SERVER_HOST}:${SYNCTHING_WEB_PORT:-8384}
     volumes:
       - ./homepage:/app/config
+      # Read-only, so the disk widget reports the host's real usage, not the container's
+      - /:/host:ro
     # healthcheck: already baked into this image, no need to add one
 
   jellyfin:
