@@ -28,12 +28,13 @@ jobs:
       - name: Validate root compose
         run: docker compose -f docker-compose.yml config >/dev/null
 
+      # --no-interpolate: no .env here, and 3 vars are required (no default)
       - name: Validate services compose
-        run: docker compose -f services/docker-compose.yml config >/dev/null
+        run: docker compose -f services/docker-compose.yml config --no-interpolate >/dev/null
 
       - name: Check all services are listed in Homepage config
         run: |
-          services=$(docker compose -f services/docker-compose.yml config --services | grep -v '^homepage$')
+          services=$(docker compose -f services/docker-compose.yml config --no-interpolate --services | grep -v '^homepage$')
           python3 - $services <<'PY'
           import re
           import sys
@@ -65,7 +66,13 @@ jobs:
           card_keys = set()
           collect_keys(data, card_keys)
 
-          missing = [svc for svc in sys.argv[1:] if norm(svc) not in card_keys]
+          # Each service needs both a "(LAN)" and a "(VPN)" card (e.g. "Pi-hole (LAN)"/"Pi-hole (VPN)")
+          missing = []
+          for svc in sys.argv[1:]:
+              base = norm(svc)
+              absent = [flavor for flavor in ("lan", "vpn") if base + flavor not in card_keys]
+              if absent:
+                  missing.append(f"{svc} ({', '.join(absent)})")
           if missing:
               print("::error::Missing from services/homepage/services.yaml: " + " ".join(missing))
               sys.exit(1)
