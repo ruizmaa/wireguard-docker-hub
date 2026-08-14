@@ -1,13 +1,25 @@
 - Home Server:
-    - Pi-hole:
+    - Pi-hole (LAN):
         icon: pi-hole.png
         href: "{{HOMEPAGE_VAR_PIHOLE_URL}}"
         description: DNS sinkhole
-    - Jellyfin:
+    - Jellyfin (LAN):
         icon: jellyfin.png
         href: "{{HOMEPAGE_VAR_JELLYFIN_URL}}"
         description: Media server
-    - Syncthing:
+    - Syncthing (LAN):
         icon: syncthing.png
         href: "{{HOMEPAGE_VAR_SYNCTHING_URL}}"
         description: File synchronization
+    - Pi-hole (VPN):
+        icon: pi-hole.png
+        href: "{{HOMEPAGE_VAR_PIHOLE_VPN_URL}}"
+        description: DNS sinkhole, over WireGuard
+    - Jellyfin (VPN):
+        icon: jellyfin.png
+        href: "{{HOMEPAGE_VAR_JELLYFIN_VPN_URL}}"
+        description: Media server, over WireGuard
+    - Syncthing (VPN):
+        icon: syncthing.png
+        href: "{{HOMEPAGE_VAR_SYNCTHING_VPN_URL}}"
+        description: File synchronization, over WireGuard

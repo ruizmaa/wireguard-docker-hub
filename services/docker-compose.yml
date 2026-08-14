@@ -58,6 +58,10 @@ services:
       - HOMEPAGE_VAR_PIHOLE_URL=http://${HOME_SERVER_HOST:?Set HOME_SERVER_HOST in .env}:${PIHOLE_WEB_PORT:-8080}/admin
       - HOMEPAGE_VAR_JELLYFIN_URL=http://${HOME_SERVER_HOST:?Set HOME_SERVER_HOST in .env}:${JELLYFIN_WEB_PORT:-8096}
       - HOMEPAGE_VAR_SYNCTHING_URL=http://${HOME_SERVER_HOST:?Set HOME_SERVER_HOST in .env}:${SYNCTHING_WEB_PORT:-8384}
+      # Same, but via this machine's own WireGuard tunnel IP, reachable over the VPN (the LAN IPs above aren't)
+      - HOMEPAGE_VAR_PIHOLE_VPN_URL=http://${HOME_SERVER_WG_HOST:?Set HOME_SERVER_WG_HOST in .env}:${PIHOLE_WEB_PORT:-8080}/admin
+      - HOMEPAGE_VAR_JELLYFIN_VPN_URL=http://${HOME_SERVER_WG_HOST:?Set HOME_SERVER_WG_HOST in .env}:${JELLYFIN_WEB_PORT:-8096}
+      - HOMEPAGE_VAR_SYNCTHING_VPN_URL=http://${HOME_SERVER_WG_HOST:?Set HOME_SERVER_WG_HOST in .env}:${SYNCTHING_WEB_PORT:-8384}
     volumes:
       - ./homepage:/app/config
       # Read-only, so the disk widget reports the host's real usage, not the container's

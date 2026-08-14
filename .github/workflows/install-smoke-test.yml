@@ -161,13 +161,14 @@ jobs:
           # dockerd caches resolv.conf at startup, so restart it now that DNS is fixed.
           sudo systemctl restart docker
 
-      # Must exist before "docker compose up": HOMEPAGE_ALLOWED_HOSTS is read at container startup, and both
-      # are required (no default) in docker-compose.yml, so "up"/"config" refuse to run without them.
+      # Must exist before "docker compose up" (all three required, no default). Uses the simulated LAN/wg0
+      # addresses set up later, so the LAN/VPN links can be checked end-to-end below.
       - name: Set required Homepage env vars for the smoke test
         working-directory: services
         run: |
-          echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3000" > .env
-          echo "HOME_SERVER_HOST=192.0.2.1" >> .env
+          echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3000,10.99.99.1:3000,10.13.13.1:3000" > .env
+          echo "HOME_SERVER_HOST=10.99.99.1" >> .env
+          echo "HOME_SERVER_WG_HOST=10.13.13.1" >> .env
 
       - name: Start services stack
         working-directory: services
@@ -338,6 +339,42 @@ jobs:
 
       - name: Verify simulated WireGuard peer can reach jellyfin
         run: sudo ip netns exec vpn-peer curl -sf --max-time 5 http://10.13.13.1:8096/health
+
+      - name: Verify untrusted LAN peer cannot reach the Homepage dashboard
+        run: |
+          if sudo ip netns exec untrusted-peer curl -sf --max-time 5 http://10.99.99.1:3000/api/services; then
+            echo "untrusted peer reached homepage -- firewall is not blocking it"
+            exit 1
+          fi
+          echo "untrusted peer correctly blocked from homepage"
+
+      # Checks the LAN href is correct and actually reachable, not just that the Host check passes.
+      - name: Verify trusted LAN peer can reach Homepage and its LAN service links
+        run: |
+          json=$(sudo ip netns exec trusted-peer curl -sf --max-time 5 http://10.99.99.1:3000/api/services)
+          echo "$json"
+          href=$(echo "$json" | jq -r '.[0].services[] | select(.name=="Pi-hole (LAN)") | .href')
+          echo "Pi-hole (LAN) href: $href"
+          if [ "$href" != "http://10.99.99.1:8080/admin" ]; then
+            echo "expected the LAN card to point at the simulated LAN IP (10.99.99.1), got '$href'"
+            exit 1
+          fi
+          sudo ip netns exec trusted-peer curl -sf --max-time 5 -o /dev/null "$href"
+          echo "trusted peer reached homepage and followed the Pi-hole (LAN) link"
+
+      # Same, but for the VPN-flavored cards and the simulated WireGuard peer
+      - name: Verify simulated WireGuard peer can reach Homepage and its VPN service links
+        run: |
+          json=$(sudo ip netns exec vpn-peer curl -sf --max-time 5 http://10.13.13.1:3000/api/services)
+          echo "$json"
+          href=$(echo "$json" | jq -r '.[0].services[] | select(.name=="Pi-hole (VPN)") | .href')
+          echo "Pi-hole (VPN) href: $href"
+          if [ "$href" != "http://10.13.13.1:8080/admin" ]; then
+            echo "expected the VPN card to point at the simulated tunnel IP (10.13.13.1), got '$href'"
+            exit 1
+          fi
+          sudo ip netns exec vpn-peer curl -sf --max-time 5 -o /dev/null "$href"
+          echo "vpn peer reached homepage and followed the Pi-hole (VPN) link"
 
       - name: Read the real SSH port
         run: |
