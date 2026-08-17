@@ -3,6 +3,7 @@
 # target (installing wireguard/resolvconf there first), instead of hand-editing
 # wg0.conf. Run from a third device with SSH to both.
 # Usage: ./services/install-wireguard.sh <target-ssh-host> <vps-ssh-host> <peer-name> [--dry-run] [--yes]
+# shellcheck disable=SC2029 # intentional: these vars are controller-side and must expand before ssh, not on the remote host
 set -e
 
 WG_CONF="/etc/wireguard/wg0.conf"
