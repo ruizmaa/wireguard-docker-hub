@@ -14,6 +14,36 @@ sudo ./scripts/basic-install.sh
 
 This installs Docker Engine and the Compose plugin, `jq` (required by `services/update.sh` and the automated deploy to read the pinned image tags from `services/docker-compose.yml`), enables `fail2ban` for SSH brute-force protection, disables root SSH login, and enables `unattended-upgrades` for automatic security patches.
 
+### Connect to the VPS tunnel
+
+The home server is itself just another WireGuard peer: the VPS forwards traffic from your roaming devices (phone, laptop) to it through the tunnel shown in the [README diagram](README.md). Without this, roaming clients can't reach the services below, and the [trusted-device LAN restriction](#restricting-lan-access-to-trusted-devices) has no VPN traffic to exempt.
+
+1. Install the WireGuard client tools:
+
+```bash
+sudo ./services/install-wireguard.sh
+```
+
+2. On the VPS, get this host's peer config (use whatever name or number you gave it in the VPS's `PEERS`):
+
+```bash
+./wireguard.sh conf-file minipc
+```
+
+3. Follow the Linux client steps in [CLIENTS.md](CLIENTS.md) to install it here. Skip its "Install WireGuard" step, already covered above, and go straight to placing the file at `/etc/wireguard/wg0.conf` (mode `600`) and enabling `wg-quick@wg0`.
+
+4. Verify the handshake from either side:
+
+```bash
+sudo wg show                    # on the home server
+docker exec wireguard wg show   # on the VPS
+```
+
+Both should show a recent `latest handshake`.
+
+> [!NOTE]
+> The generated peer config uses the same `ALLOWEDIPS` as your phone/laptop (full tunnel, `0.0.0.0/0,::/0` by default). Once the tunnel is up, **all** of the home server's own outbound traffic (Docker pulls, `apt`, Pi-hole's upstream DNS...) routes through the VPS too, not just VPN-bound traffic. If you'd rather keep the home server's own internet access on its normal connection, edit the `AllowedIPs` line under `[Peer]` in `/etc/wireguard/wg0.conf` down to just the VPN subnet (the VPS's `INTERNAL_SUBNET`, e.g. `10.13.13.0/24`) before enabling the service.
+
 ## Services
 
 The services are defined in `services/docker-compose.yml`. Copy the services you need to your main `docker-compose.yml` or run them directly from that directory.
