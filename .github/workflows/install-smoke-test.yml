@@ -16,7 +16,7 @@ concurrency:
 jobs:
   vps-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -121,6 +121,58 @@ jobs:
       - name: Clean up client container
         if: always()
         run: sudo docker rm -f wg-client || true
+
+      # install-wireguard.sh expects a separate controller SSH-ing into a target and a VPS
+      # Simulate all three roles here via loopback SSH, reusing peer1 from the checks above
+      - name: Set up loopback SSH for install-wireguard.sh
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          sudo systemctl enable --now ssh
+          ssh-keygen -t ed25519 -N "" -f ~/.ssh/ci_loopback_key
+          cat ~/.ssh/ci_loopback_key.pub >> ~/.ssh/authorized_keys
+          chmod 600 ~/.ssh/authorized_keys
+          {
+            echo "Host 127.0.0.1"
+            echo "    User $(whoami)"
+            echo "    IdentityFile ~/.ssh/ci_loopback_key"
+            echo "    StrictHostKeyChecking accept-new"
+          } >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          # install-wireguard.sh's VPS side does "cd ~/wireguard-docker-hub"
+          ln -sfn "$GITHUB_WORKSPACE" ~/wireguard-docker-hub
+
+      # peer1's real Endpoint (the runner's public IP) is unreachable from the runner itself
+      - name: Point peer1 at the docker bridge for install-wireguard.sh
+        run: |
+          gateway=$(sudo docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')
+          sudo docker cp wireguard:/config/peer1/peer1.conf /tmp/peer1.conf
+          sudo sed -i "s|^Endpoint = .*|Endpoint = ${gateway}:51820|" /tmp/peer1.conf
+          sudo docker cp /tmp/peer1.conf wireguard:/config/peer1/peer1.conf
+
+      # Full-tunnel AllowedIPs hijacks this runner's own route here, torn down right after the check
+      - name: Run install-wireguard.sh
+        run: ./services/install-wireguard.sh 127.0.0.1 127.0.0.1 peer1 --yes
+
+      - name: Verify install-wireguard.sh handshake succeeded
+        run: |
+          for i in $(seq 1 12); do
+            output=$(sudo wg show wg0)
+            if echo "$output" | grep -q "latest handshake"; then
+              echo "$output"
+              echo "handshake confirmed"
+              exit 0
+            fi
+            echo "no handshake yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          echo "$output"
+          echo "no WireGuard handshake after 60s"
+          exit 1
+
+      - name: Clean up install-wireguard.sh tunnel
+        if: always()
+        run: sudo systemctl stop wg-quick@wg0 2>/dev/null || true
 
   home-smoke-test:
     runs-on: ubuntu-latest
