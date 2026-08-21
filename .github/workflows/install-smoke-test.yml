@@ -16,7 +16,7 @@ concurrency:
 jobs:
   vps-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -155,6 +155,79 @@ jobs:
         run: ./services/install-wireguard.sh 127.0.0.1 127.0.0.1 peer1 --yes
 
       - name: Verify install-wireguard.sh handshake succeeded
+        run: |
+          for i in $(seq 1 12); do
+            output=$(sudo wg show wg0)
+            if echo "$output" | grep -q "latest handshake"; then
+              echo "$output"
+              echo "handshake confirmed"
+              exit 0
+            fi
+            echo "no handshake yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          echo "$output"
+          echo "no WireGuard handshake after 60s"
+          exit 1
+
+      - name: Verify install-wireguard.sh reports already up to date
+        run: |
+          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 peer1 --yes)
+          echo "$output"
+          if ! echo "$output" | grep -q "Already up to date"; then
+            echo "expected an unchanged re-run to report 'already up to date'"
+            exit 1
+          fi
+
+      # Rotate PrivateKey only, so the raw diff differs but the censored diff doesn't
+      - name: Verify install-wireguard.sh --dry-run masks a key-only change
+        run: |
+          sudo docker cp wireguard:/config/peer1/peer1.conf /tmp/peer1-pristine.conf
+          sudo sed 's/^PrivateKey = .*/PrivateKey = FAKE-KEY-FOR-CI-TESTING-ONLY-0123456789AB=/' \
+            /tmp/peer1-pristine.conf | sudo tee /tmp/peer1-fakekey.conf > /dev/null
+          sudo docker cp /tmp/peer1-fakekey.conf wireguard:/config/peer1/peer1.conf
+
+          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 peer1 --dry-run)
+          echo "$output"
+          sudo docker cp /tmp/peer1-pristine.conf wireguard:/config/peer1/peer1.conf
+
+          if ! echo "$output" | grep -q "only PrivateKey/PresharedKey changed"; then
+            echo "expected the key-only-change message on a masked dry-run diff"
+            exit 1
+          fi
+          if echo "$output" | grep -q "FAKE-KEY-FOR-CI-TESTING-ONLY"; then
+            echo "the fake private key leaked into the dry-run output"
+            exit 1
+          fi
+          if sudo compgen -G "/etc/wireguard/wg0.conf.bak.*" > /dev/null; then
+            echo "--dry-run should not create a backup"
+            exit 1
+          fi
+
+      # Change a non-key field, so this time the diff is real and gets applied
+      - name: Verify install-wireguard.sh applies a real change and backs it up
+        run: |
+          sudo docker cp wireguard:/config/peer1/peer1.conf /tmp/peer1.conf
+          sudo sed -i 's/^DNS = .*/DNS = 9.9.9.9,149.112.112.112/' /tmp/peer1.conf
+          sudo docker cp /tmp/peer1.conf wireguard:/config/peer1/peer1.conf
+
+          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 peer1 --yes)
+          echo "$output"
+
+          if ! sudo grep -q '^DNS = 9.9.9.9,149.112.112.112' /etc/wireguard/wg0.conf; then
+            echo "the new DNS value was not applied to the target"
+            exit 1
+          fi
+          if ! sudo compgen -G "/etc/wireguard/wg0.conf.bak.*" > /dev/null; then
+            echo "expected a backup of the previous config before applying the change"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "Reloaded wg-quick@wg0"; then
+            echo "expected the restart branch (interface was already enabled), not enable --now"
+            exit 1
+          fi
+
+      - name: Verify install-wireguard.sh handshake still succeeds after re-apply
         run: |
           for i in $(seq 1 12); do
             output=$(sudo wg show wg0)
