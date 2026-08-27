@@ -31,6 +31,22 @@ if [ -z "$TARGET_HOST" ] || [ -z "$VPS_HOST" ] || [ -z "$PEER_NAME" ]; then
     exit 1
 fi
 
+# Peer name ends up in a command string sent to the VPS over ssh, reject anything that
+# isn't a plain name so it can't inject extra shell commands there
+if [[ "$PEER_NAME" =~ [^[:alnum:]_-] ]]; then
+    echo "Error: peer name must only contain letters, numbers, '_' or '-' (got: '$PEER_NAME')"
+    exit 1
+fi
+
+# TARGET_HOST/VPS_HOST are passed straight to ssh, a leading "-" would be parsed as an
+# ssh option instead of a destination, so reject that shape specifically
+for host in "$TARGET_HOST" "$VPS_HOST"; do
+    if [[ "$host" == -* ]]; then
+        echo "Error: SSH host must not start with '-' (got: '$host')"
+        exit 1
+    fi
+done
+
 # Never print PrivateKey/PresharedKey values to the terminal, even in a diff.
 censor() {
     sed -E 's/^(PrivateKey|PresharedKey) = .*/\1 = <censored>/'
