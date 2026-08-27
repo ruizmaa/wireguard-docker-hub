@@ -91,7 +91,9 @@ echo -e "      ${GREEN}-> Fetched.${NC}"
 echo -e "    ${YELLOW}[3/4]${NC} Comparing with the config on $TARGET_HOST..."
 # ssh exits 255 on a connection/auth failure, distinct from "sudo test -f" legitimately
 # returning 1 because the file doesn't exist yet on a first install
+conf_exists="false"
 if ssh "$TARGET_HOST" "sudo test -f $WG_CONF"; then
+    conf_exists="true"
     if ! current_conf=$(ssh "$TARGET_HOST" "sudo cat $WG_CONF"); then
         echo -e "      ${RED}-> Error: failed to read the existing config on $TARGET_HOST.${NC}"
         exit 1
@@ -153,7 +155,7 @@ fi
 echo -e "    ${YELLOW}[4/4]${NC} Applying and reloading the tunnel on $TARGET_HOST..."
 
 # Back up if there was a previous conf to lose
-if ssh "$TARGET_HOST" "sudo test -f $WG_CONF"; then
+if [ "$conf_exists" = "true" ]; then
     backup="$WG_CONF.bak.$(date +%Y%m%d%H%M%S)"
     ssh "$TARGET_HOST" "sudo cp $WG_CONF $backup"
     echo -e "      ${GREEN}-> Backed up the previous config to $TARGET_HOST:$backup.${NC}"
