@@ -162,13 +162,26 @@ fi
 echo "$new_conf" | ssh "$TARGET_HOST" "sudo tee $WG_CONF > /dev/null"
 ssh "$TARGET_HOST" "sudo chmod 600 $WG_CONF"
 
+# systemctl only reports that it failed, not why. The real error is in the journal
+dump_wg_quick_journal() {
+    ssh "$TARGET_HOST" "sudo journalctl -xeu wg-quick@wg0 --no-pager -n 50" || true
+}
+
 # restart reloads an already-running tunnel
 if ssh "$TARGET_HOST" "systemctl is-enabled --quiet wg-quick@wg0"; then
-    ssh "$TARGET_HOST" "sudo systemctl restart wg-quick@wg0"
+    if ! ssh "$TARGET_HOST" "sudo systemctl restart wg-quick@wg0"; then
+        echo -e "      ${RED}-> Error: failed to restart wg-quick@wg0 on $TARGET_HOST.${NC}"
+        dump_wg_quick_journal
+        exit 1
+    fi
     echo -e "      ${GREEN}-> Reloaded wg-quick@wg0 on $TARGET_HOST.${NC}"
 # enable --now is only for the very first setup
 else
-    ssh "$TARGET_HOST" "sudo systemctl enable --now wg-quick@wg0"
+    if ! ssh "$TARGET_HOST" "sudo systemctl enable --now wg-quick@wg0"; then
+        echo -e "      ${RED}-> Error: failed to enable/start wg-quick@wg0 on $TARGET_HOST.${NC}"
+        dump_wg_quick_journal
+        exit 1
+    fi
     echo -e "      ${GREEN}-> Enabled and started wg-quick@wg0 on $TARGET_HOST.${NC}"
 fi
 
