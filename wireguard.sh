@@ -42,8 +42,11 @@ case "$1" in
             # Mirrors the image's own /app/show-peer naming: peer<N> for numeric, peer_<name> for named.
             if [[ "$2" =~ ^[0-9]+$ ]]; then
                 PEER_ID="peer$2"
+            elif [[ "$2" =~ ^[[:alnum:]_-]+$ ]]; then
+                PEER_ID="peer_$2"
             else
-                PEER_ID="peer_${2//[^[:alnum:]_-]/}"
+                echo "Error: peer name must only contain letters, numbers, '_' or '-' (got: '$2')"
+                exit 1
             fi
             docker exec wireguard cat "/config/$PEER_ID/$PEER_ID.conf"
         fi
