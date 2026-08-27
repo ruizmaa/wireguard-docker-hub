@@ -157,7 +157,7 @@ jobs:
       - name: Verify install-wireguard.sh handshake succeeded
         run: |
           for i in $(seq 1 12); do
-            output=$(sudo wg show wg0)
+            output=$(sudo wg show wg0 2>&1) || true
             if echo "$output" | grep -q "latest handshake"; then
               echo "$output"
               echo "handshake confirmed"
@@ -237,7 +237,7 @@ jobs:
       - name: Verify install-wireguard.sh handshake still succeeds after re-apply
         run: |
           for i in $(seq 1 12); do
-            output=$(sudo wg show wg0)
+            output=$(sudo wg show wg0 2>&1) || true
             if echo "$output" | grep -q "latest handshake"; then
               echo "$output"
               echo "handshake confirmed"
