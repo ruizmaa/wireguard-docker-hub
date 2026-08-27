@@ -167,9 +167,11 @@ dump_wg_quick_journal() {
     ssh "$TARGET_HOST" "sudo journalctl -xeu wg-quick@wg0 --no-pager -n 50" || true
 }
 
-# restart reloads an already-running tunnel
+# enable --now/restart can exit 0 even if wg-quick's script died partway through, so check
+# is-active instead of trusting that -- wg show wg0 would still see a half-up interface as fine
 if ssh "$TARGET_HOST" "systemctl is-enabled --quiet wg-quick@wg0"; then
-    if ! ssh "$TARGET_HOST" "sudo systemctl restart wg-quick@wg0"; then
+    ssh "$TARGET_HOST" "sudo systemctl restart wg-quick@wg0" || true
+    if ! ssh "$TARGET_HOST" "systemctl is-active --quiet wg-quick@wg0"; then
         echo -e "      ${RED}-> Error: failed to restart wg-quick@wg0 on $TARGET_HOST.${NC}"
         dump_wg_quick_journal
         exit 1
@@ -177,7 +179,8 @@ if ssh "$TARGET_HOST" "systemctl is-enabled --quiet wg-quick@wg0"; then
     echo -e "      ${GREEN}-> Reloaded wg-quick@wg0 on $TARGET_HOST.${NC}"
 # enable --now is only for the very first setup
 else
-    if ! ssh "$TARGET_HOST" "sudo systemctl enable --now wg-quick@wg0"; then
+    ssh "$TARGET_HOST" "sudo systemctl enable --now wg-quick@wg0" || true
+    if ! ssh "$TARGET_HOST" "systemctl is-active --quiet wg-quick@wg0"; then
         echo -e "      ${RED}-> Error: failed to enable/start wg-quick@wg0 on $TARGET_HOST.${NC}"
         dump_wg_quick_journal
         exit 1
