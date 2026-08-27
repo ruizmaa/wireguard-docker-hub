@@ -179,32 +179,9 @@ jobs:
             exit 1
           fi
 
-      # Rotate PrivateKey only, so the raw diff differs but the censored diff doesn't
-      - name: Verify install-wireguard.sh --dry-run masks a key-only change
-        run: |
-          sudo docker cp wireguard:/config/peer1/peer1.conf /tmp/peer1-pristine.conf
-          sudo sed 's/^PrivateKey = .*/PrivateKey = FAKE-KEY-FOR-CI-TESTING-ONLY-0123456789AB=/' \
-            /tmp/peer1-pristine.conf | sudo tee /tmp/peer1-fakekey.conf > /dev/null
-          sudo docker cp /tmp/peer1-fakekey.conf wireguard:/config/peer1/peer1.conf
-
-          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 peer1 --dry-run)
-          echo "$output"
-          sudo docker cp /tmp/peer1-pristine.conf wireguard:/config/peer1/peer1.conf
-
-          if ! echo "$output" | grep -q "only PrivateKey/PresharedKey changed"; then
-            echo "expected the key-only-change message on a masked dry-run diff"
-            exit 1
-          fi
-          if echo "$output" | grep -q "FAKE-KEY-FOR-CI-TESTING-ONLY"; then
-            echo "the fake private key leaked into the dry-run output"
-            exit 1
-          fi
-          if sudo compgen -G "/etc/wireguard/wg0.conf.bak.*" > /dev/null; then
-            echo "--dry-run should not create a backup"
-            exit 1
-          fi
-
-      # Change a non-key field, so this time the diff is real and gets applied
+      # Change a non-key field, so this time the diff is real and gets applied. Runs before the
+      # dry-run check below so a backup already exists on disk -- otherwise "no backup file" would
+      # be true whether or not --dry-run is the reason, since nothing yet would have created one
       - name: Verify install-wireguard.sh applies a real change and backs it up
         run: |
           sudo docker cp wireguard:/config/peer1/peer1.conf /tmp/peer1.conf
@@ -224,6 +201,36 @@ jobs:
           fi
           if ! echo "$output" | grep -q "Reloaded wg-quick@wg0"; then
             echo "expected the restart branch (interface was already enabled), not enable --now"
+            exit 1
+          fi
+
+      # Rotate PrivateKey only, so the raw diff differs but the censored diff doesn't
+      - name: Verify install-wireguard.sh --dry-run masks a key-only change
+        run: |
+          backups_before=$(sudo compgen -G "/etc/wireguard/wg0.conf.bak.*" 2>/dev/null | wc -l) || true
+
+          sudo docker cp wireguard:/config/peer1/peer1.conf /tmp/peer1-pristine.conf
+          sudo sed 's/^PrivateKey = .*/PrivateKey = FAKE-KEY-FOR-CI-TESTING-ONLY-0123456789AB=/' \
+            /tmp/peer1-pristine.conf | sudo tee /tmp/peer1-fakekey.conf > /dev/null
+          sudo docker cp /tmp/peer1-fakekey.conf wireguard:/config/peer1/peer1.conf
+
+          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 peer1 --dry-run)
+          echo "$output"
+          sudo docker cp /tmp/peer1-pristine.conf wireguard:/config/peer1/peer1.conf
+
+          if ! echo "$output" | grep -q "only PrivateKey/PresharedKey changed"; then
+            echo "expected the key-only-change message on a masked dry-run diff"
+            exit 1
+          fi
+          if echo "$output" | grep -q "FAKE-KEY-FOR-CI-TESTING-ONLY"; then
+            echo "the fake private key leaked into the dry-run output"
+            exit 1
+          fi
+
+          # A backup already exists from the real-change step above; --dry-run must not add another one
+          backups_after=$(sudo compgen -G "/etc/wireguard/wg0.conf.bak.*" 2>/dev/null | wc -l) || true
+          if [ "$backups_after" -ne "$backups_before" ]; then
+            echo "--dry-run should not create a backup ($backups_before before, $backups_after after)"
             exit 1
           fi
 
