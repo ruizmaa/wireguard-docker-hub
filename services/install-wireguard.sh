@@ -19,6 +19,7 @@ for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN="true" ;;
         --yes) AUTO_YES="true" ;;
+        --*) echo "Error: unknown flag '$arg'"; exit 1 ;;
         *) POSITIONAL+=("$arg") ;;
     esac
 done
