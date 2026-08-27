@@ -1,21 +1,27 @@
 services:
-  pihole:
-    container_name: pihole
-    image: pihole/pihole:2026.07.2
+  adguard:
+    container_name: adguard
+    image: adguard/adguardhome:v0.107.79
     restart: unless-stopped
     ports:
-      - "${PIHOLE_DNS_PORT:-53}:53/tcp"
-      - "${PIHOLE_DNS_PORT:-53}:53/udp"
-      - "${PIHOLE_WEB_PORT:-8080}:80"
+      - "${ADGUARD_DNS_PORT:-53}:53/tcp"
+      - "${ADGUARD_DNS_PORT:-53}:53/udp"
+      - "${ADGUARD_WEB_PORT:-8080}:80/tcp"
+      # First-run setup wizard only (see SERVICES.md). Closes itself once configured
+      - "3000:3000/tcp"
     environment:
       TZ: ${TZ:-Etc/UTC}  # <your_time_zone>
-      # WEBPASSWORD: <your_password>  # Can be changed with pihole pihole -a -p
-      FTLCONF_dns_listeningMode: 'ALL'  # Listen on all interfaces
     volumes:
-      - pihole_etc:/etc/pihole
+      - adguard_conf:/opt/adguardhome/conf
+      - adguard_work:/opt/adguardhome/work
     cap_add:
       - NET_ADMIN
-    # healthcheck: already baked into this image, no need to add one
+    healthcheck:
+      test: ["CMD", "nslookup", "healthcheck.adguardhome.test", "127.0.0.1"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
 
   syncthing:
     container_name: syncthing
@@ -64,8 +70,10 @@ services:
     # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
 
 volumes:
-  pihole_etc:
-    name: pihole_etc
+  adguard_conf:
+    name: adguard_conf
+  adguard_work:
+    name: adguard_work
   syncthing_config:
     name: syncthing_config
   jellyfin_config:

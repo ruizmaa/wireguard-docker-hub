@@ -40,7 +40,7 @@ The services are defined in `services/docker-compose.yml`. Copy the services you
 
 Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) and Jellyfin (`JELLYFIN_MEDIA_1`, `JELLYFIN_MEDIA_2`, etc.) data mounts, each a full `host_path:container_path`.
 
-The host ports (`PIHOLE_WEB_PORT`, `PIHOLE_DNS_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+The host ports (`ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
 Start the services:
 
@@ -56,49 +56,38 @@ docker compose ps
 
 ---
 
-### [Pi-hole](https://hub.docker.com/r/pihole/pihole)
+### [AdGuard Home](https://hub.docker.com/r/adguard/adguardhome)
 
-A DNS sinkhole that protects your devices from unwanted content.
+A DNS server that blocks ads/trackers and resolves your own service names (`*.home.arpa`).
 
 > [!NOTE]
-> If you enable [trusted-device LAN restriction](#restricting-lan-access-to-trusted-devices), only your trusted devices and VPN clients can use Pi-hole (DNS included, not just the admin panel). The rest of your network won't be able to reach it.
-
-#### Pi-hole **Configuration**
-
-- Web interface: `http://<SERVER_IP>:8080/admin`
-- Persistent data (Docker volume): `pihole_etc` (mounted at `/etc/pihole`)
-
-##### Pi-hole **Password**
-
-You can set your own password by editing the docker compose, just uncomment the `WEBPASSWORD` environment variable and write your own password.
-
-If you don't specify your password, it will be generated randomly, the easiest way to change it is using this command:
-
-```bash
-docker exec -it pihole pihole setpassword
-```
-
-#### Pi-hole **Start**
-
-Go to `http://<SERVER_IP>:8080/admin` and log in with your password.
-
-Configure your **Upstream DNS Servers** and **Interface Settings** (allow traffic from the Docker container and your local net):
-
-1. Go to `Settings > DNS`
-2. Go to `Upstream DNS Servers`, select your preferred provider
-3. Go to `Interface settings`, select Potentially dangerous options > `Permit all origins`
-4. Save
-
-Update **Blocklists** (Gravity) to ensure Pi-hole knows which ads to block:
-
-1. Go to `Tools > Update Gravity`
-2. Click the `Update` button
-
->You can also use this command:
+> Nothing forces any device to use AdGuard for DNS. It only protects/resolves for whichever devices you point at it yourself (manually, per device). The rest of your network keeps using its normal DNS untouched. If you want it network-wide instead, set it as the DNS server in your router's DHCP settings.
 >
->`docker exec -it pihole pihole -g`
+> If you enable [trusted-device LAN restriction](#restricting-lan-access-to-trusted-devices), only your trusted devices and VPN clients can reach AdGuard (DNS included, not just the admin panel). Relevant only if you pointed other LAN devices at it.
 
-#### Check if Pi-hole working
+#### AdGuard **Configuration**
+
+- Web interface (day-to-day admin): `http://<SERVER_IP>:8080`
+- First-run setup wizard only: `http://<SERVER_IP>:3000` (see [AdGuard Start](#adguard-start), always this fixed port, regardless of `ADGUARD_WEB_PORT`)
+- Persistent data (Docker volumes): `adguard_conf` (-> `/opt/adguardhome/conf`), `adguard_work` (-> `/opt/adguardhome/work`)
+
+No admin password or blocklists are pre-seeded, first boot always starts from AdGuard's own clean setup wizard.
+
+#### AdGuard **Start**
+
+Go to `http://<SERVER_IP>:3000` to run the first-time setup wizard. This port only ever serves the wizard. Once you complete it, AdGuard stops listening on `3000` entirely on its own, nothing to close manually.
+
+1. **Admin Web Interface**: choose port `80`, listen on `All interfaces` (this is the container-internal port). Afterwards, this is what you reach at `http://<SERVER_IP>:8080` (or your `ADGUARD_WEB_PORT`), that env var only remaps the host-side port.
+2. **DNS server**: keep port `53`, listen on `All interfaces` (needed for the LAN/VPN devices you'll point at it later).
+3. Create your admin username/password
+
+Once in, configure:
+
+- **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
+- **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want wider coverage than Pi-hole's defaults gave you.
+- **Local DNS Records** (`Filters > DNS rewrites`): add `adguard.home.arpa`, `jellyfin.home.arpa` and `syncthing.home.arpa`, each pointing at the home server's LAN IP.
+
+#### Check if AdGuard working
 
 Check if unwanted traffic is blocked:
 

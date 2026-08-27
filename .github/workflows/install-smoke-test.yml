@@ -287,7 +287,7 @@ jobs:
       # SECURITY: this reconfigures the runner's own DNS resolver
       # Safe only because this is a GitHub runner destroyed after the job
       # Never run this job on a self-hosted/persistent runner.
-      - name: Free port 53 for pihole (disable systemd-resolved's stub listener)
+      - name: Free port 53 for adguard (disable systemd-resolved's stub listener)
         run: |
           sudo mkdir -p /etc/systemd/resolved.conf.d
           printf '[Resolve]\nDNSStubListener=no\n' | sudo tee /etc/systemd/resolved.conf.d/no-stub.conf > /dev/null
@@ -326,18 +326,18 @@ jobs:
       - name: Install dig for DNS check
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
 
-      - name: Verify pihole resolves DNS
+      - name: Verify AdGuard resolves DNS
         run: |
           for i in $(seq 1 12); do
             ip=$(dig +short @127.0.0.1 google.com | head -n1)
             if [ -n "$ip" ]; then
-              echo "pihole resolved google.com -> $ip"
+              echo "adguard resolved google.com -> $ip"
               exit 0
             fi
-            echo "pihole not answering yet (attempt $i/12), retrying in 5s..."
+            echo "adguard not answering yet (attempt $i/12), retrying in 5s..."
             sleep 5
           done
-          echo "pihole never resolved a DNS query after 60s"
+          echo "adguard never resolved a DNS query after 60s"
           exit 1
 
       # No compose healthcheck for jellyfin, its /health is unreliable during startup migrations
