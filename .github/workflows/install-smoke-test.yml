@@ -91,21 +91,7 @@ jobs:
         run: sudo docker exec wg-client sh -c "ping -c 2 -W 2 10.13.13.1" || true
 
       - name: Verify WireGuard handshake succeeded
-        run: |
-          for i in $(seq 1 12); do
-            output=$(sudo docker exec wg-client wg show wg0 2>&1) || true
-            if echo "$output" | grep -q "latest handshake"; then
-              echo "$output"
-              echo "handshake confirmed"
-              exit 0
-            fi
-            echo "no handshake yet (attempt $i/12), retrying in 5s..."
-            sleep 5
-          done
-          echo "$output"
-          sudo docker logs wg-client
-          echo "no WireGuard handshake after 60s"
-          exit 1
+        run: .github/scripts/wait-for-wg-handshake.sh wg-client
 
       - name: Verify tunnel forwards traffic to the internet
         # GitHub-hosted runners drop outbound ping entirely
@@ -203,20 +189,7 @@ jobs:
         run: ./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --yes
 
       - name: Verify install-wireguard.sh handshake succeeded
-        run: |
-          for i in $(seq 1 12); do
-            output=$(sudo docker exec wg-target wg show wg0 2>&1) || true
-            if echo "$output" | grep -q "latest handshake"; then
-              echo "$output"
-              echo "handshake confirmed"
-              exit 0
-            fi
-            echo "no handshake yet (attempt $i/12), retrying in 5s..."
-            sleep 5
-          done
-          echo "$output"
-          echo "no WireGuard handshake after 60s"
-          exit 1
+        run: .github/scripts/wait-for-wg-handshake.sh wg-target
 
       - name: Verify install-wireguard.sh reports already up to date
         run: |
@@ -283,20 +256,7 @@ jobs:
           fi
 
       - name: Verify install-wireguard.sh handshake still succeeds after re-apply
-        run: |
-          for i in $(seq 1 12); do
-            output=$(sudo docker exec wg-target wg show wg0 2>&1) || true
-            if echo "$output" | grep -q "latest handshake"; then
-              echo "$output"
-              echo "handshake confirmed"
-              exit 0
-            fi
-            echo "no handshake yet (attempt $i/12), retrying in 5s..."
-            sleep 5
-          done
-          echo "$output"
-          echo "no WireGuard handshake after 60s"
-          exit 1
+        run: .github/scripts/wait-for-wg-handshake.sh wg-target
 
       - name: Clean up install-wireguard.sh target container
         if: always()
