@@ -195,7 +195,7 @@ jobs:
             echo "the new DNS value was not applied to the target"
             exit 1
           fi
-          if ! sudo compgen -G "/etc/wireguard/wg0.conf.bak.*" > /dev/null; then
+          if ! sudo bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' > /dev/null; then
             echo "expected a backup of the previous config before applying the change"
             exit 1
           fi
@@ -207,7 +207,7 @@ jobs:
       # Rotate PrivateKey only, so the raw diff differs but the censored diff doesn't
       - name: Verify install-wireguard.sh --dry-run masks a key-only change
         run: |
-          backups_before=$(sudo compgen -G "/etc/wireguard/wg0.conf.bak.*" 2>/dev/null | wc -l) || true
+          backups_before=$(sudo bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' 2>/dev/null | wc -l) || true
 
           sudo docker cp wireguard:/config/peer1/peer1.conf /tmp/peer1-pristine.conf
           sudo sed 's/^PrivateKey = .*/PrivateKey = FAKE-KEY-FOR-CI-TESTING-ONLY-0123456789AB=/' \
@@ -228,7 +228,7 @@ jobs:
           fi
 
           # A backup already exists from the real-change step above; --dry-run must not add another one
-          backups_after=$(sudo compgen -G "/etc/wireguard/wg0.conf.bak.*" 2>/dev/null | wc -l) || true
+          backups_after=$(sudo bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' 2>/dev/null | wc -l) || true
           if [ "$backups_after" -ne "$backups_before" ]; then
             echo "--dry-run should not create a backup ($backups_before before, $backups_after after)"
             exit 1
