@@ -142,7 +142,7 @@ if [ "$AUTO_YES" != "true" ] || [ "$allowedips_changed" = "true" ]; then
     if [ "$allowedips_changed" = "true" ]; then
         echo -e "      ${YELLOW}-> Warning: AllowedIPs changed (was '${current_allowedips:-<none>}', now '${new_allowedips:-<none>}'). This overrides any manual narrowing done per SERVICES.md -- confirming even with --yes.${NC}"
     fi
-    read -r -p "      Apply this change to $TARGET_HOST:$WG_CONF? [y/N] " answer
+    read -r -p "      Apply this change to $TARGET_HOST:$WG_CONF? [y/N] " answer || answer=""
     case "$answer" in
         [Yy]*) ;;
         *) echo "      Aborted."; exit 1 ;;
