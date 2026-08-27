@@ -122,9 +122,14 @@ jobs:
         if: always()
         run: sudo docker rm -f wg-client || true
 
-      # install-wireguard.sh expects a separate controller SSH-ing into a target and a VPS
-      # Simulate all three roles here via loopback SSH, reusing peer1 from the checks above
-      - name: Set up loopback SSH for install-wireguard.sh
+      # install-wireguard.sh expects a separate controller SSH-ing into a target and a VPS.
+      # The VPS role is simulated via loopback SSH (127.0.0.1, reusing peer1 from the checks
+      # above). The target role can't share that loopback though: the wireguard container above
+      # runs with network_mode: host, so its own wg0 interface and UDP 51820 already occupy this
+      # runner's netns -- a second wg-quick@wg0 here would collide on both. So the target role
+      # gets its own container, in its own (non-host) network namespace, with real systemd
+      # (install-wireguard.sh drives it entirely over ssh + systemctl + journalctl).
+      - name: Set up loopback SSH for install-wireguard.sh's VPS role
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
@@ -142,7 +147,51 @@ jobs:
           # install-wireguard.sh's VPS side does "cd ~/wireguard-docker-hub"
           ln -sfn "$GITHUB_WORKSPACE" ~/wireguard-docker-hub
 
-      # peer1's real Endpoint (the runner's public IP) is unreachable from the runner itself
+      - name: Set up an isolated target container for install-wireguard.sh
+        run: |
+          mkdir -p /tmp/wg-target
+          {
+            echo 'FROM ubuntu:24.04'
+            echo 'ENV DEBIAN_FRONTEND=noninteractive'
+            echo 'RUN apt-get update -qq \'
+            echo '    && apt-get install -y -qq systemd systemd-sysv openssh-server sudo \'
+            echo '    && apt-get clean && rm -rf /var/lib/apt/lists/*'
+          } > /tmp/wg-target/Dockerfile
+          sudo docker build -q -t wg-target-img /tmp/wg-target
+
+          # Real systemd as PID 1, its own netns (no --network host), NET_ADMIN for wg-quick.
+          # install-wireguard.sh installs wireguard/resolvconf itself -- not baked in here,
+          # that's part of what's under test.
+          sudo docker run -d --name wg-target --privileged --cgroupns=host \
+            --sysctl net.ipv4.conf.all.src_valid_mark=1 \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            wg-target-img /sbin/init
+
+          for i in $(seq 1 20); do
+            sudo docker exec wg-target true 2>/dev/null && break
+            sleep 1
+          done
+
+          sudo docker exec wg-target useradd -m -s /bin/bash runner
+          echo "runner ALL=(ALL) NOPASSWD:ALL" | sudo docker exec -i wg-target tee /etc/sudoers.d/runner > /dev/null
+          sudo docker exec wg-target mkdir -p /home/runner/.ssh
+          cat ~/.ssh/ci_loopback_key.pub | sudo docker exec -i wg-target tee /home/runner/.ssh/authorized_keys > /dev/null
+          sudo docker exec wg-target bash -c "chown -R runner:runner /home/runner/.ssh && chmod 700 /home/runner/.ssh && chmod 600 /home/runner/.ssh/authorized_keys"
+          sudo docker exec wg-target ssh-keygen -A
+          sudo docker exec wg-target systemctl enable --now ssh
+
+          target_ip=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' wg-target)
+          echo "TARGET_IP=$target_ip" >> "$GITHUB_ENV"
+          {
+            echo "Host $target_ip"
+            echo "    User runner"
+            echo "    IdentityFile ~/.ssh/ci_loopback_key"
+            echo "    StrictHostKeyChecking accept-new"
+          } >> ~/.ssh/config
+
+      # peer1's real Endpoint (the runner's public IP) is unreachable from the runner itself.
+      # The docker bridge gateway is reachable both from the runner (VPS role) and from any
+      # container on that same bridge network (the target container's role).
       - name: Point peer1 at the docker bridge for install-wireguard.sh
         run: |
           gateway=$(sudo docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')
@@ -150,14 +199,13 @@ jobs:
           sudo sed -i "s|^Endpoint = .*|Endpoint = ${gateway}:51820|" /tmp/peer1.conf
           sudo docker cp /tmp/peer1.conf wireguard:/config/peer1/peer1.conf
 
-      # Full-tunnel AllowedIPs hijacks this runner's own route here, torn down right after the check
       - name: Run install-wireguard.sh
-        run: ./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --yes
+        run: ./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --yes
 
       - name: Verify install-wireguard.sh handshake succeeded
         run: |
           for i in $(seq 1 12); do
-            output=$(sudo wg show wg0 2>&1) || true
+            output=$(sudo docker exec wg-target wg show wg0 2>&1) || true
             if echo "$output" | grep -q "latest handshake"; then
               echo "$output"
               echo "handshake confirmed"
@@ -172,7 +220,7 @@ jobs:
 
       - name: Verify install-wireguard.sh reports already up to date
         run: |
-          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --yes) || true
+          output=$(./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --yes) || true
           echo "$output"
           if ! echo "$output" | grep -q "Already up to date"; then
             echo "expected an unchanged re-run to report 'already up to date'"
@@ -188,14 +236,14 @@ jobs:
           sudo sed -i 's/^DNS = .*/DNS = 9.9.9.9,149.112.112.112/' /tmp/peer1.conf
           sudo docker cp /tmp/peer1.conf wireguard:/config/peer1/peer1.conf
 
-          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --yes) || true
+          output=$(./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --yes) || true
           echo "$output"
 
-          if ! sudo grep -q '^DNS = 9.9.9.9,149.112.112.112' /etc/wireguard/wg0.conf; then
+          if ! sudo docker exec wg-target grep -q '^DNS = 9.9.9.9,149.112.112.112' /etc/wireguard/wg0.conf; then
             echo "the new DNS value was not applied to the target"
             exit 1
           fi
-          if ! sudo bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' > /dev/null; then
+          if ! sudo docker exec wg-target bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' > /dev/null; then
             echo "expected a backup of the previous config before applying the change"
             exit 1
           fi
@@ -207,14 +255,14 @@ jobs:
       # Rotate PrivateKey only, so the raw diff differs but the censored diff doesn't
       - name: Verify install-wireguard.sh --dry-run masks a key-only change
         run: |
-          backups_before=$(sudo bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' 2>/dev/null | wc -l) || true
+          backups_before=$(sudo docker exec wg-target bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' 2>/dev/null | wc -l) || true
 
           sudo docker cp wireguard:/config/peer1/peer1.conf /tmp/peer1-pristine.conf
           sudo sed 's/^PrivateKey = .*/PrivateKey = FAKE-KEY-FOR-CI-TESTING-ONLY-0123456789AB=/' \
             /tmp/peer1-pristine.conf | sudo tee /tmp/peer1-fakekey.conf > /dev/null
           sudo docker cp /tmp/peer1-fakekey.conf wireguard:/config/peer1/peer1.conf
 
-          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --dry-run) || true
+          output=$(./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --dry-run) || true
           echo "$output"
           sudo docker cp /tmp/peer1-pristine.conf wireguard:/config/peer1/peer1.conf
 
@@ -228,7 +276,7 @@ jobs:
           fi
 
           # A backup already exists from the real-change step above; --dry-run must not add another one
-          backups_after=$(sudo bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' 2>/dev/null | wc -l) || true
+          backups_after=$(sudo docker exec wg-target bash -c 'compgen -G "/etc/wireguard/wg0.conf.bak.*"' 2>/dev/null | wc -l) || true
           if [ "$backups_after" -ne "$backups_before" ]; then
             echo "--dry-run should not create a backup ($backups_before before, $backups_after after)"
             exit 1
@@ -237,7 +285,7 @@ jobs:
       - name: Verify install-wireguard.sh handshake still succeeds after re-apply
         run: |
           for i in $(seq 1 12); do
-            output=$(sudo wg show wg0 2>&1) || true
+            output=$(sudo docker exec wg-target wg show wg0 2>&1) || true
             if echo "$output" | grep -q "latest handshake"; then
               echo "$output"
               echo "handshake confirmed"
@@ -250,9 +298,9 @@ jobs:
           echo "no WireGuard handshake after 60s"
           exit 1
 
-      - name: Clean up install-wireguard.sh tunnel
+      - name: Clean up install-wireguard.sh target container
         if: always()
-        run: sudo systemctl stop wg-quick@wg0 2>/dev/null || true
+        run: sudo docker rm -f wg-target || true
 
   home-smoke-test:
     runs-on: ubuntu-latest
