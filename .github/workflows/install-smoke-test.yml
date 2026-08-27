@@ -93,7 +93,7 @@ jobs:
       - name: Verify WireGuard handshake succeeded
         run: |
           for i in $(seq 1 12); do
-            output=$(sudo docker exec wg-client wg show wg0)
+            output=$(sudo docker exec wg-client wg show wg0 2>&1) || true
             if echo "$output" | grep -q "latest handshake"; then
               echo "$output"
               echo "handshake confirmed"
@@ -172,7 +172,7 @@ jobs:
 
       - name: Verify install-wireguard.sh reports already up to date
         run: |
-          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --yes)
+          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --yes) || true
           echo "$output"
           if ! echo "$output" | grep -q "Already up to date"; then
             echo "expected an unchanged re-run to report 'already up to date'"
@@ -188,7 +188,7 @@ jobs:
           sudo sed -i 's/^DNS = .*/DNS = 9.9.9.9,149.112.112.112/' /tmp/peer1.conf
           sudo docker cp /tmp/peer1.conf wireguard:/config/peer1/peer1.conf
 
-          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --yes)
+          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --yes) || true
           echo "$output"
 
           if ! sudo grep -q '^DNS = 9.9.9.9,149.112.112.112' /etc/wireguard/wg0.conf; then
@@ -214,7 +214,7 @@ jobs:
             /tmp/peer1-pristine.conf | sudo tee /tmp/peer1-fakekey.conf > /dev/null
           sudo docker cp /tmp/peer1-fakekey.conf wireguard:/config/peer1/peer1.conf
 
-          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --dry-run)
+          output=$(./services/install-wireguard.sh 127.0.0.1 127.0.0.1 1 --dry-run) || true
           echo "$output"
           sudo docker cp /tmp/peer1-pristine.conf wireguard:/config/peer1/peer1.conf
 
@@ -401,8 +401,12 @@ jobs:
 
       - name: Run fix-home-net.sh
         run: |
-          output=$(sudo ./scripts/fix-home-net.sh 2>&1)
+          output=$(sudo ./scripts/fix-home-net.sh 2>&1) || failed=true
           echo "$output"
+          if [ "${failed:-false}" = "true" ]; then
+            echo "fix-home-net.sh failed"
+            exit 1
+          fi
           if echo "$output" | grep -q WARNING; then
             echo "fix-home-net.sh warned about the trusted peer, which should have matched. False positive?"
             exit 1
