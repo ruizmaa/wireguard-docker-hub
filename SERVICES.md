@@ -14,6 +14,26 @@ sudo ./scripts/basic-install.sh
 
 This installs Docker Engine and the Compose plugin, `jq` (required by `services/update.sh` and the automated deploy to read the pinned image tags from `services/docker-compose.yml`), enables `fail2ban` for SSH brute-force protection, disables root SSH login, and enables `unattended-upgrades` for automatic security patches.
 
+### Connect to the VPS tunnel
+
+The home server is itself just another WireGuard peer: the VPS forwards traffic from your roaming devices (phone, laptop) to it through the tunnel shown in the [README diagram](README.md). Without this, roaming clients can't reach the services below, and the [trusted-device LAN restriction](#restricting-lan-access-to-trusted-devices) has no VPN traffic to exempt.
+
+Run this from a third, admin device that has SSH access to both the home server and the VPS. Each host can be either a plain `user@ip` or an alias from that device's `~/.ssh/config`:
+
+```bash
+./services/install-wireguard.sh <home-server-ssh-host> <vps-ssh-host> <peer-name>
+```
+
+This installs `wireguard`/`resolvconf` on the home server if missing, fetches this peer's config straight from the VPS (`./wireguard.sh conf-file <peer-name>` there) instead of you hand-editing `wg0.conf`, and installs/reloads it on the home server as `/etc/wireguard/wg0.conf` — backing up the previous file first if one already exists. It prints `wg show` at the end so you can confirm the handshake.
+
+- Pass `--dry-run` to see what would change (with keys censored) without applying it, e.g. to detect drift after the VPS regenerates this peer.
+- Pass `--yes` to skip the confirmation prompt, e.g. for unattended re-syncs.
+
+> [!NOTE]
+> The generated peer config uses the same `ALLOWEDIPS` as your phone/laptop (full tunnel, `0.0.0.0/0,::/0` by default). Once the tunnel is up, **all** of the home server's own outbound traffic (Docker pulls, `apt`, Pi-hole's upstream DNS...) routes through the VPS too, not just VPN-bound traffic. If you'd rather keep the home server's own internet access on its normal connection, edit the `AllowedIPs` line under `[Peer]` in `/etc/wireguard/wg0.conf` down to just the VPN subnet (the VPS's `INTERNAL_SUBNET`, e.g. `10.13.13.0/24`) before enabling the service.
+>
+> `install-wireguard.sh` always fetches the VPS's default (full-tunnel) `AllowedIPs`, since it has no way to know you narrowed it locally. If you later re-sync after the VPS regenerates this peer, the script will stop and ask for confirmation specifically because `AllowedIPs` changed, even under `--yes`. Re-narrow it again by hand after applying if you still want the split-tunnel behavior.
+
 ## Services
 
 The services are defined in `services/docker-compose.yml`. Copy the services you need to your main `docker-compose.yml` or run them directly from that directory.
