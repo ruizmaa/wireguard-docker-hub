@@ -64,7 +64,7 @@ else
     exit 1
 fi
 
-if ssh "$TARGET_HOST" "dpkg -s resolvconf > /dev/null 2>&1"; then
+if ssh "$TARGET_HOST" "command -v resolvconf > /dev/null 2>&1"; then
     echo -e "      ${GREEN}-> resolvconf is installed on $TARGET_HOST.${NC}"
 else
     echo -e "      ${RED}-> Error: resolvconf verification failed on $TARGET_HOST.${NC}"
