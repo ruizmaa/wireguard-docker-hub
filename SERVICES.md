@@ -31,6 +31,8 @@ This installs `wireguard`/`resolvconf` on the home server if missing, fetches th
 
 > [!NOTE]
 > The generated peer config uses the same `ALLOWEDIPS` as your phone/laptop (full tunnel, `0.0.0.0/0,::/0` by default). Once the tunnel is up, **all** of the home server's own outbound traffic (Docker pulls, `apt`, Pi-hole's upstream DNS...) routes through the VPS too, not just VPN-bound traffic. If you'd rather keep the home server's own internet access on its normal connection, edit the `AllowedIPs` line under `[Peer]` in `/etc/wireguard/wg0.conf` down to just the VPN subnet (the VPS's `INTERNAL_SUBNET`, e.g. `10.13.13.0/24`) before enabling the service.
+>
+> `install-wireguard.sh` always fetches the VPS's default (full-tunnel) `AllowedIPs`, since it has no way to know you narrowed it locally. If you later re-sync after the VPS regenerates this peer, the script will stop and ask for confirmation specifically because `AllowedIPs` changed, even under `--yes`. Re-narrow it again by hand after applying if you still want the split-tunnel behavior.
 
 ## Services
 

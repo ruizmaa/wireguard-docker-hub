@@ -88,7 +88,19 @@ echo -e "      ${GREEN}-> Fetched.${NC}"
 
 # Compare the new config with the current one on the target host
 echo -e "    ${YELLOW}[3/4]${NC} Comparing with the config on $TARGET_HOST..."
-current_conf=$(ssh "$TARGET_HOST" "sudo test -f $WG_CONF && sudo cat $WG_CONF" || true)
+# ssh exits 255 on a connection/auth failure, distinct from "sudo test -f" legitimately
+# returning 1 because the file doesn't exist yet on a first install
+if ssh "$TARGET_HOST" "sudo test -f $WG_CONF"; then
+    if ! current_conf=$(ssh "$TARGET_HOST" "sudo cat $WG_CONF"); then
+        echo -e "      ${RED}-> Error: failed to read the existing config on $TARGET_HOST.${NC}"
+        exit 1
+    fi
+elif [ "$?" -eq 255 ]; then
+    echo -e "      ${RED}-> Error: failed to SSH into $TARGET_HOST to check for an existing config.${NC}"
+    exit 1
+else
+    current_conf=""
+fi
 
 diff_output=$(diff <(echo "$current_conf") <(echo "$new_conf") || true)
 
@@ -115,8 +127,20 @@ if [ "$DRY_RUN" = "true" ]; then
     exit 0
 fi
 
-# Skipped entirely when --yes is passed
-if [ "$AUTO_YES" != "true" ]; then
+# AllowedIPs is the one field operators are told to narrow by hand (see SERVICES.md)
+# The VPS always sends its full-tunnel default back, so --yes must not silently reapply it over a local edit
+current_allowedips=$(echo "$current_conf" | grep '^AllowedIPs' || true)
+new_allowedips=$(echo "$new_conf" | grep '^AllowedIPs' || true)
+allowedips_changed="false"
+if [ -n "$current_conf" ] && [ "$current_allowedips" != "$new_allowedips" ]; then
+    allowedips_changed="true"
+fi
+
+# Skipped entirely when --yes is passed, unless AllowedIPs itself changed
+if [ "$AUTO_YES" != "true" ] || [ "$allowedips_changed" = "true" ]; then
+    if [ "$allowedips_changed" = "true" ]; then
+        echo -e "      ${YELLOW}-> Warning: AllowedIPs changed (was '${current_allowedips:-<none>}', now '${new_allowedips:-<none>}'). This overrides any manual narrowing done per SERVICES.md -- confirming even with --yes.${NC}"
+    fi
     read -r -p "      Apply this change to $TARGET_HOST:$WG_CONF? [y/N] " answer
     case "$answer" in
         [Yy]*) ;;
