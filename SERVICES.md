@@ -68,24 +68,36 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 #### AdGuard **Configuration**
 
 - Web interface (day-to-day admin): `http://<SERVER_IP>:8080`
-- First-run setup wizard only: `http://<SERVER_IP>:3000` (see [AdGuard Start](#adguard-start), always this fixed port, regardless of `ADGUARD_WEB_PORT`)
-- Persistent data (Docker volumes): `adguard_conf` (-> `/opt/adguardhome/conf`), `adguard_work` (-> `/opt/adguardhome/work`)
+- Persistent data (both bind mounts, owned by UID/GID `1000:1000`, see `user:` in the compose file): `services/adguard/conf/` (`AdGuardHome.yaml`), `services/adguard/work/` (blocklists, query log, stats)
 
-No admin password or blocklists are pre-seeded, first boot always starts from AdGuard's own clean setup wizard.
+> [!IMPORTANT]
+> Before the first `docker compose up`, run:
+>
+> ```bash
+> ./services/generate-adguard-config.sh
+> ```
+>
+> Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
+>
+> Everything except the password comes from the tracked `services/adguard/AdGuardHome.yaml.template` (see [Tracking your config](#tracking-your-config) below).
 
 #### AdGuard **Start**
 
-Go to `http://<SERVER_IP>:3000` to run the first-time setup wizard. This port only ever serves the wizard. Once you complete it, AdGuard stops listening on `3000` entirely on its own, nothing to close manually.
-
-1. **Admin Web Interface**: choose port `80`, listen on `All interfaces` (this is the container-internal port). Afterwards, this is what you reach at `http://<SERVER_IP>:8080` (or your `ADGUARD_WEB_PORT`), that env var only remaps the host-side port.
-2. **DNS server**: keep port `53`, listen on `All interfaces` (needed for the LAN/VPN devices you'll point at it later).
-3. Create your admin username/password
-
-Once in, configure:
+Log in at `http://<SERVER_IP>:8080` with the username/password you gave the script above, then configure:
 
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want wider coverage than Pi-hole's defaults gave you.
 - **Local DNS Records** (`Filters > DNS rewrites`): add `adguard.home.arpa`, `jellyfin.home.arpa` and `syncthing.home.arpa`, each pointing at the home server's LAN IP.
+
+#### Tracking your config
+
+`services/adguard/conf/AdGuardHome.yaml` is rewritten by AdGuard itself on every change (blocklists, rewrites, upstream servers...), including your real password hash. Not something to commit as-is in a public repo.
+
+```bash
+./services/snapshot-adguard-config.sh
+```
+
+Copies that live file into the tracked `services/adguard/AdGuardHome.yaml.template`, with the password replaced by an obvious placeholder. Review the diff and `git add`/commit it yourself. Next time you run `generate-adguard-config.sh` (e.g. on a reinstall, or to rotate the password), it rebuilds from this template plus a fresh real password, so nothing you configured is lost.
 
 #### Check if AdGuard working
 

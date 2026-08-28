@@ -5,4 +5,6 @@ wireguard/
 **/*.conf
 **/*.key
 **/*.log
+services/adguard/conf/
+services/adguard/work/
 .env

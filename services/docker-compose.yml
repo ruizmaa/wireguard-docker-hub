@@ -3,6 +3,8 @@ services:
     container_name: adguard
     image: adguard/adguardhome:v0.107.79
     restart: unless-stopped
+    # Match your host UID/GID (check with `id`) so ./adguard/conf stays writable by you
+    user: "1000:1000"
     ports:
       - "${ADGUARD_DNS_PORT:-53}:53/tcp"
       - "${ADGUARD_DNS_PORT:-53}:53/udp"
@@ -12,8 +14,9 @@ services:
     environment:
       TZ: ${TZ:-Etc/UTC}  # <your_time_zone>
     volumes:
-      - adguard_conf:/opt/adguardhome/conf
-      - adguard_work:/opt/adguardhome/work
+      # Bind mounts, not named volumes: a named volume would be root-owned, unwritable by user: above.
+      - ./adguard/conf:/opt/adguardhome/conf
+      - ./adguard/work:/opt/adguardhome/work
     cap_add:
       - NET_ADMIN
     healthcheck:
@@ -70,10 +73,6 @@ services:
     # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
 
 volumes:
-  adguard_conf:
-    name: adguard_conf
-  adguard_work:
-    name: adguard_work
   syncthing_config:
     name: syncthing_config
   jellyfin_config:

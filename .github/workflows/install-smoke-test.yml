@@ -301,6 +301,40 @@ jobs:
           # dockerd caches resolv.conf at startup, so restart it now that DNS is fixed.
           sudo systemctl restart docker
 
+      - name: Verify generate-adguard-config.sh rejects a root-owned conf dir
+        working-directory: services
+        run: |
+          # Simulates `docker compose up` auto-creating this dir as root before the script ever runs.
+          sudo mkdir -p adguard/conf
+          sudo chown root:root adguard/conf
+
+          # Capture the exit code ourselves, a failure here would otherwise stop the step
+          set +e
+          output=$(ADGUARD_SETUP_USER=admin ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD ./generate-adguard-config.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-adguard-config.sh to fail on a root-owned adguard/conf, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "isn't writable by you"; then
+            echo "expected the clear permission-guard error message, got something else instead"
+            exit 1
+          fi
+
+          sudo rm -rf adguard/conf
+
+      - name: Generate AdGuard config for the smoke test
+        working-directory: services
+        run: |
+          export ADGUARD_SETUP_USER=admin
+          export ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD
+          sudo -E ./generate-adguard-config.sh
+          # Created as root under sudo above, must match the compose file's user: 1000:1000
+          sudo chown -R 1000:1000 adguard
+
       - name: Start services stack
         working-directory: services
         run: |
@@ -339,6 +373,76 @@ jobs:
           done
           echo "adguard never resolved a DNS query after 60s"
           exit 1
+
+      # Real change via the API (not a hand-edited file), so the snapshot below reflects
+      # what an operator actually configuring AdGuard through its web UI would produce.
+      - name: Add a real AdGuard config change via its API
+        run: |
+          curl -sf -c /tmp/adg-cookies.txt -X POST http://127.0.0.1:8080/control/login \
+            -H "Content-Type: application/json" \
+            -d '{"name":"admin","password":"CI-TESTING-ONLY-NOT-A-REAL-PASSWORD"}' > /dev/null
+          curl -sf -b /tmp/adg-cookies.txt -X POST http://127.0.0.1:8080/control/rewrite/add \
+            -H "Content-Type: application/json" \
+            -d '{"domain":"ci-smoke-test.home.arpa","answer":"192.168.1.99"}' > /dev/null
+
+      - name: Snapshot AdGuard config and verify the template captured the change
+        working-directory: services
+        run: |
+          # Stopped so the live config file isn't being written while we copy it
+          sudo docker compose stop adguard
+          sudo ./snapshot-adguard-config.sh
+          # The rewrite added via the API earlier must have made it into the template
+          if ! grep -q "ci-smoke-test.home.arpa" adguard/AdGuardHome.yaml.template; then
+            echo "the DNS rewrite added via the API is missing from the snapshotted template"
+            exit 1
+          fi
+          # And the real password must not have
+          if grep -q "CI-TESTING-ONLY-NOT-A-REAL-PASSWORD" adguard/AdGuardHome.yaml.template; then
+            echo "the real password leaked into the tracked template"
+            exit 1
+          fi
+
+      # A different password than before, so the checks below can tell rotation actually happened
+      - name: Regenerate AdGuard from the template with a different password
+        working-directory: services
+        run: |
+          export ADGUARD_SETUP_USER=admin
+          export ADGUARD_SETUP_PASSWORD=CI-SECOND-PASSWORD-ALSO-NOT-REAL
+          sudo -E ./generate-adguard-config.sh --force
+          sudo chown -R 1000:1000 adguard
+          sudo docker compose start adguard
+
+      - name: Verify the rewrite survived the template round-trip and the password rotated
+        run: |
+          # Restarting adguard takes a moment, so wait for it before hitting its API
+          for i in $(seq 1 12); do
+            curl -sf -o /dev/null http://127.0.0.1:8080/ && break
+            echo "adguard not back up yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+
+          # The password from before the regenerate must no longer work
+          old_login=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/control/login \
+            -H "Content-Type: application/json" -d '{"name":"admin","password":"CI-TESTING-ONLY-NOT-A-REAL-PASSWORD"}')
+          if [ "$old_login" = "200" ]; then
+            echo "the old password still works -- regenerating from the template didn't rotate it"
+            exit 1
+          fi
+
+          # And the new one from the regenerate step must
+          new_login=$(curl -s -c /tmp/adg-cookies2.txt -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/control/login \
+            -H "Content-Type: application/json" -d '{"name":"admin","password":"CI-SECOND-PASSWORD-ALSO-NOT-REAL"}')
+          if [ "$new_login" != "200" ]; then
+            echo "the new password from generate-adguard-config.sh --force doesn't work"
+            exit 1
+          fi
+
+          # The rewrite added via the API, snapshotted into the template, must have come back too
+          rewrites=$(curl -sf -b /tmp/adg-cookies2.txt http://127.0.0.1:8080/control/rewrite/list)
+          if ! echo "$rewrites" | grep -q "ci-smoke-test.home.arpa"; then
+            echo "the DNS rewrite from before the snapshot did not survive the template round-trip"
+            exit 1
+          fi
 
       # No compose healthcheck for jellyfin, its /health is unreliable during startup migrations
       # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
