@@ -10,7 +10,7 @@ services:
       - "${ADGUARD_DNS_PORT:-53}:53/udp"
       - "${ADGUARD_WEB_PORT:-8080}:80/tcp"
       # First-run setup wizard only (see SERVICES.md). Closes itself once configured
-      - "3000:3000/tcp"
+      - "${ADGUARD_SETUP_PORT:-3000}:3000/tcp"
     environment:
       TZ: ${TZ:-Etc/UTC}  # <your_time_zone>
     volumes:

@@ -319,7 +319,7 @@ jobs:
             echo "expected generate-adguard-config.sh to fail on a root-owned adguard/conf, but it exited 0"
             exit 1
           fi
-          if ! echo "$output" | grep -q "isn't writable by you"; then
+          if ! echo "$output" | grep -q "isn't a writable directory"; then
             echo "expected the clear permission-guard error message, got something else instead"
             exit 1
           fi
@@ -396,9 +396,11 @@ jobs:
             echo "the DNS rewrite added via the API is missing from the snapshotted template"
             exit 1
           fi
-          # And the real password must not have
-          if grep -q "CI-TESTING-ONLY-NOT-A-REAL-PASSWORD" adguard/AdGuardHome.yaml.template; then
-            echo "the real password leaked into the tracked template"
+          # And the password line must be the redaction placeholder. Grepping for the raw
+          # password instead would trivially "pass" either way, since AdGuard stores a bcrypt
+          # hash, never the plaintext password, so it can't leak literally either way.
+          if ! grep -q '^    password: "CENSURED: run generate-adguard-config.sh to set a real one"$' adguard/AdGuardHome.yaml.template; then
+            echo "the password wasn't redacted in the snapshotted template"
             exit 1
           fi
 

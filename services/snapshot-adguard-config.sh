@@ -21,7 +21,9 @@ if [ ! -f "$LIVE_FILE" ]; then
 fi
 
 # With more than one user, the sed below would redact them all into the same placeholder
-admin_count=$(grep -c '^  - name:' "$LIVE_FILE")
+# `|| true`: grep -c exits 1 on a zero count, which would otherwise kill the script
+# here under set -e before the check below can print its own clearer error
+admin_count=$(grep -c '^  - name:' "$LIVE_FILE" || true)
 if [ "$admin_count" -ne 1 ]; then
     echo -e "${RED}Error: $LIVE_FILE has $admin_count admin accounts; this script only supports redacting exactly one.${NC}"
     echo "Redacting all of them isn't safe to automate blindly, and leaving extras unredacted would leak a real password hash into git."

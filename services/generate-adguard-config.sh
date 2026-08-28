@@ -2,14 +2,7 @@
 # Generates services/adguard/conf/AdGuardHome.yaml with a real admin password hash.
 # Usage: ./services/generate-adguard-config.sh [--force]
 # Non-interactive (e.g. CI): set ADGUARD_SETUP_USER and ADGUARD_SETUP_PASSWORD.
-set -e
-
-IMAGE="adguard/adguardhome:v0.107.79"
-
-# Escapes `\`, `&` and `|` so a value is safe to use as a sed replacement below
-sed_escape_replacement() {
-    printf '%s' "$1" | sed -e 's/[\&|]/\\&/g'
-}
+set -eo pipefail
 
 # Escapes `\` and `"` so a value is safe to embed in a JSON string below
 json_escape() {
@@ -17,9 +10,23 @@ json_escape() {
     printf '%s' "${escaped//\"/\\\"}"
 }
 
+# Prints only the `users:` block, so no other list can be mistaken for it below
+users_block() {
+    awk '/^users:/{f=1} f && !/^users:/ && /^[^ ]/{exit} f'
+}
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
+
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+
+# Fails clearly here if .env is incomplete, not with a cryptic docker error later
+if ! compose_json=$(docker compose -f "$COMPOSE_FILE" config --format json); then
+    echo -e "${RED}Error: 'docker compose config' failed -- check .env is fully filled in.${NC}"
+    exit 1
+fi
+IMAGE=$(echo "$compose_json" | jq -r '.services.adguard.image')
 
 OUT_DIR="$SCRIPT_DIR/adguard/conf"
 OUT_FILE="$OUT_DIR/AdGuardHome.yaml"
@@ -38,13 +45,21 @@ done
 
 # Catches the root-owned-dir case before it reaches the container and fails confusingly
 for dir in "$OUT_DIR" "$WORK_DIR"; do
-    if [ -e "$dir" ] && [ ! -w "$dir" ]; then
-        echo -e "${RED}Error: $dir exists but isn't writable by you.${NC}"
+    if [ -e "$dir" ] && { [ ! -d "$dir" ] || [ ! -w "$dir" ]; }; then
+        echo -e "${RED}Error: $dir exists but isn't a writable directory.${NC}"
         echo "This usually means 'docker compose up' ran before this script and Docker auto-created it as root."
         echo "Fix it with: sudo chown -R \"\$(id -u):\$(id -g)\" \"$dir\""
         exit 1
     fi
 done
+
+# Also catches a stale root-owned config file left inside an otherwise-fixed dir (e.g. a partial chown without -R)
+if [ -e "$OUT_FILE" ] && [ ! -w "$OUT_FILE" ]; then
+    echo -e "${RED}Error: $OUT_FILE exists but isn't writable.${NC}"
+    echo "This usually means 'docker compose up' ran before this script and Docker auto-created it as root."
+    echo "Fix it with: sudo chown \"\$(id -u):\$(id -g)\" \"$OUT_FILE\""
+    exit 1
+fi
 
 # Refuse to overwrite an existing config unless the caller explicitly opted in
 if [ -f "$OUT_FILE" ] && [ "$FORCE" != "true" ]; then
@@ -59,7 +74,9 @@ if [ ! -f "$TEMPLATE_FILE" ]; then
 fi
 
 # With more than one admin account, they'd all get overwritten with the same one
-admin_count=$(grep -c '^  - name:' "$TEMPLATE_FILE")
+# `|| true`: grep -c exits 1 on a zero count, which would otherwise kill the script
+# here under set -e before the check below can print its own clearer error
+admin_count=$(users_block < "$TEMPLATE_FILE" | grep -c '^  - name:' || true)
 if [ "$admin_count" -ne 1 ]; then
     echo -e "${RED}Error: $TEMPLATE_FILE has $admin_count admin accounts; this script only supports managing exactly one.${NC}"
     echo "Edit the extra accounts in by hand after generating, or remove them from the template first."
@@ -139,18 +156,50 @@ if [ "$response" != "OK" ]; then
     exit 1
 fi
 
+# AdGuard only reads its config at startup, so it must be stopped for a regenerate to take effect
+ADGUARD_WAS_RUNNING="false"
+if [ "$FORCE" = "true" ]; then
+    if ! adguard_id=$(docker compose -f "$COMPOSE_FILE" ps -q adguard); then
+        echo -e "${RED}Error: 'docker compose ps' failed -- check .env is fully filled in.${NC}"
+        exit 1
+    fi
+    if [ -n "$adguard_id" ]; then
+        ADGUARD_WAS_RUNNING="true"
+        echo -e "${YELLOW}-> Stopping the running adguard container so the new config takes effect...${NC}"
+        docker compose -f "$COMPOSE_FILE" stop adguard
+    fi
+fi
+
 mkdir -p "$OUT_DIR" "$WORK_DIR"
 
-# The real credentials that will replace the template's placeholders below
-name_line=$(docker exec "$tmp_name" grep '^  - name:' /opt/adguardhome/conf/AdGuardHome.yaml)
-password_line=$(docker exec "$tmp_name" grep '^    password:' /opt/adguardhome/conf/AdGuardHome.yaml)
-# Copy still has the censored placeholders, replaced below with the real ones
-cp "$TEMPLATE_FILE" "$OUT_FILE"
-# Only one admin account exists (checked above), so this replace is safe
-sed -i "s|^  - name:.*|$(sed_escape_replacement "$name_line")|; s|^    password:.*|$(sed_escape_replacement "$password_line")|" "$OUT_FILE"
+# The container's own config is real, but throwaway: only these 2 lines get used below,
+# the rest of it (and the container itself) is discarded when this script exits
+users_live=$(docker exec "$tmp_name" cat /opt/adguardhome/conf/AdGuardHome.yaml | users_block)
+if [ -z "$users_live" ]; then
+    echo -e "${RED}Error: couldn't read the users: block back from the throwaway container.${NC}"
+    exit 1
+fi
+name_line=$(printf '%s\n' "$users_live" | grep '^  - name:')
+password_line=$(printf '%s\n' "$users_live" | grep '^    password:')
+
+# The template has everything else (blocklists, rewrites...). Write it to $OUT_FILE,
+# AdGuard's real config file, replacing placeholders with the real admin account/password from above
+NAME_LINE="$name_line" PASSWORD_LINE="$password_line" awk '
+/^users:/ { f = 1 }                              # entering the users: block
+f && !/^users:/ && /^[^ ]/ { f = 0 }             # left it: next top-level key
+f && /^  - name:/ { print ENVIRON["NAME_LINE"]; next }
+f && /^    password:/ { print ENVIRON["PASSWORD_LINE"]; next }
+{ print }
+' "$TEMPLATE_FILE" > "$OUT_FILE"
 echo -e "${GREEN}-> Generated $OUT_FILE from your tracked template, with a fresh password hash.${NC}"
 # Read/write for your user only
 chmod 600 "$OUT_FILE"
+
+# Only restart it if this script was the one that stopped it above
+if [ "$ADGUARD_WAS_RUNNING" = "true" ]; then
+    echo -e "${YELLOW}-> Restarting adguard with the new config...${NC}"
+    docker compose -f "$COMPOSE_FILE" start adguard
+fi
 
 echo "   Upstream DNS, blocklists and Local DNS Records (see SERVICES.md) are still set from AdGuard's own web UI after it's up."
 echo "   Run ./services/snapshot-adguard-config.sh afterwards to track those changes in git (password redacted automatically)."
