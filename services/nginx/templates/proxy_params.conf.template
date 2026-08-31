@@ -1,0 +1,10 @@
+# Shared by every server block in conf.d/ -- included inside each proxied location.
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+
+# Needed for Jellyfin's WebSocket connection (remote control, live "now playing", sync play).
+proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection $connection_upgrade;

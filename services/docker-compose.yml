@@ -1,4 +1,31 @@
 services:
+  nginx:
+    container_name: nginx
+    image: nginx:1.31.4-alpine
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    environment:
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx  # default is conf.d only, but services/nginx/templates/ also has nginx.conf/proxy_params.conf
+      - NGINX_ENVSUBST_FILTER=^(LAN_SUBNET|VPN_SUBNET|NGINX_HTTPS_PORT)$$  # protects nginx's own $host/$remote_addr/etc
+      - LAN_SUBNET=${LAN_SUBNET:?Set LAN_SUBNET in .env}
+      - VPN_SUBNET=${VPN_SUBNET:?Set VPN_SUBNET in .env}
+      - NGINX_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}  # so the HTTP->HTTPS redirect points at the real published port
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - adguard
+      - jellyfin
+      - syncthing
+    healthcheck:
+      test: curl -fsS -m 2 127.0.0.1/healthz || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+
   adguard:
     container_name: adguard
     image: adguard/adguardhome:v0.107.79

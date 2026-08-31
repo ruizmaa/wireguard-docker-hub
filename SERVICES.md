@@ -40,7 +40,7 @@ The services are defined in `services/docker-compose.yml`. Copy the services you
 
 Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) and Jellyfin (`JELLYFIN_MEDIA_1`, `JELLYFIN_MEDIA_2`, etc.) data mounts, each a full `host_path:container_path`.
 
-The host ports (`ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
 `LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `docker compose up` refuses to start the whole stack if either is missing.
 
@@ -60,7 +60,7 @@ docker compose ps
 
 ### [AdGuard Home](https://hub.docker.com/r/adguard/adguardhome)
 
-A DNS server that blocks ads/trackers and resolves your own service names (`*.home.arpa`).
+A DNS server that blocks ads/trackers and resolves your own service names (`*.home.arpa`, see [nginx](#nginx-reverse-proxy) below).
 
 > [!NOTE]
 > Nothing forces any device to use AdGuard for DNS. It only protects/resolves for whichever devices you point at it yourself (manually, per device). The rest of your network keeps using its normal DNS untouched. If you want it network-wide instead, set it as the DNS server in your router's DHCP settings.
@@ -79,7 +79,7 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 > ./services/generate-adguard-config.sh
 > ```
 >
-> Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
+> Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
 >
 > Everything except the password comes from the tracked `services/adguard/AdGuardHome.yaml.template` (see [Tracking your config](#tracking-your-config) below).
 
@@ -89,7 +89,7 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want wider coverage than Pi-hole's defaults gave you.
-- **Local DNS Records** (`Filters > DNS rewrites`): add `adguard.home.arpa`, `jellyfin.home.arpa` and `syncthing.home.arpa`, each pointing at the home server's LAN IP.
+- **Local DNS Records** (`Filters > DNS rewrites`): add `adguard.home.arpa`, `jellyfin.home.arpa` and `syncthing.home.arpa`, each pointing at the home server's LAN IP. This is what makes the [nginx](#nginx-reverse-proxy) subdomains resolve.
 
 #### Tracking your config
 
@@ -195,6 +195,52 @@ A media server for streaming your personal video, audio and photo collections to
 - Media path: map your host directories to `/media` (e.g. `/mnt/hdd/movies:/media`)
 
 > Set `JELLYFIN_MEDIA_1` (and `JELLYFIN_MEDIA_2`, etc.) in `.env` to your actual media library path, as a full `host_path:container_path` (e.g. `/mnt/hdd/movies:/media`).
+
+---
+
+### [nginx](https://hub.docker.com/_/nginx) reverse proxy
+
+Instead of remembering a port per service (`:8080`, `:8096`, `:8384`...), nginx puts every service behind its own `https://<service>.home.arpa` address. `home.arpa` is reserved by [RFC 8375](https://www.rfc-editor.org/rfc/rfc8375) for home networks, so it can never collide with a real public domain.
+
+#### nginx **Configuration**
+
+All configuration lives in `services/nginx/templates/`, tracked in this repository:
+
+| File | Purpose |
+|---|---|
+| `nginx.conf.template` | Main config, defines the LAN/VPN `$zone` split (see [below](#lan-vs-wireguard-zone)) |
+| `conf.d/<service>.conf.template` | One server block per service: HTTP->HTTPS redirect, TLS, proxy to that service |
+| `conf.d/default.conf.template` | Catches any other host and drops the connection, also serves `/healthz` for the container healthcheck |
+| `proxy_params.conf.template` | Headers shared by every proxied service |
+
+These are `.conf.template`, not `.conf`, nginx's own Docker image substitutes `${LAN_SUBNET}`/`${VPN_SUBNET}`/`${NGINX_HTTPS_PORT}` into them and writes the result to `/etc/nginx/` (mirroring this folder's own layout) at container start (`NGINX_ENVSUBST_FILTER` in `docker-compose.yml` restricts substitution to exactly those variables, so it can't touch nginx's own `$host`/`$remote_addr`/etc., which use the same `$` syntax).
+
+> [!IMPORTANT]
+> Before the first `docker compose up`, generate a self-signed TLS certificate (one wildcard cert covers all `*.home.arpa` subdomains):
+>
+> ```bash
+> ./services/generate-nginx-certs.sh
+> ```
+>
+> It's self-signed, so browsers will warn until you import `services/nginx/certs/cert.pem` as a trusted authority on each of your devices. Re-run with `--force` to replace it (e.g. once it's close to expiring).
+>
+> Also set `LAN_SUBNET` and `VPN_SUBNET` in `.env` (see `.env.example`). Your LAN's CIDR, and the VPS's `INTERNAL_SUBNET` as a CIDR, these decide the `lan`/`vpn`/`external` split described below.
+
+Finally, so `<service>.home.arpa` actually resolves on your LAN, add each one as a Local DNS Record in AdGuard's admin UI (`Filters` -> `DNS rewrites`), pointing at the home server's LAN IP. This is a manual, one-time step in AdGuard itself, there's nothing to configure in nginx for it.
+
+#### LAN vs. WireGuard zone
+
+nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, or `external` for anything outside both subnets) and exposes it as the `X-Client-Zone` response header, verifiable with `curl -I`. Nothing is restricted based on it yet.
+
+#### nginx **Start**
+
+```bash
+docker compose up -d
+```
+
+Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://jellyfin.home.arpa`, `https://syncthing.home.arpa`.
+
+---
 
 ## Restricting LAN access to trusted devices
 

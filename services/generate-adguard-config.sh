@@ -18,6 +18,8 @@ users_block() {
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
+# shellcheck source=scripts/lib/writable-guard.sh
+source "$SCRIPT_DIR/../scripts/lib/writable-guard.sh"
 
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
@@ -43,23 +45,9 @@ for arg in "$@"; do
     esac
 done
 
-# Catches the root-owned-dir case before it reaches the container and fails confusingly
-for dir in "$OUT_DIR" "$WORK_DIR"; do
-    if [ -e "$dir" ] && { [ ! -d "$dir" ] || [ ! -w "$dir" ]; }; then
-        echo -e "${RED}Error: $dir exists but isn't a writable directory.${NC}"
-        echo "This usually means 'docker compose up' ran before this script and Docker auto-created it as root."
-        echo "Fix it with: sudo chown -R \"\$(id -u):\$(id -g)\" \"$dir\""
-        exit 1
-    fi
-done
-
-# Also catches a stale root-owned config file left inside an otherwise-fixed dir (e.g. a partial chown without -R)
-if [ -e "$OUT_FILE" ] && [ ! -w "$OUT_FILE" ]; then
-    echo -e "${RED}Error: $OUT_FILE exists but isn't writable.${NC}"
-    echo "This usually means 'docker compose up' ran before this script and Docker auto-created it as root."
-    echo "Fix it with: sudo chown \"\$(id -u):\$(id -g)\" \"$OUT_FILE\""
-    exit 1
-fi
+guard_writable_dir "$OUT_DIR"
+guard_writable_dir "$WORK_DIR"
+guard_writable_file "$OUT_FILE"
 
 # Refuse to overwrite an existing config unless the caller explicitly opted in
 if [ -f "$OUT_FILE" ] && [ "$FORCE" != "true" ]; then

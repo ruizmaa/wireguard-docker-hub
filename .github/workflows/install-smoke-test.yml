@@ -301,6 +301,12 @@ jobs:
           # dockerd caches resolv.conf at startup, so restart it now that DNS is fixed.
           sudo systemctl restart docker
 
+      - name: Set required nginx env vars for the smoke test
+        working-directory: services
+        run: |
+          echo "LAN_SUBNET=192.168.1.0/24" > .env
+          echo "VPN_SUBNET=10.13.13.0/24" >> .env
+
       - name: Verify generate-adguard-config.sh rejects a root-owned conf dir
         working-directory: services
         run: |
@@ -334,6 +340,10 @@ jobs:
           sudo -E ./generate-adguard-config.sh
           # Created as root under sudo above, must match the compose file's user: 1000:1000
           sudo chown -R 1000:1000 adguard
+
+      - name: Generate nginx certs for the smoke test
+        working-directory: services
+        run: ./generate-nginx-certs.sh
 
       - name: Start services stack
         working-directory: services
@@ -460,6 +470,46 @@ jobs:
           done
           echo "jellyfin never became healthy after 60s"
           exit 1
+
+      - name: Verify nginx actually proxies to each backend, not just that it started
+        working-directory: services
+        run: |
+          CACERT="nginx/certs/cert.pem"
+
+          # nginx must redirect plain HTTP to HTTPS before proxying anywhere
+          code=$(curl -s -o /dev/null -w '%{http_code}' --resolve jellyfin.home.arpa:80:127.0.0.1 http://jellyfin.home.arpa/)
+          if [ "$code" != "301" ]; then
+            echo "expected nginx to redirect HTTP to HTTPS with 301, got $code"
+            exit 1
+          fi
+
+          # Each host's server block must reach its real backend through the resolver/upstream setup,
+          # not just terminate TLS -- same endpoints already used to smoke-test each service directly above.
+          # Headers go to a per-host file so the X-Client-Zone check below can reuse this same request.
+          check_via_nginx() {
+              host="$1"; path="$2"
+              for i in $(seq 1 6); do
+                  if curl -sf --cacert "$CACERT" --resolve "$host:443:127.0.0.1" -D "/tmp/nginx-check-$host.headers" "https://$host$path" > /dev/null; then
+                      echo "nginx proxied https://$host$path"
+                      return 0
+                  fi
+                  echo "https://$host$path not proxying yet (attempt $i/6), retrying in 5s..."
+                  sleep 5
+              done
+              echo "nginx never successfully proxied https://$host$path after 30s"
+              return 1
+          }
+          check_via_nginx adguard.home.arpa "/"
+          check_via_nginx jellyfin.home.arpa "/health"
+          check_via_nginx syncthing.home.arpa "/rest/noauth/health"
+
+          # And it must be nginx doing the classifying, not just passing the backend's own response through
+          zone_header=$(grep -i '^X-Client-Zone:' /tmp/nginx-check-jellyfin.home.arpa.headers)
+          if [ -z "$zone_header" ]; then
+            echo "expected an X-Client-Zone header set by nginx, got none"
+            exit 1
+          fi
+          echo "$zone_header"
 
       # 127.0.0.1 bypasses the firewall entirely, so it can't test fix-home-net.sh
       # These steps simulate real LAN devices and a VPN peer via netns/veth instead
