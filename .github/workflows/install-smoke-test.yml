@@ -554,7 +554,8 @@ jobs:
           export ADGUARD_VPN_IP=10.13.13.10
           sudo -E ./generate-adguard-config.sh --force
           sudo chown -R 1000:1000 adguard
-          sudo docker compose start adguard
+          # No manual "docker compose start adguard" here
+          # The checks below rely on the script's own cleanup trap having restarted it
 
       - name: Verify the rewrite survived the template round-trip and the password rotated
         run: |
