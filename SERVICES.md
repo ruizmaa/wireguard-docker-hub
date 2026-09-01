@@ -81,6 +81,13 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 >
 > Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
 >
+> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`, showing what it's about to change before asking for confirmation:
+>
+> - LAN clients resolve them to this host's LAN IP, found via a route lookup against `LAN_SUBNET` (overridable with `ADGUARD_LAN_IP`, CI sets this).
+> - VPN (WireGuard) clients resolve them to this host's own tunnel IP instead, read from its `wg0` interface (overridable with `ADGUARD_VPN_IP`, CI sets this).
+>
+> No WireGuard changes needed: nginx already listens on `wg0`, so this works without widening the VPS peer's `AllowedIPs` (see [README](README.md)).
+>
 > Everything except the password comes from the tracked `services/adguard/AdGuardHome.yaml.template` (see [Tracking your config](#tracking-your-config) below).
 
 #### AdGuard **Start**
@@ -89,7 +96,8 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want wider coverage than Pi-hole's defaults gave you.
-- **Local DNS Records** (`Filters > DNS rewrites`): add `adguard.home.arpa`, `jellyfin.home.arpa` and `syncthing.home.arpa`, each pointing at the home server's LAN IP. This is what makes the [nginx](#nginx-reverse-proxy) subdomains resolve.
+
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
 
 #### Tracking your config
 
@@ -226,7 +234,7 @@ These are `.conf.template`, not `.conf`, nginx's own Docker image substitutes `$
 >
 > Also set `LAN_SUBNET` and `VPN_SUBNET` in `.env` (see `.env.example`). Your LAN's CIDR, and the VPS's `INTERNAL_SUBNET` as a CIDR, these decide the `lan`/`vpn`/`external` split described below.
 
-Finally, so `<service>.home.arpa` actually resolves on your LAN, add each one as a Local DNS Record in AdGuard's admin UI (`Filters` -> `DNS rewrites`), pointing at the home server's LAN IP. This is a manual, one-time step in AdGuard itself, there's nothing to configure in nginx for it.
+Finally, so `<service>.home.arpa` actually resolves: run (or re-run) [`generate-adguard-config.sh`](#adguard-configuration) after this — it sets up split-horizon DNS automatically (LAN clients get this host's LAN IP, VPN clients get its WireGuard tunnel IP).
 
 #### LAN vs. WireGuard zone
 
