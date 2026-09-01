@@ -337,6 +337,9 @@ jobs:
         run: |
           export ADGUARD_SETUP_USER=admin
           export ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD
+          # The runner isn't on LAN_SUBNET and has no wg0, so both overrides are needed
+          export ADGUARD_LAN_IP=192.168.1.10
+          export ADGUARD_VPN_IP=10.13.13.10
           sudo -E ./generate-adguard-config.sh
           # Created as root under sudo above, must match the compose file's user: 1000:1000
           sudo chown -R 1000:1000 adguard
@@ -420,6 +423,8 @@ jobs:
         run: |
           export ADGUARD_SETUP_USER=admin
           export ADGUARD_SETUP_PASSWORD=CI-SECOND-PASSWORD-ALSO-NOT-REAL
+          export ADGUARD_LAN_IP=192.168.1.10
+          export ADGUARD_VPN_IP=10.13.13.10
           sudo -E ./generate-adguard-config.sh --force
           sudo chown -R 1000:1000 adguard
           sudo docker compose start adguard
