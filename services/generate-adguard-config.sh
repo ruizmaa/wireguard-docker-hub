@@ -145,7 +145,7 @@ if [ -n "$LAN_SUBNET" ]; then
         if [[ "$rule" == \'*\' ]]; then
             rule="${rule#\'}"
             rule="${rule%\'}"
-            rule="${rule//\'\'/\'}"
+            rule="${rule//"''"/"'"}"
         fi
         tmpl_rules+=("$rule")
     done < <(user_rules_block < "$TEMPLATE_FILE" | tail -n +2)
@@ -214,7 +214,7 @@ if [ -n "$LAN_SUBNET" ]; then
     # Step 4: serialize final_rules back into a user_rules: YAML block, quoted like AdGuard would
     USER_RULES_BLOCK="user_rules:"$'\n'
     for r in "${final_rules[@]}"; do
-        USER_RULES_BLOCK+="  - '$r'"$'\n'
+        USER_RULES_BLOCK+="  - '${r//"'"/"''"}'"$'\n'
     done
 
     # Ask for confirmation unless running non-interactively (CI sets both env vars)

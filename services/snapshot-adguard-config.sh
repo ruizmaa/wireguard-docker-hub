@@ -30,10 +30,15 @@ if [ "$admin_count" -ne 1 ]; then
     exit 1
 fi
 
-# Start from the live config, then redact the credentials below
-cp "$LIVE_FILE" "$TEMPLATE_FILE"
-# Only one admin account exists (checked above), so this replace is safe
-sed -i "s|^  - name:.*|$NAME_PLACEHOLDER|; s|^    password:.*|$PASSWORD_PLACEHOLDER|" "$TEMPLATE_FILE"
+# Redact the credentials, scoped to the users: block only (like users_block above),
+# so a future top-level key with the same indent/name can't be mistaken for them
+awk -v name_line="$NAME_PLACEHOLDER" -v password_line="$PASSWORD_PLACEHOLDER" '
+/^users:/ { f = 1 }
+f && !/^users:/ && /^[^ ]/ { f = 0 }
+f && /^  - name:/ { print name_line; next }
+f && /^    password:/ { print password_line; next }
+{ print }
+' "$LIVE_FILE" > "$TEMPLATE_FILE"
 
 echo -e "${GREEN}-> Wrote $TEMPLATE_FILE, with the username/password redacted.${NC}"
 echo "   Review the diff, then git add/commit it yourself."
