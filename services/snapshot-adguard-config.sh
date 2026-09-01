@@ -8,6 +8,8 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
+# shellcheck source=scripts/lib/adguard-users.sh
+source "$SCRIPT_DIR/../scripts/lib/adguard-users.sh"
 
 LIVE_FILE="$SCRIPT_DIR/adguard/conf/AdGuardHome.yaml"
 TEMPLATE_FILE="$SCRIPT_DIR/adguard/AdGuardHome.yaml.template"
@@ -21,9 +23,7 @@ if [ ! -f "$LIVE_FILE" ]; then
 fi
 
 # With more than one user, the sed below would redact them all into the same placeholder
-# `|| true`: grep -c exits 1 on a zero count, which would otherwise kill the script
-# here under set -e before the check below can print its own clearer error
-admin_count=$(grep -c '^  - name:' "$LIVE_FILE" || true)
+admin_count=$(count_admin_accounts < "$LIVE_FILE")
 if [ "$admin_count" -ne 1 ]; then
     echo -e "${RED}Error: $LIVE_FILE has $admin_count admin accounts; this script only supports redacting exactly one.${NC}"
     echo "Redacting all of them isn't safe to automate blindly, and leaving extras unredacted would leak a real password hash into git."

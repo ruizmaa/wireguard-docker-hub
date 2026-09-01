@@ -4,11 +4,6 @@
 # Non-interactive (e.g. CI): set ADGUARD_SETUP_USER and ADGUARD_SETUP_PASSWORD.
 set -eo pipefail
 
-# Prints only the `users:` block, so no other list can be mistaken for it below
-users_block() {
-    awk '/^users:/{f=1} f && !/^users:/ && /^[^ ]/{exit} f'
-}
-
 # Prints only the `user_rules:` block
 user_rules_block() {
     awk '/^user_rules:/{f=1} f && !/^user_rules:/ && /^[^ ]/{exit} f'
@@ -21,6 +16,8 @@ source "$SCRIPT_DIR/../scripts/lib/colors.sh"
 source "$SCRIPT_DIR/../scripts/lib/writable-guard.sh"
 # shellcheck source=scripts/lib/force-flag.sh
 source "$SCRIPT_DIR/../scripts/lib/force-flag.sh"
+# shellcheck source=scripts/lib/adguard-users.sh
+source "$SCRIPT_DIR/../scripts/lib/adguard-users.sh"
 
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
@@ -56,9 +53,7 @@ if [ ! -f "$TEMPLATE_FILE" ]; then
 fi
 
 # With more than one admin account, they'd all get overwritten with the same one
-# `|| true`: grep -c exits 1 on a zero count, which would otherwise kill the script
-# here under set -e before the check below can print its own clearer error
-admin_count=$(users_block < "$TEMPLATE_FILE" | grep -c '^  - name:' || true)
+admin_count=$(count_admin_accounts < "$TEMPLATE_FILE")
 if [ "$admin_count" -ne 1 ]; then
     echo -e "${RED}Error: $TEMPLATE_FILE has $admin_count admin accounts; this script only supports managing exactly one.${NC}"
     echo "Edit the extra accounts in by hand after generating, or remove them from the template first."
