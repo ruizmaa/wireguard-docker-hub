@@ -8,10 +8,6 @@ server {
     listen 443 ssl;
     server_name syncthing.home.arpa;
 
-    set $upstream_syncthing syncthing:8384;
-
-    location / {
-        proxy_pass http://$upstream_syncthing;
-        include /etc/nginx/proxy_params.conf;
-    }
+    set $backend syncthing:8384;
+    include /etc/nginx/proxy_params.conf;
 }

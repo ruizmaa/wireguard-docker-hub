@@ -27,7 +27,7 @@ http {
     # 127.0.0.11 is Docker's embedded DNS -- re-resolves each proxied service's name on
     # every request (cached for 10s) instead of once at nginx startup, so recreating a
     # container (image update, restart) doesn't leave its server block pointing at a stale IP.
-    # Inherited by every server block below -- see conf.d/*.conf's `set $upstream_X` lines.
+    # Inherited by every server block below -- see conf.d/*.conf's `set $backend` lines.
     resolver 127.0.0.11 valid=10s;
 
     # Used by proxy_params.conf's WebSocket headers: "upgrade" on a real Upgrade request, "close" otherwise.

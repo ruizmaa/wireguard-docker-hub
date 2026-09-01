@@ -8,10 +8,6 @@ server {
     listen 443 ssl;
     server_name jellyfin.home.arpa;
 
-    set $upstream_jellyfin jellyfin:8096;
-
-    location / {
-        proxy_pass http://$upstream_jellyfin;
-        include /etc/nginx/proxy_params.conf;
-    }
+    set $backend jellyfin:8096;
+    include /etc/nginx/proxy_params.conf;
 }
