@@ -3,13 +3,12 @@
 # Usage: source this file, then call parse_force_flag "$@"; sets $FORCE to "true"/"false".
 
 # Only --force is supported, any other flag is a typo and should fail loudly
+# shellcheck disable=SC2034 # FORCE is read by the script that sourced this file, not here
 parse_force_flag() {
-    # shellcheck disable=SC2034 # read by the script that sourced this file, not here
     FORCE="false"
     local arg
     for arg in "$@"; do
         case "$arg" in
-            # shellcheck disable=SC2034 # read by the script that sourced this file, not here
             --force) FORCE="true" ;;
             *) echo "Error: unknown flag '$arg'"; exit 1 ;;
         esac
