@@ -9,20 +9,15 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
 # shellcheck source=scripts/lib/writable-guard.sh
 source "$SCRIPT_DIR/../scripts/lib/writable-guard.sh"
+# shellcheck source=scripts/lib/force-flag.sh
+source "$SCRIPT_DIR/../scripts/lib/force-flag.sh"
 
 CERT_DIR="$SCRIPT_DIR/nginx/certs"
 CERT_FILE="$CERT_DIR/cert.pem"
 KEY_FILE="$CERT_DIR/key.pem"
 DAYS=825
 
-# Only --force is supported, any other flag is a typo and should fail loudly
-FORCE="false"
-for arg in "$@"; do
-    case "$arg" in
-        --force) FORCE="true" ;;
-        *) echo "Error: unknown flag '$arg'"; exit 1 ;;
-    esac
-done
+parse_force_flag "$@"
 
 # Refuse to overwrite an existing cert unless the caller explicitly opted in
 if [ -f "$CERT_FILE" ] && [ "$FORCE" != "true" ]; then

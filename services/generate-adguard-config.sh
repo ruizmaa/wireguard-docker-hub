@@ -20,6 +20,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
 # shellcheck source=scripts/lib/writable-guard.sh
 source "$SCRIPT_DIR/../scripts/lib/writable-guard.sh"
+# shellcheck source=scripts/lib/force-flag.sh
+source "$SCRIPT_DIR/../scripts/lib/force-flag.sh"
 
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
@@ -36,14 +38,7 @@ TEMPLATE_FILE="$SCRIPT_DIR/adguard/AdGuardHome.yaml.template"
 # Also created so docker compose up doesn't create it as root first
 WORK_DIR="$SCRIPT_DIR/adguard/work"
 
-# Only --force is supported, any other flag is a typo and should fail loudly
-FORCE="false"
-for arg in "$@"; do
-    case "$arg" in
-        --force) FORCE="true" ;;
-        *) echo "Error: unknown flag '$arg'"; exit 1 ;;
-    esac
-done
+parse_force_flag "$@"
 
 guard_writable_dir "$OUT_DIR"
 guard_writable_dir "$WORK_DIR"
