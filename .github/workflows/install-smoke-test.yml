@@ -469,24 +469,49 @@ jobs:
           exit 1
 
       # Split-horizon: same hostname, different answer depending on the querier's source IP.
+      # Querying @127.0.0.1 won't work: Docker's hairpin NAT masks the real source, so real
+      # simulated peers are used instead, same as the firewall checks further down.
       - name: Verify generate-adguard-config.sh set the split-horizon DNS rewrites automatically
         run: |
-          sudo ip addr add 192.168.1.20/32 dev lo
-          sudo ip addr add 10.13.13.20/32 dev lo
+          # veth names have to fit Linux's 15-char IFNAMSIZ limit, so they use a short tag
+          # instead of the (more readable) netns/bridge names below
+          new_dns_test_peer() {
+              local ns="$1" bridge="$2" bridge_ip="$3" peer_ip="$4" tag="$5"
+              sudo ip link add "$bridge" type bridge
+              sudo ip addr add "$bridge_ip/24" dev "$bridge"
+              sudo ip link set "$bridge" up
+              sudo ip netns add "$ns"
+              sudo ip link add "veth-$tag" type veth peer name "veth-$tag-br"
+              sudo ip link set "veth-$tag" netns "$ns"
+              sudo ip link set "veth-$tag-br" master "$bridge" up
+              sudo ip netns exec "$ns" ip addr add "$peer_ip/24" dev "veth-$tag"
+              sudo ip netns exec "$ns" ip link set "veth-$tag" up
+              sudo ip netns exec "$ns" ip link set lo up
+              sudo ip netns exec "$ns" ip route add default via "$bridge_ip"
+          }
+          cleanup_dns_test_peers() {
+              sudo ip netns del lan-dns-peer 2>/dev/null || true
+              sudo ip netns del vpn-dns-peer 2>/dev/null || true
+              sudo ip link del br-lan-dns-test 2>/dev/null || true
+              sudo ip link del br-vpn-dns-test 2>/dev/null || true
+          }
+          trap cleanup_dns_test_peers EXIT
+
+          new_dns_test_peer lan-dns-peer br-lan-dns-test 192.168.1.50 192.168.1.51 lan
+          new_dns_test_peer vpn-dns-peer br-vpn-dns-test 10.13.13.50 10.13.13.51 vpn
+
           for host in adguard.home.arpa jellyfin.home.arpa syncthing.home.arpa; do
-            lan_ip=$(dig +short -b 192.168.1.20 @127.0.0.1 "$host")
+            lan_ip=$(sudo ip netns exec lan-dns-peer dig +short @192.168.1.50 "$host")
             if [ "$lan_ip" != "192.168.1.10" ]; then
               echo "expected $host to resolve to 192.168.1.10 (ADGUARD_LAN_IP) from a LAN-sourced query, got '$lan_ip'"
               exit 1
             fi
-            vpn_ip=$(dig +short -b 10.13.13.20 @127.0.0.1 "$host")
+            vpn_ip=$(sudo ip netns exec vpn-dns-peer dig +short @10.13.13.50 "$host")
             if [ "$vpn_ip" != "10.13.13.10" ]; then
               echo "expected $host to resolve to 10.13.13.10 (ADGUARD_VPN_IP) from a VPN-sourced query, got '$vpn_ip'"
               exit 1
             fi
           done
-          sudo ip addr del 192.168.1.20/32 dev lo
-          sudo ip addr del 10.13.13.20/32 dev lo
           echo "all three nginx hostnames resolve correctly per zone (split-horizon)"
 
       # Real change via the API (not a hand-edited file), so the snapshot below reflects
