@@ -160,13 +160,29 @@ password_line=$(printf '%s\n' "$users_live" | grep '^    password:')
 
 # The template has everything else (blocklists, rewrites...). Write it to $OUT_FILE,
 # AdGuard's real config file, replacing placeholders with the real admin account/password from above
-NAME_LINE="$name_line" PASSWORD_LINE="$password_line" awk '
+AWK_PROGRAM='
 /^users:/ { f = 1 }                              # entering the users: block
 f && !/^users:/ && /^[^ ]/ { f = 0 }             # left it: next top-level key
-f && /^  - name:/ { print ENVIRON["NAME_LINE"]; next }
-f && /^    password:/ { print ENVIRON["PASSWORD_LINE"]; next }
+f && /^  - name:/ { print ENVIRON["NAME_LINE"]; name_subs++; next }
+f && /^    password:/ { print ENVIRON["PASSWORD_LINE"]; password_subs++; next }
+'
+# Fails loudly (instead of writing the file and reporting success) if the template's
+# format ever changes enough that these substitutions stop matching anything
+AWK_PROGRAM="$AWK_PROGRAM"'
 { print }
-' "$TEMPLATE_FILE" > "$OUT_FILE"
+END {
+    if (name_subs != 1 || password_subs != 1) {
+        print "expected exactly 1 name/password substitution, got " name_subs "/" password_subs > "/dev/stderr"
+        exit 1
+    }
+}
+'
+if ! NAME_LINE="$name_line" PASSWORD_LINE="$password_line" \
+    awk "$AWK_PROGRAM" "$TEMPLATE_FILE" > "$OUT_FILE"; then
+    echo -e "${RED}Error: couldn't substitute the admin name/password into $TEMPLATE_FILE -- its format may have changed.${NC}"
+    rm -f "$OUT_FILE"
+    exit 1
+fi
 echo -e "${GREEN}-> Generated $OUT_FILE from your tracked template, with a fresh password hash.${NC}"
 # Read/write for your user only
 chmod 600 "$OUT_FILE"
