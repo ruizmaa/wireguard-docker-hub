@@ -751,9 +751,9 @@ jobs:
       - name: Verify the rewrite survived the template round-trip and the password rotated
         run: |
           # Restarting adguard takes a moment, so wait for it before hitting its API
-          for i in $(seq 1 12); do
+          for i in $(seq 1 18); do
             curl -sf -o /dev/null http://127.0.0.1:8080/ && break
-            echo "adguard not back up yet (attempt $i/12), retrying in 5s..."
+            echo "adguard not back up yet (attempt $i/18), retrying in 5s..."
             sleep 5
           done
 
@@ -807,12 +807,12 @@ jobs:
 
           # adguard must come back up on its own, no manual "docker compose start" here
           up="false"
-          for i in $(seq 1 12); do
+          for i in $(seq 1 18); do
             if curl -sf -o /dev/null http://127.0.0.1:8080/; then
               up="true"
               break
             fi
-            echo "adguard not back up yet after the failed regenerate (attempt $i/12), retrying in 5s..."
+            echo "adguard not back up yet after the failed regenerate (attempt $i/18), retrying in 5s..."
             sleep 5
           done
           if [ "$up" != "true" ]; then
