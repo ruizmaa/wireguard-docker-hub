@@ -525,7 +525,10 @@ jobs:
           rm -rf "$TESTDIR" /tmp/adguard-rewrite-paths-data
           mkdir -p "$TESTDIR" /tmp/adguard-rewrite-paths-data
           # Also copies scripts/, generate-adguard-config.sh sources scripts/lib/colors.sh via ../
-          cp -r "$REPO_DIR/scripts" "$REPO_DIR/services" "$TESTDIR/"
+          # sudo: adguard/conf and adguard/work are chown'd to 1000:1000 by earlier steps, and
+          # aren't necessarily readable by the runner user -- reclaim ownership after copying
+          sudo cp -r "$REPO_DIR/scripts" "$REPO_DIR/services" "$TESTDIR/"
+          sudo chown -R "$(id -u):$(id -g)" "$TESTDIR"
           cd "$TESTDIR/services"
           # Own .env, and drop the real config this copied from -- both would short-circuit the checks below
           cat > .env <<'ENVEOF'
