@@ -23,6 +23,10 @@ for arg in "$@"; do
         *) POSITIONAL+=("$arg") ;;
     esac
 done
+if [ "${#POSITIONAL[@]}" -gt 3 ]; then
+    echo "Error: too many arguments (unexpected: '${POSITIONAL[3]}')"
+    exit 1
+fi
 TARGET_HOST="${POSITIONAL[0]:-}"
 VPS_HOST="${POSITIONAL[1]:-}"
 PEER_NAME="${POSITIONAL[2]:-}"

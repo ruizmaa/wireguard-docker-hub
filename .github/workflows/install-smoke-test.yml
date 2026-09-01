@@ -185,6 +185,40 @@ jobs:
           sudo sed -i "s|^Endpoint = .*|Endpoint = ${gateway}:51820|" /tmp/peer1.conf
           sudo docker cp /tmp/peer1.conf wireguard:/config/peer1/peer1.conf
 
+      - name: Verify install-wireguard.sh rejects an unknown flag
+        run: |
+          set +e
+          output=$(./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --bogus 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected install-wireguard.sh to reject an unknown flag, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "unknown flag"; then
+            echo "expected the unknown-flag error message, got something else instead"
+            exit 1
+          fi
+
+      - name: Verify install-wireguard.sh rejects an extra positional argument
+        run: |
+          set +e
+          output=$(./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 extra-arg 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected install-wireguard.sh to reject an extra positional argument, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "too many arguments"; then
+            echo "expected the too-many-arguments error message, got something else instead"
+            exit 1
+          fi
+
       - name: Run install-wireguard.sh
         run: ./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --yes
 
@@ -306,6 +340,53 @@ jobs:
         run: |
           echo "LAN_SUBNET=192.168.1.0/24" > .env
           echo "VPN_SUBNET=10.13.13.0/24" >> .env
+
+      - name: Verify generate-nginx-certs.sh rejects an unknown flag
+        working-directory: services
+        run: |
+          set +e
+          output=$(./generate-nginx-certs.sh --bogus 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-nginx-certs.sh to reject an unknown flag, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "unknown flag"; then
+            echo "expected the shared force-flag parser's error message, got something else instead"
+            exit 1
+          fi
+          if [ -f nginx/certs/cert.pem ]; then
+            echo "rejecting an unknown flag must not generate a cert"
+            exit 1
+          fi
+
+      - name: Verify generate-nginx-certs.sh rejects a root-owned certs dir
+        working-directory: services
+        run: |
+          # Simulates `docker compose up` auto-creating this dir as root before the script ever runs.
+          sudo mkdir -p nginx/certs
+          sudo chown root:root nginx/certs
+
+          # Capture the exit code ourselves, a failure here would otherwise stop the step
+          set +e
+          output=$(./generate-nginx-certs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-nginx-certs.sh to fail on a root-owned nginx/certs, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "isn't a writable directory"; then
+            echo "expected the clear permission-guard error message, got something else instead"
+            exit 1
+          fi
+
+          sudo rm -rf nginx/certs
 
       - name: Verify generate-adguard-config.sh rejects a root-owned conf dir
         working-directory: services
