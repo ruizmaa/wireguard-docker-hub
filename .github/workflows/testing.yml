@@ -29,6 +29,9 @@ jobs:
         run: docker compose -f docker-compose.yml config >/dev/null
 
       - name: Validate services compose
+        env:
+          LAN_SUBNET: 192.168.1.0/24
+          VPN_SUBNET: 10.13.13.0/24
         run: docker compose -f services/docker-compose.yml config >/dev/null
 
       - name: ShellCheck
