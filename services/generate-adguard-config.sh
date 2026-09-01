@@ -4,12 +4,6 @@
 # Non-interactive (e.g. CI): set ADGUARD_SETUP_USER and ADGUARD_SETUP_PASSWORD.
 set -eo pipefail
 
-# Escapes `\` and `"` so a value is safe to embed in a JSON string below
-json_escape() {
-    local escaped="${1//\\/\\\\}"
-    printf '%s' "${escaped//\"/\\\"}"
-}
-
 # Prints only the `users:` block, so no other list can be mistaken for it below
 users_block() {
     awk '/^users:/{f=1} f && !/^users:/ && /^[^ ]/{exit} f'
@@ -99,9 +93,6 @@ if [ "${#admin_password}" -lt 8 ]; then
     exit 1
 fi
 
-# Escape both so neither can break out of the JSON string below
-json_user="$(json_escape "$admin_user")"
-json_password="$(json_escape "$admin_password")"
 
 # GENERATE CONFIG VIA THROWAWAY CONTAINER
 # Unique per PID, so two runs at once don't collide on the container name
@@ -129,9 +120,11 @@ if [ "$ready" != "true" ]; then
 fi
 
 # Sets the admin account via AdGuard's own setup-wizard API
+payload=$(jq -n --arg u "$admin_user" --arg p "$admin_password" \
+    '{web: {ip: "0.0.0.0", port: 80}, dns: {ip: "0.0.0.0", port: 53}, username: $u, password: $p}')
 response=$(docker exec "$tmp_name" wget -qO- \
     --header='Content-Type: application/json' \
-    --post-data="{\"web\":{\"ip\":\"0.0.0.0\",\"port\":80},\"dns\":{\"ip\":\"0.0.0.0\",\"port\":53},\"username\":\"$json_user\",\"password\":\"$json_password\"}" \
+    --post-data="$payload" \
     http://127.0.0.1:3000/control/install/configure)
 
 if [ "$response" != "OK" ]; then
