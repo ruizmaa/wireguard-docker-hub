@@ -589,6 +589,62 @@ jobs:
             exit 1
           fi
 
+      # Regression test: a mid-script --force failure used to leave adguard stopped with its
+      # live config already truncated (`> $OUT_FILE` destroys it before awk even runs).
+      - name: Verify a failed --force regenerate doesn't take down or corrupt adguard
+        working-directory: services
+        run: |
+          before_hash=$(sudo md5sum adguard/conf/AdGuardHome.yaml | cut -d' ' -f1)
+          sudo cp adguard/AdGuardHome.yaml.template /tmp/AdGuardHome.yaml.template.bak
+          sudo sed -i 's/^    password:/  password:/' adguard/AdGuardHome.yaml.template
+
+          export ADGUARD_SETUP_USER=admin
+          export ADGUARD_SETUP_PASSWORD=CI-THIRD-PASSWORD-ALSO-NOT-REAL
+          export ADGUARD_LAN_IP=192.168.1.10
+          export ADGUARD_VPN_IP=10.13.13.10
+          set +e
+          output=$(sudo -E ./generate-adguard-config.sh --force 2>&1)
+          status=$?
+          set -e
+          sudo mv /tmp/AdGuardHome.yaml.template.bak adguard/AdGuardHome.yaml.template
+
+          if [ "$status" -eq 0 ]; then
+            echo "expected the corrupted template to make --force fail, but it exited 0"
+            echo "$output"
+            exit 1
+          fi
+
+          # adguard must come back up on its own, no manual "docker compose start" here
+          up="false"
+          for i in $(seq 1 12); do
+            if curl -sf -o /dev/null http://127.0.0.1:8080/; then
+              up="true"
+              break
+            fi
+            echo "adguard not back up yet after the failed regenerate (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          if [ "$up" != "true" ]; then
+            echo "adguard never came back up after the failed --force regenerate"
+            exit 1
+          fi
+
+          # And the config that was live before the failed attempt must be completely untouched
+          after_hash=$(sudo md5sum adguard/conf/AdGuardHome.yaml | cut -d' ' -f1)
+          if [ "$before_hash" != "$after_hash" ]; then
+            echo "the live AdGuardHome.yaml changed even though the regenerate failed"
+            exit 1
+          fi
+
+          # And the password from the successful regenerate two steps ago must still work
+          still_login=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/control/login \
+            -H "Content-Type: application/json" -d '{"name":"admin","password":"CI-SECOND-PASSWORD-ALSO-NOT-REAL"}')
+          if [ "$still_login" != "200" ]; then
+            echo "expected the pre-failure password to still work, got http $still_login"
+            exit 1
+          fi
+          echo "a failed --force regenerate restarts adguard and leaves its live config untouched"
+
       # No compose healthcheck for jellyfin, its /health is unreliable during startup migrations
       # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
       - name: Verify jellyfin responds
