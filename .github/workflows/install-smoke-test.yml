@@ -531,8 +531,10 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" "$TESTDIR"
           cd "$TESTDIR/services"
           # Own .env, and drop the real config this copied from -- both would short-circuit the checks below
+          # COMPOSE_PROJECT_NAME: without it, --force's stop/start adguard would hit the real container
           cat > .env <<'ENVEOF'
           TZ=Etc/UTC
+          COMPOSE_PROJECT_NAME=adguard-rewrite-paths-test
           LAN_SUBNET=192.168.1.0/24
           VPN_SUBNET=10.13.13.0/24
           SYNCTHING_MOUNT_1=/tmp/adguard-rewrite-paths-data:/data1
@@ -722,6 +724,8 @@ jobs:
           # Stopped so the live config file isn't being written while we copy it
           sudo docker compose stop adguard
           sudo ./snapshot-adguard-config.sh
+          # Restart it: the next step's --force only restarts adguard if it was running when it started
+          sudo docker compose start adguard
           # The rewrite added via the API earlier must have made it into the template
           if ! grep -q "ci-smoke-test.home.arpa" adguard/AdGuardHome.yaml.template; then
             echo "the DNS rewrite added via the API is missing from the snapshotted template"
@@ -751,9 +755,9 @@ jobs:
       - name: Verify the rewrite survived the template round-trip and the password rotated
         run: |
           # Restarting adguard takes a moment, so wait for it before hitting its API
-          for i in $(seq 1 18); do
+          for i in $(seq 1 12); do
             curl -sf -o /dev/null http://127.0.0.1:8080/ && break
-            echo "adguard not back up yet (attempt $i/18), retrying in 5s..."
+            echo "adguard not back up yet (attempt $i/12), retrying in 5s..."
             sleep 5
           done
 
@@ -807,12 +811,12 @@ jobs:
 
           # adguard must come back up on its own, no manual "docker compose start" here
           up="false"
-          for i in $(seq 1 18); do
+          for i in $(seq 1 12); do
             if curl -sf -o /dev/null http://127.0.0.1:8080/; then
               up="true"
               break
             fi
-            echo "adguard not back up yet after the failed regenerate (attempt $i/18), retrying in 5s..."
+            echo "adguard not back up yet after the failed regenerate (attempt $i/12), retrying in 5s..."
             sleep 5
           done
           if [ "$up" != "true" ]; then
