@@ -468,6 +468,27 @@ jobs:
           echo "adguard never resolved a DNS query after 60s"
           exit 1
 
+      # Split-horizon: same hostname, different answer depending on the querier's source IP.
+      - name: Verify generate-adguard-config.sh set the split-horizon DNS rewrites automatically
+        run: |
+          sudo ip addr add 192.168.1.20/32 dev lo
+          sudo ip addr add 10.13.13.20/32 dev lo
+          for host in adguard.home.arpa jellyfin.home.arpa syncthing.home.arpa; do
+            lan_ip=$(dig +short -b 192.168.1.20 @127.0.0.1 "$host")
+            if [ "$lan_ip" != "192.168.1.10" ]; then
+              echo "expected $host to resolve to 192.168.1.10 (ADGUARD_LAN_IP) from a LAN-sourced query, got '$lan_ip'"
+              exit 1
+            fi
+            vpn_ip=$(dig +short -b 10.13.13.20 @127.0.0.1 "$host")
+            if [ "$vpn_ip" != "10.13.13.10" ]; then
+              echo "expected $host to resolve to 10.13.13.10 (ADGUARD_VPN_IP) from a VPN-sourced query, got '$vpn_ip'"
+              exit 1
+            fi
+          done
+          sudo ip addr del 192.168.1.20/32 dev lo
+          sudo ip addr del 10.13.13.20/32 dev lo
+          echo "all three nginx hostnames resolve correctly per zone (split-horizon)"
+
       # Real change via the API (not a hand-edited file), so the snapshot below reflects
       # what an operator actually configuring AdGuard through its web UI would produce.
       - name: Add a real AdGuard config change via its API
