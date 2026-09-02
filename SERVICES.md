@@ -95,7 +95,7 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 Log in at `http://<SERVER_IP>:8080` with the username/password you gave the script above, then configure:
 
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
-- **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want wider coverage than Pi-hole's defaults gave you.
+- **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
 If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
 
