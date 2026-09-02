@@ -5,4 +5,7 @@ wireguard/
 **/*.conf
 **/*.key
 **/*.log
+services/nginx/certs/
+services/adguard/conf/
+services/adguard/work/
 .env

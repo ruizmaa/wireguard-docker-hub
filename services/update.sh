@@ -1,5 +1,5 @@
 #!/bin/bash
-# Updates the services (pihole/syncthing/jellyfin) compose stack images.
+# Updates the services (adguard/syncthing/jellyfin) compose stack images.
 # Run manually, or via scripts/deploy-services.sh in the deploy-services workflow.
 set -e
 

@@ -185,6 +185,40 @@ jobs:
           sudo sed -i "s|^Endpoint = .*|Endpoint = ${gateway}:51820|" /tmp/peer1.conf
           sudo docker cp /tmp/peer1.conf wireguard:/config/peer1/peer1.conf
 
+      - name: Verify install-wireguard.sh rejects an unknown flag
+        run: |
+          set +e
+          output=$(./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --bogus 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected install-wireguard.sh to reject an unknown flag, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "unknown flag"; then
+            echo "expected the unknown-flag error message, got something else instead"
+            exit 1
+          fi
+
+      - name: Verify install-wireguard.sh rejects an extra positional argument
+        run: |
+          set +e
+          output=$(./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 extra-arg 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected install-wireguard.sh to reject an extra positional argument, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "too many arguments"; then
+            echo "expected the too-many-arguments error message, got something else instead"
+            exit 1
+          fi
+
       - name: Run install-wireguard.sh
         run: ./services/install-wireguard.sh "$TARGET_IP" 127.0.0.1 1 --yes
 
@@ -287,7 +321,7 @@ jobs:
       # SECURITY: this reconfigures the runner's own DNS resolver
       # Safe only because this is a GitHub runner destroyed after the job
       # Never run this job on a self-hosted/persistent runner.
-      - name: Free port 53 for pihole (disable systemd-resolved's stub listener)
+      - name: Free port 53 for adguard (disable systemd-resolved's stub listener)
         run: |
           sudo mkdir -p /etc/systemd/resolved.conf.d
           printf '[Resolve]\nDNSStubListener=no\n' | sudo tee /etc/systemd/resolved.conf.d/no-stub.conf > /dev/null
@@ -300,6 +334,100 @@ jobs:
 
           # dockerd caches resolv.conf at startup, so restart it now that DNS is fixed.
           sudo systemctl restart docker
+
+      - name: Set required nginx env vars for the smoke test
+        working-directory: services
+        run: |
+          echo "LAN_SUBNET=192.168.1.0/24" > .env
+          echo "VPN_SUBNET=10.13.13.0/24" >> .env
+
+      - name: Verify generate-nginx-certs.sh rejects an unknown flag
+        working-directory: services
+        run: |
+          set +e
+          output=$(./generate-nginx-certs.sh --bogus 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-nginx-certs.sh to reject an unknown flag, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "unknown flag"; then
+            echo "expected the shared force-flag parser's error message, got something else instead"
+            exit 1
+          fi
+          if [ -f nginx/certs/cert.pem ]; then
+            echo "rejecting an unknown flag must not generate a cert"
+            exit 1
+          fi
+
+      - name: Verify generate-nginx-certs.sh rejects a root-owned certs dir
+        working-directory: services
+        run: |
+          # Simulates `docker compose up` auto-creating this dir as root before the script ever runs.
+          sudo mkdir -p nginx/certs
+          sudo chown root:root nginx/certs
+
+          # Capture the exit code ourselves, a failure here would otherwise stop the step
+          set +e
+          output=$(./generate-nginx-certs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-nginx-certs.sh to fail on a root-owned nginx/certs, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "isn't a writable directory"; then
+            echo "expected the clear permission-guard error message, got something else instead"
+            exit 1
+          fi
+
+          sudo rm -rf nginx/certs
+
+      - name: Verify generate-adguard-config.sh rejects a root-owned conf dir
+        working-directory: services
+        run: |
+          # Simulates `docker compose up` auto-creating this dir as root before the script ever runs.
+          sudo mkdir -p adguard/conf
+          sudo chown root:root adguard/conf
+
+          # Capture the exit code ourselves, a failure here would otherwise stop the step
+          set +e
+          output=$(ADGUARD_SETUP_USER=admin ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD ./generate-adguard-config.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-adguard-config.sh to fail on a root-owned adguard/conf, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "isn't a writable directory"; then
+            echo "expected the clear permission-guard error message, got something else instead"
+            exit 1
+          fi
+
+          sudo rm -rf adguard/conf
+
+      - name: Generate AdGuard config for the smoke test
+        working-directory: services
+        run: |
+          export ADGUARD_SETUP_USER=admin
+          export ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD
+          # The runner isn't on LAN_SUBNET and has no wg0, so both overrides are needed
+          export ADGUARD_LAN_IP=192.168.1.10
+          export ADGUARD_VPN_IP=10.13.13.10
+          sudo -E ./generate-adguard-config.sh
+          # Created as root under sudo above, must match the compose file's user: 1000:1000
+          sudo chown -R 1000:1000 adguard
+
+      - name: Generate nginx certs for the smoke test
+        working-directory: services
+        run: ./generate-nginx-certs.sh
 
       - name: Start services stack
         working-directory: services
@@ -326,19 +454,391 @@ jobs:
       - name: Install dig for DNS check
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
 
-      - name: Verify pihole resolves DNS
+      - name: Verify AdGuard resolves DNS
         run: |
           for i in $(seq 1 12); do
             ip=$(dig +short @127.0.0.1 google.com | head -n1)
             if [ -n "$ip" ]; then
-              echo "pihole resolved google.com -> $ip"
+              echo "adguard resolved google.com -> $ip"
               exit 0
             fi
-            echo "pihole not answering yet (attempt $i/12), retrying in 5s..."
+            echo "adguard not answering yet (attempt $i/12), retrying in 5s..."
             sleep 5
           done
-          echo "pihole never resolved a DNS query after 60s"
+          echo "adguard never resolved a DNS query after 60s"
           exit 1
+
+      # Split-horizon: same hostname, different answer depending on the querier's source IP.
+      # Querying @127.0.0.1 won't work: Docker's hairpin NAT masks the real source, so real
+      # simulated peers are used instead, same as the firewall checks further down.
+      - name: Verify generate-adguard-config.sh set the split-horizon DNS rewrites automatically
+        run: |
+          # veth names have to fit Linux's 15-char IFNAMSIZ limit, so they use a short tag
+          # instead of the (more readable) netns/bridge names below
+          new_dns_test_peer() {
+              local ns="$1" bridge="$2" bridge_ip="$3" peer_ip="$4" tag="$5"
+              sudo ip link add "$bridge" type bridge
+              sudo ip addr add "$bridge_ip/24" dev "$bridge"
+              sudo ip link set "$bridge" up
+              sudo ip netns add "$ns"
+              sudo ip link add "veth-$tag" type veth peer name "veth-$tag-br"
+              sudo ip link set "veth-$tag" netns "$ns"
+              sudo ip link set "veth-$tag-br" master "$bridge" up
+              sudo ip netns exec "$ns" ip addr add "$peer_ip/24" dev "veth-$tag"
+              sudo ip netns exec "$ns" ip link set "veth-$tag" up
+              sudo ip netns exec "$ns" ip link set lo up
+              sudo ip netns exec "$ns" ip route add default via "$bridge_ip"
+          }
+          cleanup_dns_test_peers() {
+              sudo ip netns del lan-dns-peer 2>/dev/null || true
+              sudo ip netns del vpn-dns-peer 2>/dev/null || true
+              sudo ip link del br-lan-dns-test 2>/dev/null || true
+              sudo ip link del br-vpn-dns-test 2>/dev/null || true
+          }
+          trap cleanup_dns_test_peers EXIT
+
+          new_dns_test_peer lan-dns-peer br-lan-dns-test 192.168.1.50 192.168.1.51 lan
+          new_dns_test_peer vpn-dns-peer br-vpn-dns-test 10.13.13.50 10.13.13.51 vpn
+
+          for host in adguard.home.arpa jellyfin.home.arpa syncthing.home.arpa; do
+            lan_ip=$(sudo ip netns exec lan-dns-peer dig +short @192.168.1.50 "$host")
+            if [ "$lan_ip" != "192.168.1.10" ]; then
+              echo "expected $host to resolve to 192.168.1.10 (ADGUARD_LAN_IP) from a LAN-sourced query, got '$lan_ip'"
+              exit 1
+            fi
+            vpn_ip=$(sudo ip netns exec vpn-dns-peer dig +short @10.13.13.50 "$host")
+            if [ "$vpn_ip" != "10.13.13.10" ]; then
+              echo "expected $host to resolve to 10.13.13.10 (ADGUARD_VPN_IP) from a VPN-sourced query, got '$vpn_ip'"
+              exit 1
+            fi
+          done
+          echo "all three nginx hostnames resolve correctly per zone (split-horizon)"
+
+      # Runs against an isolated copy in /tmp so none of these paths touch the real
+      # stack or state relied on by the steps before/after this one.
+      - name: Verify generate-adguard-config.sh's other DNS-rewrite paths
+        working-directory: services
+        run: |
+          ORIG_DIR="$PWD"
+          REPO_DIR="$(dirname "$ORIG_DIR")"
+          TESTDIR=/tmp/adguard-rewrite-paths
+          rm -rf "$TESTDIR" /tmp/adguard-rewrite-paths-data
+          mkdir -p "$TESTDIR" /tmp/adguard-rewrite-paths-data
+          # Also copies scripts/, generate-adguard-config.sh sources scripts/lib/colors.sh via ../
+          # sudo: adguard/conf and adguard/work are chown'd to 1000:1000 by earlier steps, and
+          # aren't necessarily readable by the runner user -- reclaim ownership after copying
+          sudo cp -r "$REPO_DIR/scripts" "$REPO_DIR/services" "$TESTDIR/"
+          sudo chown -R "$(id -u):$(id -g)" "$TESTDIR"
+          cd "$TESTDIR/services"
+          # Own .env, and drop the real config this copied from -- both would short-circuit the checks below
+          # COMPOSE_PROJECT_NAME: without it, --force's stop/start adguard would hit the real container
+          cat > .env <<'ENVEOF'
+          TZ=Etc/UTC
+          COMPOSE_PROJECT_NAME=adguard-rewrite-paths-test
+          LAN_SUBNET=192.168.1.0/24
+          VPN_SUBNET=10.13.13.0/24
+          SYNCTHING_MOUNT_1=/tmp/adguard-rewrite-paths-data:/data1
+          JELLYFIN_MEDIA_1=/tmp/adguard-rewrite-paths-data:/media
+          ENVEOF
+          rm -f adguard/conf/AdGuardHome.yaml
+
+          # --- Path: no ADGUARD_LAN_IP override, and this runner isn't on LAN_SUBNET ---
+          set +e
+          output=$(ADGUARD_SETUP_USER=admin ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD ./generate-adguard-config.sh 2>&1)
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "expected autodetection to fail on a runner not on LAN_SUBNET, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "couldn't detect this host's IP"; then
+            echo "expected the clear autodetection-failure error, got:"
+            echo "$output"
+            exit 1
+          fi
+          if [ -f adguard/conf/AdGuardHome.yaml ]; then
+            echo "autodetection failure must not leave a generated config behind"
+            exit 1
+          fi
+          echo "autodetection without ADGUARD_LAN_IP correctly fails with a clear error"
+
+          # --- Path: ADGUARD_LAN_IP given, but no ADGUARD_VPN_IP and no wg0 on this runner ---
+          set +e
+          output=$(ADGUARD_SETUP_USER=admin ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD ADGUARD_LAN_IP=192.168.1.10 ./generate-adguard-config.sh 2>&1)
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "expected wg0 autodetection to fail on a runner with no WireGuard interface, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "couldn't detect this host's WireGuard tunnel IP"; then
+            echo "expected the clear wg0 autodetection-failure error, got:"
+            echo "$output"
+            exit 1
+          fi
+          if [ -f adguard/conf/AdGuardHome.yaml ]; then
+            echo "wg0 autodetection failure must not leave a generated config behind"
+            exit 1
+          fi
+          echo "autodetection without ADGUARD_VPN_IP correctly fails with a clear error"
+
+          # --- Path: interactive confirmation, answering "n", must abort without writing anything ---
+          set +e
+          output=$(printf 'admin\nCI-TESTING-ONLY-NOT-A-REAL-PASSWORD\nCI-TESTING-ONLY-NOT-A-REAL-PASSWORD\nn\n' | ADGUARD_LAN_IP=192.168.1.10 ADGUARD_VPN_IP=10.13.13.10 ./generate-adguard-config.sh 2>&1)
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "expected answering 'n' to abort, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "Aborted, nothing changed."; then
+            echo "expected the abort message, got:"
+            echo "$output"
+            exit 1
+          fi
+          if [ -f adguard/conf/AdGuardHome.yaml ]; then
+            echo "answering 'n' must not leave a generated config behind"
+            exit 1
+          fi
+          echo "interactive 'n' correctly aborts without writing"
+
+          # --- Path: interactive confirmation, answering "y", must proceed and write the file ---
+          printf 'admin\nCI-TESTING-ONLY-NOT-A-REAL-PASSWORD\nCI-TESTING-ONLY-NOT-A-REAL-PASSWORD\ny\n' | ADGUARD_LAN_IP=192.168.1.10 ADGUARD_VPN_IP=10.13.13.10 ./generate-adguard-config.sh
+          if ! grep -q "dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24" adguard/conf/AdGuardHome.yaml; then
+            echo "expected the LAN-zone rewrites to be written after answering 'y'"
+            exit 1
+          fi
+          if ! grep -q "dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24" adguard/conf/AdGuardHome.yaml; then
+            echo "expected the VPN-zone rewrites to be written after answering 'y'"
+            exit 1
+          fi
+          echo "interactive 'y' correctly proceeds and writes the split-horizon rewrites"
+
+          # --- Path: generate -> snapshot -> generate must not accumulate blank lines/empty
+          # entries in user_rules: (regression test: USER_RULES_BLOCK already ends in \n, so a
+          # bare awk `print` on top of it left a trailing blank line that got treated as a
+          # foreign rule on the next regenerate and persisted as a literal `- ''` entry) ---
+          ./snapshot-adguard-config.sh
+          rm -f adguard/conf/AdGuardHome.yaml
+          ADGUARD_SETUP_USER=admin ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD ADGUARD_LAN_IP=192.168.1.10 ADGUARD_VPN_IP=10.13.13.10 ./generate-adguard-config.sh --force
+
+          block=$(awk '/^user_rules:/{f=1} f && !/^user_rules:/ && /^[^ ]/{exit} f' adguard/conf/AdGuardHome.yaml)
+          rule_count=$(echo "$block" | grep -c "^  - ")
+          if [ "$rule_count" -ne 6 ]; then
+            echo "expected exactly 6 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
+            echo "$block"
+            exit 1
+          fi
+          if echo "$block" | grep -qE '^\s*$'; then
+            echo "found a blank line inside user_rules: after a generate -> snapshot -> generate cycle:"
+            echo "$block"
+            exit 1
+          fi
+          if echo "$block" | grep -q "^  - ''"; then
+            echo "found a spurious empty user_rules entry after a generate -> snapshot -> generate cycle:"
+            echo "$block"
+            exit 1
+          fi
+          echo "generate -> snapshot -> generate does not accumulate blank lines or empty entries in user_rules:"
+
+          # --- Path: template's password: line format changes, the awk substitution guard must catch it ---
+          rm -f adguard/conf/AdGuardHome.yaml
+          cp adguard/AdGuardHome.yaml.template /tmp/AdGuardHome.yaml.template.bak
+          sed -i 's/^    password:/  password:/' adguard/AdGuardHome.yaml.template
+
+          set +e
+          output=$(ADGUARD_SETUP_USER=admin ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD ADGUARD_LAN_IP=192.168.1.10 ADGUARD_VPN_IP=10.13.13.10 ./generate-adguard-config.sh 2>&1)
+          status=$?
+          set -e
+          mv /tmp/AdGuardHome.yaml.template.bak adguard/AdGuardHome.yaml.template
+
+          if [ "$status" -eq 0 ]; then
+            echo "expected generate-adguard-config.sh to fail when the template's password: line format changed, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "couldn't substitute the admin name/password"; then
+            echo "expected the awk substitution-guard error, got:"
+            echo "$output"
+            exit 1
+          fi
+          if [ -f adguard/conf/AdGuardHome.yaml ]; then
+            echo "a failed substitution must not leave a generated config file behind"
+            exit 1
+          fi
+          echo "a malformed template password: line correctly triggers the substitution guard"
+
+          # --- Path: admin username/password with JSON-breaking characters must round-trip via jq's escaping ---
+          rm -f adguard/conf/AdGuardHome.yaml
+          set +e
+          output=$(ADGUARD_SETUP_USER='admin"quote\backslash' ADGUARD_SETUP_PASSWORD='Pass"Word\With-Specials1' ADGUARD_LAN_IP=192.168.1.10 ADGUARD_VPN_IP=10.13.13.10 ./generate-adguard-config.sh 2>&1)
+          status=$?
+          set -e
+          echo "$output"
+
+          if [ "$status" -ne 0 ] || [ ! -f adguard/conf/AdGuardHome.yaml ]; then
+            echo "expected generate-adguard-config.sh to succeed with quotes/backslashes in the username/password"
+            exit 1
+          fi
+          echo "username/password containing quotes and backslashes correctly round-trip through jq's JSON escaping"
+
+          # --- Path: nginx not part of this deployment (service block removed) skips rewrites entirely ---
+          rm -f adguard/conf/AdGuardHome.yaml
+          # The snapshot path above overwrote this template; restore the pristine one from the repo
+          cp "$REPO_DIR/services/adguard/AdGuardHome.yaml.template" adguard/AdGuardHome.yaml.template
+          python3 - <<'PYEOF'
+          import re
+          with open("docker-compose.yml") as f:
+              content = f.read()
+          content = re.sub(r'  nginx:.*?(?=\n  adguard:)', '', content, flags=re.S)
+          with open("docker-compose.yml", "w") as f:
+              f.write(content)
+          PYEOF
+          output=$(ADGUARD_SETUP_USER=admin ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD ./generate-adguard-config.sh 2>&1)
+          if echo "$output" | grep -qi "DNS rewrites for"; then
+            echo "expected no DNS-rewrite handling at all when nginx isn't part of the deployment"
+            exit 1
+          fi
+          if ! grep -q 'user_rules: \[\]' adguard/conf/AdGuardHome.yaml; then
+            echo "expected the template's untouched (empty) user_rules: to pass through as-is"
+            exit 1
+          fi
+          echo "no-nginx path correctly skips DNS-rewrite handling"
+
+          cd "$ORIG_DIR"
+          rm -rf "$TESTDIR" /tmp/adguard-rewrite-paths-data
+
+      # Real change via the API (not a hand-edited file), so the snapshot below reflects
+      # what an operator actually configuring AdGuard through its web UI would produce.
+      - name: Add a real AdGuard config change via its API
+        run: |
+          curl -sf -c /tmp/adg-cookies.txt -X POST http://127.0.0.1:8080/control/login \
+            -H "Content-Type: application/json" \
+            -d '{"name":"admin","password":"CI-TESTING-ONLY-NOT-A-REAL-PASSWORD"}' > /dev/null
+          curl -sf -b /tmp/adg-cookies.txt -X POST http://127.0.0.1:8080/control/rewrite/add \
+            -H "Content-Type: application/json" \
+            -d '{"domain":"ci-smoke-test.home.arpa","answer":"192.168.1.99"}' > /dev/null
+
+      - name: Snapshot AdGuard config and verify the template captured the change
+        working-directory: services
+        run: |
+          # Stopped so the live config file isn't being written while we copy it
+          sudo docker compose stop adguard
+          sudo ./snapshot-adguard-config.sh
+          # Restart it: the next step's --force only restarts adguard if it was running when it started
+          sudo docker compose start adguard
+          # The rewrite added via the API earlier must have made it into the template
+          if ! grep -q "ci-smoke-test.home.arpa" adguard/AdGuardHome.yaml.template; then
+            echo "the DNS rewrite added via the API is missing from the snapshotted template"
+            exit 1
+          fi
+          # And the password line must be the redaction placeholder. Grepping for the raw
+          # password instead would trivially "pass" either way, since AdGuard stores a bcrypt
+          # hash, never the plaintext password, so it can't leak literally either way.
+          if ! grep -q '^    password: "CENSURED: run generate-adguard-config.sh to set a real one"$' adguard/AdGuardHome.yaml.template; then
+            echo "the password wasn't redacted in the snapshotted template"
+            exit 1
+          fi
+
+      # A different password than before, so the checks below can tell rotation actually happened
+      - name: Regenerate AdGuard from the template with a different password
+        working-directory: services
+        run: |
+          export ADGUARD_SETUP_USER=admin
+          export ADGUARD_SETUP_PASSWORD=CI-SECOND-PASSWORD-ALSO-NOT-REAL
+          export ADGUARD_LAN_IP=192.168.1.10
+          export ADGUARD_VPN_IP=10.13.13.10
+          sudo -E ./generate-adguard-config.sh --force
+          sudo chown -R 1000:1000 adguard
+          # No manual "docker compose start adguard" here
+          # The checks below rely on the script's own cleanup trap having restarted it
+
+      - name: Verify the rewrite survived the template round-trip and the password rotated
+        run: |
+          # Restarting adguard takes a moment, so wait for it before hitting its API
+          for i in $(seq 1 12); do
+            curl -sf -o /dev/null http://127.0.0.1:8080/ && break
+            echo "adguard not back up yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+
+          # The password from before the regenerate must no longer work
+          old_login=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/control/login \
+            -H "Content-Type: application/json" -d '{"name":"admin","password":"CI-TESTING-ONLY-NOT-A-REAL-PASSWORD"}')
+          if [ "$old_login" = "200" ]; then
+            echo "the old password still works -- regenerating from the template didn't rotate it"
+            exit 1
+          fi
+
+          # And the new one from the regenerate step must
+          new_login=$(curl -s -c /tmp/adg-cookies2.txt -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/control/login \
+            -H "Content-Type: application/json" -d '{"name":"admin","password":"CI-SECOND-PASSWORD-ALSO-NOT-REAL"}')
+          if [ "$new_login" != "200" ]; then
+            echo "the new password from generate-adguard-config.sh --force doesn't work"
+            exit 1
+          fi
+
+          # The rewrite added via the API, snapshotted into the template, must have come back too
+          rewrites=$(curl -sf -b /tmp/adg-cookies2.txt http://127.0.0.1:8080/control/rewrite/list)
+          if ! echo "$rewrites" | grep -q "ci-smoke-test.home.arpa"; then
+            echo "the DNS rewrite from before the snapshot did not survive the template round-trip"
+            exit 1
+          fi
+
+      # Regression test: a mid-script --force failure used to leave adguard stopped with its
+      # live config already truncated (`> $OUT_FILE` destroys it before awk even runs).
+      - name: Verify a failed --force regenerate doesn't take down or corrupt adguard
+        working-directory: services
+        run: |
+          before_hash=$(sudo md5sum adguard/conf/AdGuardHome.yaml | cut -d' ' -f1)
+          sudo cp adguard/AdGuardHome.yaml.template /tmp/AdGuardHome.yaml.template.bak
+          sudo sed -i 's/^    password:/  password:/' adguard/AdGuardHome.yaml.template
+
+          export ADGUARD_SETUP_USER=admin
+          export ADGUARD_SETUP_PASSWORD=CI-THIRD-PASSWORD-ALSO-NOT-REAL
+          export ADGUARD_LAN_IP=192.168.1.10
+          export ADGUARD_VPN_IP=10.13.13.10
+          set +e
+          output=$(sudo -E ./generate-adguard-config.sh --force 2>&1)
+          status=$?
+          set -e
+          sudo mv /tmp/AdGuardHome.yaml.template.bak adguard/AdGuardHome.yaml.template
+
+          if [ "$status" -eq 0 ]; then
+            echo "expected the corrupted template to make --force fail, but it exited 0"
+            echo "$output"
+            exit 1
+          fi
+
+          # adguard must come back up on its own, no manual "docker compose start" here
+          up="false"
+          for i in $(seq 1 12); do
+            if curl -sf -o /dev/null http://127.0.0.1:8080/; then
+              up="true"
+              break
+            fi
+            echo "adguard not back up yet after the failed regenerate (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+          if [ "$up" != "true" ]; then
+            echo "adguard never came back up after the failed --force regenerate"
+            exit 1
+          fi
+
+          # And the config that was live before the failed attempt must be completely untouched
+          after_hash=$(sudo md5sum adguard/conf/AdGuardHome.yaml | cut -d' ' -f1)
+          if [ "$before_hash" != "$after_hash" ]; then
+            echo "the live AdGuardHome.yaml changed even though the regenerate failed"
+            exit 1
+          fi
+
+          # And the password from the successful regenerate two steps ago must still work
+          still_login=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/control/login \
+            -H "Content-Type: application/json" -d '{"name":"admin","password":"CI-SECOND-PASSWORD-ALSO-NOT-REAL"}')
+          if [ "$still_login" != "200" ]; then
+            echo "expected the pre-failure password to still work, got http $still_login"
+            exit 1
+          fi
+          echo "a failed --force regenerate restarts adguard and leaves its live config untouched"
 
       # No compose healthcheck for jellyfin, its /health is unreliable during startup migrations
       # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
@@ -354,6 +854,46 @@ jobs:
           done
           echo "jellyfin never became healthy after 60s"
           exit 1
+
+      - name: Verify nginx actually proxies to each backend, not just that it started
+        working-directory: services
+        run: |
+          CACERT="nginx/certs/cert.pem"
+
+          # nginx must redirect plain HTTP to HTTPS before proxying anywhere
+          code=$(curl -s -o /dev/null -w '%{http_code}' --resolve jellyfin.home.arpa:80:127.0.0.1 http://jellyfin.home.arpa/)
+          if [ "$code" != "301" ]; then
+            echo "expected nginx to redirect HTTP to HTTPS with 301, got $code"
+            exit 1
+          fi
+
+          # Each host's server block must reach its real backend through the resolver/upstream setup,
+          # not just terminate TLS -- same endpoints already used to smoke-test each service directly above.
+          # Headers go to a per-host file so the X-Client-Zone check below can reuse this same request.
+          check_via_nginx() {
+              host="$1"; path="$2"
+              for i in $(seq 1 6); do
+                  if curl -sf --cacert "$CACERT" --resolve "$host:443:127.0.0.1" -D "/tmp/nginx-check-$host.headers" "https://$host$path" > /dev/null; then
+                      echo "nginx proxied https://$host$path"
+                      return 0
+                  fi
+                  echo "https://$host$path not proxying yet (attempt $i/6), retrying in 5s..."
+                  sleep 5
+              done
+              echo "nginx never successfully proxied https://$host$path after 30s"
+              return 1
+          }
+          check_via_nginx adguard.home.arpa "/"
+          check_via_nginx jellyfin.home.arpa "/health"
+          check_via_nginx syncthing.home.arpa "/rest/noauth/health"
+
+          # And it must be nginx doing the classifying, not just passing the backend's own response through
+          zone_header=$(grep -i '^X-Client-Zone:' /tmp/nginx-check-jellyfin.home.arpa.headers)
+          if [ -z "$zone_header" ]; then
+            echo "expected an X-Client-Zone header set by nginx, got none"
+            exit 1
+          fi
+          echo "$zone_header"
 
       # 127.0.0.1 bypasses the firewall entirely, so it can't test fix-home-net.sh
       # These steps simulate real LAN devices and a VPN peer via netns/veth instead

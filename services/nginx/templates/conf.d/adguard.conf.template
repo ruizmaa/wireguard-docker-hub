@@ -1,0 +1,16 @@
+server {
+    listen 80;
+    server_name adguard.home.arpa;
+    return 301 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name adguard.home.arpa;
+
+    # 80 is AdGuard's web UI port -- choose it in its own setup wizard (its bootstrap
+    # wizard itself runs on 3000, that's separate and closes once configured). This
+    # doesn't follow $ADGUARD_WEB_PORT (that only remaps the host-side port).
+    set $backend adguard:80;
+    include /etc/nginx/proxy_params.conf;
+}

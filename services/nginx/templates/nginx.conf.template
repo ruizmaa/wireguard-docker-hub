@@ -1,0 +1,40 @@
+worker_processes auto;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    sendfile      on;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    # Single wildcard cert for every *.home.arpa server block below
+    ssl_certificate     /etc/nginx/certs/cert.pem;
+    ssl_certificate_key /etc/nginx/certs/key.pem;
+
+    # LAN vs WireGuard(VPN) zone, based on the client's source IP. Not enforced
+    # anywhere yet (no allow/deny) -- exposed as the X-Client-Zone response
+    # header, so it's verifiable before any access policy is built on top of it.
+    geo $zone {
+        default       external;
+        ${LAN_SUBNET} lan;
+        ${VPN_SUBNET} vpn;
+    }
+    add_header X-Client-Zone $zone always;
+
+    # 127.0.0.11 is Docker's embedded DNS -- re-resolves each proxied service's name on
+    # every request (cached for 10s) instead of once at nginx startup, so recreating a
+    # container (image update, restart) doesn't leave its server block pointing at a stale IP.
+    # Inherited by every server block below -- see conf.d/*.conf's `set $backend` lines.
+    resolver 127.0.0.11 valid=10s;
+
+    # Used by proxy_params.conf's WebSocket headers: "upgrade" on a real Upgrade request, "close" otherwise.
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
+    include /etc/nginx/conf.d/*.conf;
+}

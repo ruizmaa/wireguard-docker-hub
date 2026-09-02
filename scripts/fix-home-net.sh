@@ -163,7 +163,7 @@ sudo netfilter-persistent save > /dev/null
 echo -e "    ${YELLOW}[8/8] Final network configuration check:${NC}"
 bash "$SCRIPT_DIR/check-network-config-home.sh"
 
-echo -e "    ${GREEN}Done.${NC} SSH/Pi-hole/Jellyfin/Syncthing are now reachable only from: ${DEVICE_LIST[*]}"
+echo -e "    ${GREEN}Done.${NC} SSH/AdGuard/Jellyfin/Syncthing are now reachable only from: ${DEVICE_LIST[*]}"
 echo "    VPN access via $WG_IFACE is unaffected. IPv6 is blocked entirely."
 
 if [ "${#DEVICE_WARNINGS[@]}" -gt 0 ]; then

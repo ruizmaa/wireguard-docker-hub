@@ -1,0 +1,13 @@
+server {
+    listen 80;
+    server_name syncthing.home.arpa;
+    return 301 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name syncthing.home.arpa;
+
+    set $backend syncthing:8384;
+    include /etc/nginx/proxy_params.conf;
+}

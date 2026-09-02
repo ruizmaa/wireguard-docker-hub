@@ -1,0 +1,18 @@
+# Catches any Host that doesn't match one of the server blocks above (including
+# the stock "Welcome to nginx" page's own default.conf, which this overwrites)
+# and drops the connection instead of leaking a response to an unknown host.
+server {
+    listen       80  default_server;
+    listen       443 ssl default_server;
+    server_name  _;
+
+    # used by the container healthcheck, doesn't depend on any backend
+    location = /healthz {
+        return 200;
+    }
+
+    # a bare `return 444` here (outside any location) would run first and shadow /healthz
+    location / {
+        return 444;
+    }
+}
