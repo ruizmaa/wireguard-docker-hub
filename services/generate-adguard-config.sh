@@ -41,10 +41,7 @@ guard_writable_dir "$WORK_DIR"
 guard_writable_file "$OUT_FILE"
 
 # Refuse to overwrite an existing config unless the caller explicitly opted in
-if [ -f "$OUT_FILE" ] && [ "$FORCE" != "true" ]; then
-    echo -e "${RED}Error: $OUT_FILE already exists. Pass --force to overwrite it.${NC}"
-    exit 1
-fi
+refuse_overwrite_without_force "$OUT_FILE"
 
 # The template is tracked in git and should always exist, if not raise an error
 if [ ! -f "$TEMPLATE_FILE" ]; then

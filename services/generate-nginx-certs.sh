@@ -27,10 +27,7 @@ guard_writable_file "$CERT_FILE"
 guard_writable_file "$KEY_FILE"
 
 # Refuse to overwrite an existing cert unless the caller explicitly opted in
-if [ -f "$CERT_FILE" ] && [ "$FORCE" != "true" ]; then
-    echo -e "${RED}Error: $CERT_FILE already exists. Pass --force to overwrite it.${NC}"
-    exit 1
-fi
+refuse_overwrite_without_force "$CERT_FILE"
 
 # req: generate a certificate, self-signed directly instead of a request for a real CA (see -x509 below)
 # -x509: self-sign the cert instead of producing a CSR to be signed by someone else

@@ -14,3 +14,12 @@ parse_force_flag() {
         esac
     done
 }
+
+# Refuses to continue if $1 already exists and --force wasn't passed
+refuse_overwrite_without_force() {
+    local file="$1"
+    if [ -f "$file" ] && [ "$FORCE" != "true" ]; then
+        echo -e "${RED}Error: $file already exists. Pass --force to overwrite it.${NC}"
+        exit 1
+    fi
+}
