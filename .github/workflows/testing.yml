@@ -17,6 +17,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # No .env here, so the services compose's required vars (nginx's LAN_SUBNET/VPN_SUBNET,
+    # Homepage's HOMEPAGE_ALLOWED_HOSTS/HOME_SERVER_HOST/HOME_SERVER_WG_HOST) are passed inline.
+    env:
+      LAN_SUBNET: 192.168.1.0/24
+      VPN_SUBNET: 10.13.13.0/24
+      HOMEPAGE_ALLOWED_HOSTS: ci-allowed.example:3001
+      HOME_SERVER_HOST: 192.168.1.10
+      HOME_SERVER_WG_HOST: 10.13.13.10
     steps:
       - uses: actions/checkout@v7
 
@@ -28,15 +36,7 @@ jobs:
       - name: Validate root compose
         run: docker compose -f docker-compose.yml config >/dev/null
 
-      # No .env here, so the required vars (nginx's LAN_SUBNET/VPN_SUBNET, Homepage's
-      # HOMEPAGE_ALLOWED_HOSTS/HOME_SERVER_HOST/HOME_SERVER_WG_HOST) are passed inline instead.
       - name: Validate services compose
-        env:
-          LAN_SUBNET: 192.168.1.0/24
-          VPN_SUBNET: 10.13.13.0/24
-          HOMEPAGE_ALLOWED_HOSTS: ci-allowed.example:3001
-          HOME_SERVER_HOST: 192.168.1.10
-          HOME_SERVER_WG_HOST: 10.13.13.10
         run: docker compose -f services/docker-compose.yml config >/dev/null
 
       - name: Check all services are listed in Homepage config

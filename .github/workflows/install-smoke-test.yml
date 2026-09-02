@@ -561,6 +561,9 @@ jobs:
           COMPOSE_PROJECT_NAME=adguard-rewrite-paths-test
           LAN_SUBNET=192.168.1.0/24
           VPN_SUBNET=10.13.13.0/24
+          HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001
+          HOME_SERVER_HOST=192.168.1.10
+          HOME_SERVER_WG_HOST=10.13.13.10
           SYNCTHING_MOUNT_1=/tmp/adguard-rewrite-paths-data:/data1
           JELLYFIN_MEDIA_1=/tmp/adguard-rewrite-paths-data:/media
           ENVEOF
