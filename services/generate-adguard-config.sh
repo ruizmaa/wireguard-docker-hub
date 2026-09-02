@@ -104,7 +104,7 @@ if [ -n "$LAN_SUBNET" ]; then
 
     # ADGUARD_LAN_IP overrides autodetection (e.g. CI, which is never on $LAN_SUBNET)
     #         Overwrite       Get the real host's IP on the LAN_SUBNET
-    LAN_IP="${ADGUARD_LAN_IP:-$(ip -4 route show scope link | awk -v subnet="$LAN_SUBNET" '$1 == subnet { for (i = 1; i <= NF; i++) if ($i == "src") print $(i + 1) }')}"
+    LAN_IP="${ADGUARD_LAN_IP:-$(ip -4 route show scope link | awk -v subnet="$LAN_SUBNET" '$1 == subnet { for (i = 1; i <= NF; i++) if ($i == "src") print $(i + 1) }' || true)}"    # `|| true`: don't let set -e kill the script before the check below can
 
     # If LAN_IP is empty, an error occurred
     if [ -z "$LAN_IP" ]; then
