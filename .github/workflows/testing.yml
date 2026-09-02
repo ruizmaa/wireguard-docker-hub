@@ -18,13 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # No .env here, so the services compose's required vars (nginx's LAN_SUBNET/VPN_SUBNET,
-    # Homepage's HOMEPAGE_ALLOWED_HOSTS/HOME_SERVER_HOST/HOME_SERVER_WG_HOST) are passed inline.
+    # Homepage's HOMEPAGE_ALLOWED_HOSTS) are passed inline.
     env:
       LAN_SUBNET: 192.168.1.0/24
       VPN_SUBNET: 10.13.13.0/24
       HOMEPAGE_ALLOWED_HOSTS: ci-allowed.example:3001
-      HOME_SERVER_HOST: 192.168.1.10
-      HOME_SERVER_WG_HOST: 10.13.13.10
     steps:
       - uses: actions/checkout@v7
 
@@ -75,13 +73,7 @@ jobs:
           card_keys = set()
           collect_keys(data, card_keys)
 
-          # Each service needs both a "(LAN)" and a "(VPN)" card (e.g. "AdGuard (LAN)"/"AdGuard (VPN)")
-          missing = []
-          for svc in sys.argv[1:]:
-              base = norm(svc)
-              absent = [flavor for flavor in ("lan", "vpn") if base + flavor not in card_keys]
-              if absent:
-                  missing.append(f"{svc} ({', '.join(absent)})")
+          missing = [svc for svc in sys.argv[1:] if norm(svc) not in card_keys]
           if missing:
               print("::error::Missing from services/homepage/services.yaml: " + " ".join(missing))
               sys.exit(1)

@@ -42,7 +42,7 @@ Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID
 
 The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
-`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS`, `HOME_SERVER_HOST` and `HOME_SERVER_WG_HOST` are required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing.
+`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing.
 
 Start the services:
 
@@ -68,11 +68,9 @@ A highly customizable homepage with quick access to all your self-hosted service
 - Config directory (bind mount): `services/homepage/` → `/app/config`
 
 > [!IMPORTANT]
-> Set `HOMEPAGE_ALLOWED_HOSTS`, `HOME_SERVER_HOST` and `HOME_SERVER_WG_HOST` in `.env`. All three are required: `docker compose up` refuses to start the whole stack if any is missing.
+> Set `HOMEPAGE_ALLOWED_HOSTS` in `.env`: every host[:port] you access Homepage from, comma-separated (e.g. `192.168.1.X:3001` for its LAN IP, plus `10.13.13.X:3001` for its WireGuard tunnel IP if you also reach it over the VPN). This is a security allowlist: whichever address you type in your browser is sent as the `Host` header, and Homepage only trusts `localhost` by default for its internal API calls. So every widget (resources, service status, search suggestions...) would otherwise fail with a "Host validation failed" error. `docker compose up` refuses to start the whole stack if it's missing.
 >
-> - `HOMEPAGE_ALLOWED_HOSTS`: every host[:port] you access Homepage from, comma-separated (e.g. `192.168.1.X:3001` for its LAN IP, plus `10.13.13.X:3001` for its WireGuard tunnel IP if you also reach it over the VPN). This is a security allowlist: whichever address you type in your browser is sent as the `Host` header, and Homepage only trusts `localhost` by default for its internal API calls. So every widget (resources, service status, search suggestions...) would otherwise fail with a "Host validation failed" error.
-> - `HOME_SERVER_HOST`: this machine's LAN IP (e.g. `192.168.1.X`). Baked into the "(LAN)" AdGuard/Jellyfin/Syncthing service card links shown on the dashboard.
-> - `HOME_SERVER_WG_HOST`: this machine's own WireGuard tunnel IP (e.g. `10.13.13.X`, from `INTERNAL_SUBNET`). Baked into the "(VPN)" versions of those same cards, so the links still work when you're accessing Homepage over the VPN — the tunnel has no route to the LAN IP above by default (the home server's peer only has `AllowedIPs` scoped to its own tunnel IP, see the main [README.md](../README.md)), but it always routes to its own tunnel IP.
+> The services cards link to their `*.home.arpa` addresses (see [nginx](#nginx-reverse-proxy)), one card per service since [AdGuard's split-horizon DNS](#adguard-configuration) already resolves them to the right IP depending on where you're connecting from. This only works from a device that's actually using AdGuard as its DNS server (see the [note above](#adguard-home)), otherwise those links won't resolve.
 
 All customization is done through YAML files inside `services/homepage/`, which are tracked in this repository:
 

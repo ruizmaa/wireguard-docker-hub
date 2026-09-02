@@ -1,25 +1,13 @@
 - Home Server:
-    - AdGuard (LAN):
+    - AdGuard:
         icon: adguard-home.png
-        href: "{{HOMEPAGE_VAR_ADGUARD_URL}}"
+        href: "https://adguard.home.arpa"
         description: DNS sinkhole
-    - Jellyfin (LAN):
+    - Jellyfin:
         icon: jellyfin.png
-        href: "{{HOMEPAGE_VAR_JELLYFIN_URL}}"
+        href: "https://jellyfin.home.arpa"
         description: Media server
-    - Syncthing (LAN):
+    - Syncthing:
         icon: syncthing.png
-        href: "{{HOMEPAGE_VAR_SYNCTHING_URL}}"
+        href: "https://syncthing.home.arpa"
         description: File synchronization
-    - AdGuard (VPN):
-        icon: adguard-home.png
-        href: "{{HOMEPAGE_VAR_ADGUARD_VPN_URL}}"
-        description: DNS sinkhole, over WireGuard
-    - Jellyfin (VPN):
-        icon: jellyfin.png
-        href: "{{HOMEPAGE_VAR_JELLYFIN_VPN_URL}}"
-        description: Media server, over WireGuard
-    - Syncthing (VPN):
-        icon: syncthing.png
-        href: "{{HOMEPAGE_VAR_SYNCTHING_VPN_URL}}"
-        description: File synchronization, over WireGuard
