@@ -89,6 +89,8 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 > No WireGuard changes needed: nginx already listens on `wg0`, so this works without widening the VPS peer's `AllowedIPs` (see [README](README.md)).
 >
 > Everything except the password comes from the tracked `services/adguard/AdGuardHome.yaml.template` (see [Tracking your config](#tracking-your-config) below).
+>
+> The split-horizon rules above only resolve names once a client is already using AdGuard as its DNS server. For your roaming (phone/laptop) VPN clients, set `PEERDNS` in the VPS's `.env` (see `.env.example`), then regenerate/re-import that peer's config so it picks up the change.
 
 #### AdGuard **Start**
 
