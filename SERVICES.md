@@ -30,7 +30,7 @@ This installs `wireguard`/`resolvconf` on the home server if missing, fetches th
 - Pass `--yes` to skip the confirmation prompt, e.g. for unattended re-syncs.
 
 > [!NOTE]
-> The generated peer config uses the same `ALLOWEDIPS` as your phone/laptop (full tunnel, `0.0.0.0/0,::/0` by default). Once the tunnel is up, **all** of the home server's own outbound traffic (Docker pulls, `apt`, Pi-hole's upstream DNS...) routes through the VPS too, not just VPN-bound traffic. If you'd rather keep the home server's own internet access on its normal connection, edit the `AllowedIPs` line under `[Peer]` in `/etc/wireguard/wg0.conf` down to just the VPN subnet (the VPS's `INTERNAL_SUBNET`, e.g. `10.13.13.0/24`) before enabling the service.
+> The generated peer config uses the same `ALLOWEDIPS` as your phone/laptop (full tunnel, `0.0.0.0/0,::/0` by default). Once the tunnel is up, **all** of the home server's own outbound traffic (Docker pulls, `apt`, AdGuard's upstream DNS...) routes through the VPS too, not just VPN-bound traffic. If you'd rather keep the home server's own internet access on its normal connection, edit the `AllowedIPs` line under `[Peer]` in `/etc/wireguard/wg0.conf` down to just the VPN subnet (the VPS's `INTERNAL_SUBNET`, e.g. `10.13.13.0/24`) before enabling the service.
 >
 > `install-wireguard.sh` always fetches the VPS's default (full-tunnel) `AllowedIPs`, since it has no way to know you narrowed it locally. If you later re-sync after the VPS regenerates this peer, the script will stop and ask for confirmation specifically because `AllowedIPs` changed, even under `--yes`. Re-narrow it again by hand after applying if you still want the split-tunnel behavior.
 
@@ -40,7 +40,9 @@ The services are defined in `services/docker-compose.yml`. Copy the services you
 
 Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) and Jellyfin (`JELLYFIN_MEDIA_1`, `JELLYFIN_MEDIA_2`, etc.) data mounts, each a full `host_path:container_path`.
 
-The host ports (`PIHOLE_WEB_PORT`, `PIHOLE_DNS_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+
+`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS`, `HOME_SERVER_HOST` and `HOME_SERVER_WG_HOST` are required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing.
 
 Start the services:
 
@@ -62,14 +64,14 @@ A highly customizable homepage with quick access to all your self-hosted service
 
 #### Homepage **Configuration**
 
-- Web interface: `http://<SERVER_IP>:3000`
+- Web interface: `http://<SERVER_IP>:3001`
 - Config directory (bind mount): `services/homepage/` → `/app/config`
 
 > [!IMPORTANT]
 > Set `HOMEPAGE_ALLOWED_HOSTS`, `HOME_SERVER_HOST` and `HOME_SERVER_WG_HOST` in `.env`. All three are required: `docker compose up` refuses to start the whole stack if any is missing.
 >
-> - `HOMEPAGE_ALLOWED_HOSTS`: every host[:port] you access Homepage from, comma-separated (e.g. `192.168.1.X:3000` for its LAN IP, plus `10.13.13.X:3000` for its WireGuard tunnel IP if you also reach it over the VPN). This is a security allowlist: whichever address you type in your browser is sent as the `Host` header, and Homepage only trusts `localhost` by default for its internal API calls. So every widget (resources, service status, search suggestions...) would otherwise fail with a "Host validation failed" error.
-> - `HOME_SERVER_HOST`: this machine's LAN IP (e.g. `192.168.1.X`). Baked into the "(LAN)" Pi-hole/Jellyfin/Syncthing service card links shown on the dashboard.
+> - `HOMEPAGE_ALLOWED_HOSTS`: every host[:port] you access Homepage from, comma-separated (e.g. `192.168.1.X:3001` for its LAN IP, plus `10.13.13.X:3001` for its WireGuard tunnel IP if you also reach it over the VPN). This is a security allowlist: whichever address you type in your browser is sent as the `Host` header, and Homepage only trusts `localhost` by default for its internal API calls. So every widget (resources, service status, search suggestions...) would otherwise fail with a "Host validation failed" error.
+> - `HOME_SERVER_HOST`: this machine's LAN IP (e.g. `192.168.1.X`). Baked into the "(LAN)" AdGuard/Jellyfin/Syncthing service card links shown on the dashboard.
 > - `HOME_SERVER_WG_HOST`: this machine's own WireGuard tunnel IP (e.g. `10.13.13.X`, from `INTERNAL_SUBNET`). Baked into the "(VPN)" versions of those same cards, so the links still work when you're accessing Homepage over the VPN — the tunnel has no route to the LAN IP above by default (the home server's peer only has `AllowedIPs` scoped to its own tunnel IP, see the main [README.md](../README.md)), but it always routes to its own tunnel IP.
 
 All customization is done through YAML files inside `services/homepage/`, which are tracked in this repository:
@@ -89,53 +91,62 @@ docker compose restart homepage
 
 #### Homepage **Start**
 
-Open the web UI at `http://<SERVER_IP>:3000`. The default page is ready to use out of the box. Edit the YAML files in `services/homepage/` to add your services, bookmarks and widgets, then commit the changes.
+Open the web UI at `http://<SERVER_IP>:3001`. The default page is ready to use out of the box. Edit the YAML files in `services/homepage/` to add your services, bookmarks and widgets, then commit the changes.
 
 ---
 
-### [Pi-hole](https://hub.docker.com/r/pihole/pihole)
+### [AdGuard Home](https://hub.docker.com/r/adguard/adguardhome)
 
-A DNS sinkhole that protects your devices from unwanted content.
+A DNS server that blocks ads/trackers and resolves your own service names (`*.home.arpa`, see [nginx](#nginx-reverse-proxy) below).
 
 > [!NOTE]
-> If you enable [trusted-device LAN restriction](#restricting-lan-access-to-trusted-devices), only your trusted devices and VPN clients can use Pi-hole (DNS included, not just the admin panel). The rest of your network won't be able to reach it.
+> Nothing forces any device to use AdGuard for DNS. It only protects/resolves for whichever devices you point at it yourself (manually, per device). The rest of your network keeps using its normal DNS untouched. If you want it network-wide instead, set it as the DNS server in your router's DHCP settings.
+>
+> If you enable [trusted-device LAN restriction](#restricting-lan-access-to-trusted-devices), only your trusted devices and VPN clients can reach AdGuard (DNS included, not just the admin panel). Relevant only if you pointed other LAN devices at it.
 
-#### Pi-hole **Configuration**
+#### AdGuard **Configuration**
 
-- Web interface: `http://<SERVER_IP>:8080/admin`
-- Persistent data (Docker volume): `pihole_etc` (mounted at `/etc/pihole`)
+- Web interface (day-to-day admin): `http://<SERVER_IP>:8080`
+- Persistent data (both bind mounts, owned by UID/GID `1000:1000`, see `user:` in the compose file): `services/adguard/conf/` (`AdGuardHome.yaml`), `services/adguard/work/` (blocklists, query log, stats)
 
-##### Pi-hole **Password**
+> [!IMPORTANT]
+> Before the first `docker compose up`, run:
+>
+> ```bash
+> ./services/generate-adguard-config.sh
+> ```
+>
+> Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
+>
+> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`, showing what it's about to change before asking for confirmation:
+>
+> - LAN clients resolve them to this host's LAN IP, found via a route lookup against `LAN_SUBNET` (overridable with `ADGUARD_LAN_IP`, CI sets this).
+> - VPN (WireGuard) clients resolve them to this host's own tunnel IP instead, read from its `wg0` interface (overridable with `ADGUARD_VPN_IP`, CI sets this).
+>
+> No WireGuard changes needed: nginx already listens on `wg0`, so this works without widening the VPS peer's `AllowedIPs` (see [README](README.md)).
+>
+> Everything except the password comes from the tracked `services/adguard/AdGuardHome.yaml.template` (see [Tracking your config](#tracking-your-config) below).
 
-You can set your own password by editing the docker compose, just uncomment the `WEBPASSWORD` environment variable and write your own password.
+#### AdGuard **Start**
 
-If you don't specify your password, it will be generated randomly, the easiest way to change it is using this command:
+Log in at `http://<SERVER_IP>:8080` with the username/password you gave the script above, then configure:
+
+- **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
+- **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
+
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
+
+#### Tracking your config
+
+`services/adguard/conf/AdGuardHome.yaml` is rewritten by AdGuard itself on every change (blocklists, rewrites, upstream servers...), including your real password hash. Not something to commit as-is in a public repo.
 
 ```bash
-docker exec -it pihole pihole setpassword
+./services/snapshot-adguard-config.sh
 ```
 
-#### Pi-hole **Start**
+Copies that live file into the tracked `services/adguard/AdGuardHome.yaml.template`, with the password replaced by an obvious placeholder. Review the diff and `git add`/commit it yourself. Next time you run `generate-adguard-config.sh` (e.g. on a reinstall, or to rotate the password), it rebuilds from this template plus a fresh real password, so nothing you configured is lost.
 
-Go to `http://<SERVER_IP>:8080/admin` and log in with your password.
-
-Configure your **Upstream DNS Servers** and **Interface Settings** (allow traffic from the Docker container and your local net):
-
-1. Go to `Settings > DNS`
-2. Go to `Upstream DNS Servers`, select your preferred provider
-3. Go to `Interface settings`, select Potentially dangerous options > `Permit all origins`
-4. Save
-
-Update **Blocklists** (Gravity) to ensure Pi-hole knows which ads to block:
-
-1. Go to `Tools > Update Gravity`
-2. Click the `Update` button
-
->You can also use this command:
->
->`docker exec -it pihole pihole -g`
-
-#### Check if Pi-hole working
+#### Check if AdGuard working
 
 Check if unwanted traffic is blocked:
 
@@ -229,6 +240,52 @@ A media server for streaming your personal video, audio and photo collections to
 - Media path: map your host directories to `/media` (e.g. `/mnt/hdd/movies:/media`)
 
 > Set `JELLYFIN_MEDIA_1` (and `JELLYFIN_MEDIA_2`, etc.) in `.env` to your actual media library path, as a full `host_path:container_path` (e.g. `/mnt/hdd/movies:/media`).
+
+---
+
+### [nginx](https://hub.docker.com/_/nginx) reverse proxy
+
+Instead of remembering a port per service (`:8080`, `:8096`, `:8384`...), nginx puts every service behind its own `https://<service>.home.arpa` address. `home.arpa` is reserved by [RFC 8375](https://www.rfc-editor.org/rfc/rfc8375) for home networks, so it can never collide with a real public domain.
+
+#### nginx **Configuration**
+
+All configuration lives in `services/nginx/templates/`, tracked in this repository:
+
+| File | Purpose |
+|---|---|
+| `nginx.conf.template` | Main config, defines the LAN/VPN `$zone` split (see [below](#lan-vs-wireguard-zone)) |
+| `conf.d/<service>.conf.template` | One server block per service: HTTP->HTTPS redirect, TLS, proxy to that service |
+| `conf.d/default.conf.template` | Catches any other host and drops the connection, also serves `/healthz` for the container healthcheck |
+| `proxy_params.conf.template` | Headers shared by every proxied service |
+
+These are `.conf.template`, not `.conf`, nginx's own Docker image substitutes `${LAN_SUBNET}`/`${VPN_SUBNET}`/`${NGINX_HTTPS_PORT}` into them and writes the result to `/etc/nginx/` (mirroring this folder's own layout) at container start (`NGINX_ENVSUBST_FILTER` in `docker-compose.yml` restricts substitution to exactly those variables, so it can't touch nginx's own `$host`/`$remote_addr`/etc., which use the same `$` syntax).
+
+> [!IMPORTANT]
+> Before the first `docker compose up`, generate a self-signed TLS certificate (one wildcard cert covers all `*.home.arpa` subdomains):
+>
+> ```bash
+> ./services/generate-nginx-certs.sh
+> ```
+>
+> It's self-signed, so browsers will warn until you import `services/nginx/certs/cert.pem` as a trusted authority on each of your devices. Re-run with `--force` to replace it (e.g. once it's close to expiring).
+>
+> Also set `LAN_SUBNET` and `VPN_SUBNET` in `.env` (see `.env.example`). Your LAN's CIDR, and the VPS's `INTERNAL_SUBNET` as a CIDR, these decide the `lan`/`vpn`/`external` split described below.
+
+Finally, so `<service>.home.arpa` actually resolves: run (or re-run) [`generate-adguard-config.sh`](#adguard-configuration) after this — it sets up split-horizon DNS automatically (LAN clients get this host's LAN IP, VPN clients get its WireGuard tunnel IP).
+
+#### LAN vs. WireGuard zone
+
+nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, or `external` for anything outside both subnets) and exposes it as the `X-Client-Zone` response header, verifiable with `curl -I`. Nothing is restricted based on it yet.
+
+#### nginx **Start**
+
+```bash
+docker compose up -d
+```
+
+Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://jellyfin.home.arpa`, `https://syncthing.home.arpa`.
+
+---
 
 ## Restricting LAN access to trusted devices
 

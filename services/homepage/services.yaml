@@ -1,7 +1,7 @@
 - Home Server:
-    - Pi-hole (LAN):
-        icon: pi-hole.png
-        href: "{{HOMEPAGE_VAR_PIHOLE_URL}}"
+    - AdGuard (LAN):
+        icon: adguard-home.png
+        href: "{{HOMEPAGE_VAR_ADGUARD_URL}}"
         description: DNS sinkhole
     - Jellyfin (LAN):
         icon: jellyfin.png
@@ -11,9 +11,9 @@
         icon: syncthing.png
         href: "{{HOMEPAGE_VAR_SYNCTHING_URL}}"
         description: File synchronization
-    - Pi-hole (VPN):
-        icon: pi-hole.png
-        href: "{{HOMEPAGE_VAR_PIHOLE_VPN_URL}}"
+    - AdGuard (VPN):
+        icon: adguard-home.png
+        href: "{{HOMEPAGE_VAR_ADGUARD_VPN_URL}}"
         description: DNS sinkhole, over WireGuard
     - Jellyfin (VPN):
         icon: jellyfin.png

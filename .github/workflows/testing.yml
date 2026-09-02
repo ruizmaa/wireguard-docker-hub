@@ -28,13 +28,22 @@ jobs:
       - name: Validate root compose
         run: docker compose -f docker-compose.yml config >/dev/null
 
-      # --no-interpolate: no .env here, and 3 vars are required (no default)
+      # No .env here, so the required vars (nginx's LAN_SUBNET/VPN_SUBNET, Homepage's
+      # HOMEPAGE_ALLOWED_HOSTS/HOME_SERVER_HOST/HOME_SERVER_WG_HOST) are passed inline instead.
       - name: Validate services compose
-        run: docker compose -f services/docker-compose.yml config --no-interpolate >/dev/null
+        env:
+          LAN_SUBNET: 192.168.1.0/24
+          VPN_SUBNET: 10.13.13.0/24
+          HOMEPAGE_ALLOWED_HOSTS: ci-allowed.example:3001
+          HOME_SERVER_HOST: 192.168.1.10
+          HOME_SERVER_WG_HOST: 10.13.13.10
+        run: docker compose -f services/docker-compose.yml config >/dev/null
 
       - name: Check all services are listed in Homepage config
         run: |
-          services=$(docker compose -f services/docker-compose.yml config --no-interpolate --services | grep -v '^homepage$')
+          # homepage has no card for itself; nginx is a reverse proxy in front of the other
+          # services, not something with its own dashboard card
+          services=$(docker compose -f services/docker-compose.yml config --services | grep -v -E '^(homepage|nginx)$')
           python3 - $services <<'PY'
           import re
           import sys
@@ -66,7 +75,7 @@ jobs:
           card_keys = set()
           collect_keys(data, card_keys)
 
-          # Each service needs both a "(LAN)" and a "(VPN)" card (e.g. "Pi-hole (LAN)"/"Pi-hole (VPN)")
+          # Each service needs both a "(LAN)" and a "(VPN)" card (e.g. "AdGuard (LAN)"/"AdGuard (VPN)")
           missing = []
           for svc in sys.argv[1:]:
               base = norm(svc)
