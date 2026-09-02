@@ -336,8 +336,9 @@ if ! NAME_LINE="$name_line" PASSWORD_LINE="$password_line" USER_RULES_BLOCK="$US
     rm -f "$OUT_TMP"
     exit 1
 fi
-cat "$OUT_TMP" > "$OUT_FILE"
-rm -f "$OUT_TMP"
+# Owned by the real user even under sudo (e.g. --force), then mv for an atomic swap
+chown "${SUDO_UID:-$(id -u)}:${SUDO_GID:-$(id -g)}" "$OUT_TMP"
+mv "$OUT_TMP" "$OUT_FILE"
 
 # Read/write for your user only
 chmod 600 "$OUT_FILE"
