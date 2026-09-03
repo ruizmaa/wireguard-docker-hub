@@ -90,6 +90,7 @@ services:
       - PGID=1000  # You can check your PGID with the command `id`
       - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
       - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS:?Set HOMEPAGE_ALLOWED_HOSTS in .env}  # host[:port] you access this from: LAN IP, and WireGuard tunnel IP if used over the VPN
+      - HOMEPAGE_VAR_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}  # substituted into services.yaml hrefs, see services/homepage/services.yaml
     volumes:
       - ./homepage:/app/config
       # Read-only, so the disk widget reports the host's real usage, not the container's

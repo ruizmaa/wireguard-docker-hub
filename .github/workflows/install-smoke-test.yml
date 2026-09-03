@@ -1034,8 +1034,8 @@ jobs:
           echo "$json"
           href=$(echo "$json" | jq -r '.[0].services[] | select(.name=="AdGuard") | .href')
           echo "AdGuard href: $href"
-          if [ "$href" != "https://adguard.home.arpa" ]; then
-            echo "expected the AdGuard card to point at https://adguard.home.arpa, got '$href'"
+          if [ "$href" != "https://adguard.home.arpa:443" ]; then
+            echo "expected the AdGuard card to point at https://adguard.home.arpa:443, got '$href'"
             exit 1
           fi
           sudo ip netns exec trusted-peer curl -sfk --max-time 5 --resolve adguard.home.arpa:443:10.99.99.1 -o /dev/null "$href"
@@ -1048,8 +1048,8 @@ jobs:
           echo "$json"
           href=$(echo "$json" | jq -r '.[0].services[] | select(.name=="AdGuard") | .href')
           echo "AdGuard href: $href"
-          if [ "$href" != "https://adguard.home.arpa" ]; then
-            echo "expected the AdGuard card to point at https://adguard.home.arpa, got '$href'"
+          if [ "$href" != "https://adguard.home.arpa:443" ]; then
+            echo "expected the AdGuard card to point at https://adguard.home.arpa:443, got '$href'"
             exit 1
           fi
           sudo ip netns exec vpn-peer curl -sfk --max-time 5 --resolve adguard.home.arpa:443:10.13.13.1 -o /dev/null "$href"

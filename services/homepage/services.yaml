@@ -1,13 +1,13 @@
 - Home Server:
     - AdGuard:
         icon: adguard-home.png
-        href: "https://adguard.home.arpa"
+        href: "https://adguard.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
         description: DNS sinkhole
     - Jellyfin:
         icon: jellyfin.png
-        href: "https://jellyfin.home.arpa"
+        href: "https://jellyfin.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
         description: Media server
     - Syncthing:
         icon: syncthing.png
-        href: "https://syncthing.home.arpa"
+        href: "https://syncthing.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
         description: File synchronization
