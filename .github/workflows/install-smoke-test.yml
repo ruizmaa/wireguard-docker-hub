@@ -454,7 +454,7 @@ jobs:
             exit 1
           }
 
-      # /api/config/services always returns 422 regardless of Host, so host validation is verified via /api/services (200 only for allowlisted hosts)
+      # /api/config/services always returns 422s (that route only serves custom.css/custom.js), /api/services is used to check Host validation instead
       - name: Verify homepage blocks a host not in HOMEPAGE_ALLOWED_HOSTS
         run: |
           status=$(curl -s -o /tmp/blocked.json -w '%{http_code}' -H "Host: ci-blocked.example:3001" http://127.0.0.1:3001/api/services)
