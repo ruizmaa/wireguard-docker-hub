@@ -70,7 +70,7 @@ A highly customizable homepage with quick access to all your self-hosted service
 > [!IMPORTANT]
 > Set `HOMEPAGE_ALLOWED_HOSTS` in `.env`: every host[:port] you access Homepage from, comma-separated (e.g. `192.168.1.X:3001` for its LAN IP, plus `10.13.13.X:3001` for its WireGuard tunnel IP if you also reach it over the VPN). This is a security allowlist: whichever address you type in your browser is sent as the `Host` header, and Homepage only trusts `localhost` by default for its internal API calls. So every widget (resources, service status, search suggestions...) would otherwise fail with a "Host validation failed" error. `docker compose up` refuses to start the whole stack if it's missing.
 >
-> The services cards link to their `*.home.arpa` addresses (see [nginx](#nginx-reverse-proxy)), one card per service since [AdGuard's split-horizon DNS](#adguard-configuration) already resolves them to the right IP depending on where you're connecting from. This only works from a device that's actually using AdGuard as its DNS server (see the [note above](#adguard-home)), otherwise those links won't resolve.
+> The services cards link to their `*.home.arpa` addresses (see [nginx](#nginx-reverse-proxy)), one card per service since [AdGuard's split-horizon DNS](#adguard-configuration) already resolves them to the right IP depending on where you're connecting from. This only works from a device that's actually using AdGuard as its DNS server (see the [note below](#adguard-home)), otherwise those links won't resolve.
 
 All customization is done through YAML files inside `services/homepage/`, which are tracked in this repository:
 
