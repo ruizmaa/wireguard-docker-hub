@@ -1,0 +1,14 @@
+- resources:
+    disk: /host
+    # cpu/memory disabled: they'd only show this container's own usage, not the whole machine's
+    # cpu: true
+    # memory: true
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: short
+      timeStyle: short
+      hour12: false
+- search:
+    provider: duckduckgo
+    target: _blank
