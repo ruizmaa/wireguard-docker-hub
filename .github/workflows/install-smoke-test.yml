@@ -1052,7 +1052,7 @@ jobs:
             echo "expected the AdGuard card to point at https://adguard.home.arpa:443, got '$href'"
             exit 1
           fi
-          sudo ip netns exec trusted-peer curl -sfk --max-time 5 --resolve adguard.home.arpa:443:10.99.99.1 -o /dev/null "$href"
+          sudo ip netns exec trusted-peer curl -sf --max-time 5 --cacert services/nginx/certs/cert.pem --resolve adguard.home.arpa:443:10.99.99.1 -o /dev/null "$href"
           echo "trusted peer reached homepage and followed the AdGuard link through nginx"
 
       # Same, but for the simulated WireGuard peer. Same href, different network path to it
@@ -1066,7 +1066,7 @@ jobs:
             echo "expected the AdGuard card to point at https://adguard.home.arpa:443, got '$href'"
             exit 1
           fi
-          sudo ip netns exec vpn-peer curl -sfk --max-time 5 --resolve adguard.home.arpa:443:10.13.13.1 -o /dev/null "$href"
+          sudo ip netns exec vpn-peer curl -sf --max-time 5 --cacert services/nginx/certs/cert.pem --resolve adguard.home.arpa:443:10.13.13.1 -o /dev/null "$href"
           echo "vpn peer reached homepage and followed the AdGuard link through nginx"
 
       - name: Read the real SSH port
