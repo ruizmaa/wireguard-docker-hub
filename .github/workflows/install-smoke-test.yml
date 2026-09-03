@@ -457,21 +457,35 @@ jobs:
       # /api/config/services always returns 422s (that route only serves custom.css/custom.js), /api/services is used to check Host validation instead
       - name: Verify homepage blocks a host not in HOMEPAGE_ALLOWED_HOSTS
         run: |
-          status=$(curl -s -o /tmp/blocked.json -w '%{http_code}' -H "Host: ci-blocked.example:3001" http://127.0.0.1:3001/api/services)
-          cat /tmp/blocked.json
-          if [ "$status" != "400" ] || ! grep -q "Host validation failed" /tmp/blocked.json; then
-            echo "expected a 400 Host validation failure for a host outside the allowlist, got $status"
-            exit 1
-          fi
+          for i in $(seq 1 12); do
+            status=$(curl -s -o /tmp/blocked.json -w '%{http_code}' -H "Host: ci-blocked.example:3001" http://127.0.0.1:3001/api/services) || true
+            if [ "$status" = "400" ] && grep -q "Host validation failed" /tmp/blocked.json; then
+              cat /tmp/blocked.json
+              echo "homepage correctly blocked the disallowed host"
+              exit 0
+            fi
+            echo "not ready yet (attempt $i/12): status $status, retrying in 5s..."
+            sleep 5
+          done
+          cat /tmp/blocked.json 2>/dev/null || true
+          echo "expected a 400 Host validation failure for a host outside the allowlist, got $status"
+          exit 1
 
       - name: Verify homepage allows a host in HOMEPAGE_ALLOWED_HOSTS
         run: |
-          status=$(curl -s -o /tmp/allowed.json -w '%{http_code}' -H "Host: ci-allowed.example:3001" http://127.0.0.1:3001/api/services)
-          cat /tmp/allowed.json
-          if [ "$status" != "200" ]; then
-            echo "expected the allowlisted host to get the real service-card data (200), got $status"
-            exit 1
-          fi
+          for i in $(seq 1 12); do
+            status=$(curl -s -o /tmp/allowed.json -w '%{http_code}' -H "Host: ci-allowed.example:3001" http://127.0.0.1:3001/api/services) || true
+            if [ "$status" = "200" ]; then
+              cat /tmp/allowed.json
+              echo "homepage correctly allowed the allowlisted host"
+              exit 0
+            fi
+            echo "not ready yet (attempt $i/12): status $status, retrying in 5s..."
+            sleep 5
+          done
+          cat /tmp/allowed.json 2>/dev/null || true
+          echo "expected the allowlisted host to get the real service-card data (200), got $status"
+          exit 1
 
       - name: Install dig for DNS check
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
