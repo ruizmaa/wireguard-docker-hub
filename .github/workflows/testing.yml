@@ -17,12 +17,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # No .env here, so the services compose's required vars (nginx's LAN_SUBNET/VPN_SUBNET,
+    # No .env here, so the services compose's required vars (nginx's LAN_SUBNET/VPN_SUBNET/TRUENAS_IP,
     # Homepage's HOMEPAGE_ALLOWED_HOSTS) are passed inline.
     env:
       LAN_SUBNET: 192.168.1.0/24
       VPN_SUBNET: 10.13.13.0/24
       HOMEPAGE_ALLOWED_HOSTS: ci-allowed.example:3001
+      TRUENAS_IP: 192.168.1.99  # no real TrueNAS in CI, just needs to satisfy nginx's required var
     steps:
       - uses: actions/checkout@v7
 

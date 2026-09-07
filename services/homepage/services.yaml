@@ -11,3 +11,7 @@
         icon: syncthing.png
         href: "https://syncthing.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
         description: File synchronization
+    - TrueNAS:
+        icon: truenas-scale.png
+        href: "https://truenas.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}/ui"
+        description: TrueNAS ui
