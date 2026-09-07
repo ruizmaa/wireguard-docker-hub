@@ -1,0 +1,14 @@
+server {
+    listen 80;
+    server_name truenas.home.arpa;
+    return 301 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name truenas.home.arpa;
+
+    # TrueNAS is an external LAN device, not a container in this compose file
+    set $backend ${TRUENAS_IP}:80;
+    include /etc/nginx/proxy_params.conf;
+}

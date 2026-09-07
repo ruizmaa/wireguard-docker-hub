@@ -40,9 +40,9 @@ The services are defined in `services/docker-compose.yml`. Copy the services you
 
 Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) and Jellyfin (`JELLYFIN_MEDIA_1`, `JELLYFIN_MEDIA_2`, etc.) data mounts, each a full `host_path:container_path`.
 
-The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
-`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `docker compose up` refuses to start the whole stack if either is missing.
+`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing.
 
 Start the services:
 
@@ -55,6 +55,41 @@ Check the status:
 ```bash
 docker compose ps
 ```
+
+---
+
+### [Homepage](https://github.com/gethomepage/homepage)
+
+A highly customizable homepage with quick access to all your self-hosted services.
+
+#### Homepage **Configuration**
+
+- Web interface: `http://<SERVER_IP>:3001`
+- Config directory (bind mount): `services/homepage/` → `/app/config`
+
+> [!IMPORTANT]
+> Set `HOMEPAGE_ALLOWED_HOSTS` in `.env`: every host[:port] you access Homepage from, comma-separated (e.g. `192.168.1.X:3001` for its LAN IP, plus `10.13.13.X:3001` for its WireGuard tunnel IP if you also reach it over the VPN). This is a security allowlist: whichever address you type in your browser is sent as the `Host` header, and Homepage only trusts `localhost:3000`/`127.0.0.1:3000` by default (its container-internal port, not the published `HOMEPAGE_WEB_PORT`). So every widget (resources, service status, search suggestions...) would otherwise fail with a "Host validation failed" error. `docker compose up` refuses to start the whole stack if it's missing.
+>
+> The services cards link to their `*.home.arpa` addresses (see [nginx](#nginx-reverse-proxy)), one card per service since [AdGuard's split-horizon DNS](#adguard-configuration) already resolves them to the right IP depending on where you're connecting from. This only works from a device that's actually using AdGuard as its DNS server (see the [note below](#adguard-home)), otherwise those links won't resolve.
+
+All customization is done through YAML files inside `services/homepage/`, which are tracked in this repository:
+
+| File | Purpose |
+|---|---|
+| `services.yaml` | Define the service cards shown on the dashboard |
+| `bookmarks.yaml` | Shortcut links |
+| `widgets.yaml` | Top-bar info widgets (date, search, resources…) |
+| `settings.yaml` | Global settings (title, theme, layout…) |
+
+Edit those files, commit the changes, and restart the container to apply them:
+
+```bash
+docker compose restart homepage
+```
+
+#### Homepage **Start**
+
+Open the web UI at `http://<SERVER_IP>:3001`. The default page is ready to use out of the box. Edit the YAML files in `services/homepage/` to add your services, bookmarks and widgets, then commit the changes.
 
 ---
 
@@ -81,7 +116,7 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 >
 > Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
 >
-> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`, showing what it's about to change before asking for confirmation:
+> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`/`truenas.home.arpa`, showing what it's about to change before asking for confirmation:
 >
 > - LAN clients resolve them to this host's LAN IP, found via a route lookup against `LAN_SUBNET` (overridable with `ADGUARD_LAN_IP`, CI sets this).
 > - VPN (WireGuard) clients resolve them to this host's own tunnel IP instead, read from its `wg0` interface (overridable with `ADGUARD_VPN_IP`, CI sets this).
@@ -99,7 +134,7 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
-If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`/`truenas.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
 
 #### Tracking your config
 
@@ -248,7 +283,7 @@ nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, 
 docker compose up -d
 ```
 
-Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://jellyfin.home.arpa`, `https://syncthing.home.arpa`.
+Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://jellyfin.home.arpa`, `https://syncthing.home.arpa`, `https://truenas.home.arpa`.
 
 ---
 

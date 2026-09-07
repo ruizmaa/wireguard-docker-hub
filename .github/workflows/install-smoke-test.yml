@@ -335,11 +335,15 @@ jobs:
           # dockerd caches resolv.conf at startup, so restart it now that DNS is fixed.
           sudo systemctl restart docker
 
-      - name: Set required nginx env vars for the smoke test
+      # Must exist before "docker compose up" (all required, no default). Uses the simulated LAN/wg0
+      # addresses set up later, so the LAN/VPN links can be checked end-to-end below.
+      - name: Set required Homepage/nginx env vars for the smoke test
         working-directory: services
         run: |
-          echo "LAN_SUBNET=192.168.1.0/24" > .env
+          echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001,10.99.99.1:3001,10.13.13.1:3001" > .env
+          echo "LAN_SUBNET=192.168.1.0/24" >> .env
           echo "VPN_SUBNET=10.13.13.0/24" >> .env
+          echo "TRUENAS_IP=192.168.1.99" >> .env
 
       - name: Verify generate-nginx-certs.sh rejects an unknown flag
         working-directory: services
@@ -451,6 +455,39 @@ jobs:
             exit 1
           }
 
+      # /api/config/services always returns 422s (that route only serves custom.css/custom.js), /api/services is used to check Host validation instead
+      - name: Verify homepage blocks a host not in HOMEPAGE_ALLOWED_HOSTS
+        run: |
+          for i in $(seq 1 12); do
+            status=$(curl -s -o /tmp/blocked.json -w '%{http_code}' -H "Host: ci-blocked.example:3001" http://127.0.0.1:3001/api/services) || true
+            if [ "$status" = "400" ] && grep -q "Host validation failed" /tmp/blocked.json; then
+              cat /tmp/blocked.json
+              echo "homepage correctly blocked the disallowed host"
+              exit 0
+            fi
+            echo "not ready yet (attempt $i/12): status $status, retrying in 5s..."
+            sleep 5
+          done
+          cat /tmp/blocked.json 2>/dev/null || true
+          echo "expected a 400 Host validation failure for a host outside the allowlist, got $status"
+          exit 1
+
+      - name: Verify homepage allows a host in HOMEPAGE_ALLOWED_HOSTS
+        run: |
+          for i in $(seq 1 12); do
+            status=$(curl -s -o /tmp/allowed.json -w '%{http_code}' -H "Host: ci-allowed.example:3001" http://127.0.0.1:3001/api/services) || true
+            if [ "$status" = "200" ]; then
+              cat /tmp/allowed.json
+              echo "homepage correctly allowed the allowlisted host"
+              exit 0
+            fi
+            echo "not ready yet (attempt $i/12): status $status, retrying in 5s..."
+            sleep 5
+          done
+          cat /tmp/allowed.json 2>/dev/null || true
+          echo "expected the allowlisted host to get the real service-card data (200), got $status"
+          exit 1
+
       - name: Install dig for DNS check
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
 
@@ -500,7 +537,7 @@ jobs:
           new_dns_test_peer lan-dns-peer br-lan-dns-test 192.168.1.50 192.168.1.51 lan
           new_dns_test_peer vpn-dns-peer br-vpn-dns-test 10.13.13.50 10.13.13.51 vpn
 
-          for host in adguard.home.arpa jellyfin.home.arpa syncthing.home.arpa; do
+          for host in adguard.home.arpa jellyfin.home.arpa syncthing.home.arpa truenas.home.arpa; do
             lan_ip=$(sudo ip netns exec lan-dns-peer dig +short @192.168.1.50 "$host")
             if [ "$lan_ip" != "192.168.1.10" ]; then
               echo "expected $host to resolve to 192.168.1.10 (ADGUARD_LAN_IP) from a LAN-sourced query, got '$lan_ip'"
@@ -512,7 +549,7 @@ jobs:
               exit 1
             fi
           done
-          echo "all three nginx hostnames resolve correctly per zone (split-horizon)"
+          echo "all four nginx hostnames resolve correctly per zone (split-horizon)"
 
       # Runs against an isolated copy in /tmp so none of these paths touch the real
       # stack or state relied on by the steps before/after this one.
@@ -537,6 +574,8 @@ jobs:
           COMPOSE_PROJECT_NAME=adguard-rewrite-paths-test
           LAN_SUBNET=192.168.1.0/24
           VPN_SUBNET=10.13.13.0/24
+          TRUENAS_IP=192.168.1.99
+          HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001
           SYNCTHING_MOUNT_1=/tmp/adguard-rewrite-paths-data:/data1
           JELLYFIN_MEDIA_1=/tmp/adguard-rewrite-paths-data:/media
           ENVEOF
@@ -624,8 +663,8 @@ jobs:
 
           block=$(awk '/^user_rules:/{f=1} f && !/^user_rules:/ && /^[^ ]/{exit} f' adguard/conf/AdGuardHome.yaml)
           rule_count=$(echo "$block" | grep -c "^  - ")
-          if [ "$rule_count" -ne 6 ]; then
-            echo "expected exactly 6 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
+          if [ "$rule_count" -ne 8 ]; then
+            echo "expected exactly 8 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
             echo "$block"
             exit 1
           fi
@@ -995,6 +1034,42 @@ jobs:
 
       - name: Verify simulated WireGuard peer can reach jellyfin
         run: sudo ip netns exec vpn-peer curl -sf --max-time 5 http://10.13.13.1:8096/health
+
+      - name: Verify untrusted LAN peer cannot reach the Homepage dashboard
+        run: |
+          if sudo ip netns exec untrusted-peer curl -sf --max-time 5 http://10.99.99.1:3001/api/services; then
+            echo "untrusted peer reached homepage -- firewall is not blocking it"
+            exit 1
+          fi
+          echo "untrusted peer correctly blocked from homepage"
+
+      # The card's href is fixed, --resolve substitutes for real DNS, these netns peers have none set up
+      - name: Verify trusted LAN peer can reach Homepage and its AdGuard service link
+        run: |
+          json=$(sudo ip netns exec trusted-peer curl -sf --max-time 5 http://10.99.99.1:3001/api/services)
+          echo "$json"
+          href=$(echo "$json" | jq -r '.[0].services[] | select(.name=="AdGuard") | .href')
+          echo "AdGuard href: $href"
+          if [ "$href" != "https://adguard.home.arpa:443" ]; then
+            echo "expected the AdGuard card to point at https://adguard.home.arpa:443, got '$href'"
+            exit 1
+          fi
+          sudo ip netns exec trusted-peer curl -sf --max-time 5 --cacert services/nginx/certs/cert.pem --resolve adguard.home.arpa:443:10.99.99.1 -o /dev/null "$href"
+          echo "trusted peer reached homepage and followed the AdGuard link through nginx"
+
+      # Same, but for the simulated WireGuard peer. Same href, different network path to it
+      - name: Verify simulated WireGuard peer can reach Homepage and its AdGuard service link
+        run: |
+          json=$(sudo ip netns exec vpn-peer curl -sf --max-time 5 http://10.13.13.1:3001/api/services)
+          echo "$json"
+          href=$(echo "$json" | jq -r '.[0].services[] | select(.name=="AdGuard") | .href')
+          echo "AdGuard href: $href"
+          if [ "$href" != "https://adguard.home.arpa:443" ]; then
+            echo "expected the AdGuard card to point at https://adguard.home.arpa:443, got '$href'"
+            exit 1
+          fi
+          sudo ip netns exec vpn-peer curl -sf --max-time 5 --cacert services/nginx/certs/cert.pem --resolve adguard.home.arpa:443:10.13.13.1 -o /dev/null "$href"
+          echo "vpn peer reached homepage and followed the AdGuard link through nginx"
 
       - name: Read the real SSH port
         run: |
