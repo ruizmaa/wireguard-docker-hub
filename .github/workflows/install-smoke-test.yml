@@ -340,7 +340,7 @@ jobs:
       - name: Set required Homepage/nginx env vars for the smoke test
         working-directory: services
         run: |
-          echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001,10.99.99.1:3001,10.13.13.1:3001" > .env
+          echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001,10.99.99.1:3001,10.13.13.1:3001,homepage.home.arpa" > .env
           echo "LAN_SUBNET=192.168.1.0/24" >> .env
           echo "VPN_SUBNET=10.13.13.0/24" >> .env
           echo "TRUENAS_IP=192.168.1.99" >> .env
@@ -537,7 +537,7 @@ jobs:
           new_dns_test_peer lan-dns-peer br-lan-dns-test 192.168.1.50 192.168.1.51 lan
           new_dns_test_peer vpn-dns-peer br-vpn-dns-test 10.13.13.50 10.13.13.51 vpn
 
-          for host in adguard.home.arpa jellyfin.home.arpa syncthing.home.arpa truenas.home.arpa; do
+          for host in adguard.home.arpa homepage.home.arpa jellyfin.home.arpa syncthing.home.arpa truenas.home.arpa; do
             lan_ip=$(sudo ip netns exec lan-dns-peer dig +short @192.168.1.50 "$host")
             if [ "$lan_ip" != "192.168.1.10" ]; then
               echo "expected $host to resolve to 192.168.1.10 (ADGUARD_LAN_IP) from a LAN-sourced query, got '$lan_ip'"
@@ -549,7 +549,7 @@ jobs:
               exit 1
             fi
           done
-          echo "all four nginx hostnames resolve correctly per zone (split-horizon)"
+          echo "all five nginx hostnames resolve correctly per zone (split-horizon)"
 
       # Runs against an isolated copy in /tmp so none of these paths touch the real
       # stack or state relied on by the steps before/after this one.
@@ -663,8 +663,8 @@ jobs:
 
           block=$(awk '/^user_rules:/{f=1} f && !/^user_rules:/ && /^[^ ]/{exit} f' adguard/conf/AdGuardHome.yaml)
           rule_count=$(echo "$block" | grep -c "^  - ")
-          if [ "$rule_count" -ne 8 ]; then
-            echo "expected exactly 8 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
+          if [ "$rule_count" -ne 10 ]; then
+            echo "expected exactly 10 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
             echo "$block"
             exit 1
           fi
@@ -923,6 +923,7 @@ jobs:
               return 1
           }
           check_via_nginx adguard.home.arpa "/"
+          check_via_nginx homepage.home.arpa "/"
           check_via_nginx jellyfin.home.arpa "/health"
           check_via_nginx syncthing.home.arpa "/rest/noauth/health"
 
