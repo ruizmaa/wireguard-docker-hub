@@ -126,8 +126,7 @@ services:
     ports:
       - "${DOCKGE_WEB_PORT:-5001}:5001"
     environment:
-      - PUID=1000  # You can check your PUID with the command `id`
-      - PGID=1000  # You can check your PGID with the command `id`
+      # No PUID/PGID, this image ignores them and always runs as root
       - DOCKGE_STACKS_DIR=${DOCKGE_STACKS_DIR:-/opt/stacks}
     volumes:
       # Grants root-equivalent control over the host's Docker daemon

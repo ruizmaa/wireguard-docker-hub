@@ -252,6 +252,8 @@ A lightweight UI for managing `docker compose` stacks: start/stop/restart, live 
 
 > [!WARNING]
 > Dockge mounts the host's Docker socket (`/var/run/docker.sock`) to manage containers, which is equivalent to root access on the host: anything with access to Dockge can start a container with a host bind mount and read/write any file the daemon can reach. Treat its web UI as sensitive as a root shell.
+>
+> This image always runs as root regardless of any `PUID`/`PGID` setting ([louislam/dockge#956](https://github.com/louislam/dockge/issues/956)), so any stack file it writes under `DOCKGE_STACKS_DIR` will be owned by `root:root` on the host. Editing those files over SSH as a normal user will need `sudo`.
 
 #### Dockge **Start**
 
