@@ -5,4 +5,4 @@ headerStyle: clean
 layout:
   Home Server:
     style: row
-    columns: 4
+    columns: 5
