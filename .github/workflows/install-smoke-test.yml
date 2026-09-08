@@ -663,8 +663,8 @@ jobs:
 
           block=$(awk '/^user_rules:/{f=1} f && !/^user_rules:/ && /^[^ ]/{exit} f' adguard/conf/AdGuardHome.yaml)
           rule_count=$(echo "$block" | grep -c "^  - ")
-          if [ "$rule_count" -ne 10 ]; then
-            echo "expected exactly 10 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
+          if [ "$rule_count" -ne 12 ]; then
+            echo "expected exactly 12 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
             echo "$block"
             exit 1
           fi
