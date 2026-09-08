@@ -18,6 +18,7 @@ services:
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - adguard
+      - dockge
       - homepage
       - jellyfin
       - syncthing
@@ -118,6 +119,24 @@ services:
     # healthcheck: no HEALTHCHECK, its /health endpoint can't be used during startup migrations
     # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
 
+  dockge:
+    container_name: dockge
+    image: louislam/dockge:1.5.0
+    restart: unless-stopped
+    ports:
+      - "${DOCKGE_WEB_PORT:-5001}:5001"
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - DOCKGE_STACKS_DIR=${DOCKGE_STACKS_DIR:-/opt/stacks}
+    volumes:
+      # Grants root-equivalent control over the host's Docker daemon
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dockge_data:/app/data
+      # Host path must equal container path as Dockge runs `docker compose` against this path itself
+      - ${DOCKGE_STACKS_DIR:-/opt/stacks}:${DOCKGE_STACKS_DIR:-/opt/stacks}
+    # healthcheck: already baked into this image, no need to add one
+
 volumes:
   homepage_disk_probe:
     name: homepage_disk_probe
@@ -127,3 +146,5 @@ volumes:
     name: jellyfin_config
   jellyfin_cache:
     name: jellyfin_cache
+  dockge_data:
+    name: dockge_data
