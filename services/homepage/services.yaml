@@ -7,6 +7,10 @@
         icon: jellyfin.png
         href: "https://jellyfin.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
         description: Media server
+    - Dockge:
+        icon: dockge.png
+        href: "https://dockge.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: Container/stack manager
     - Syncthing:
         icon: syncthing.png
         href: "https://syncthing.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
