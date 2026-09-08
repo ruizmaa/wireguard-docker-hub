@@ -8,4 +8,5 @@ wireguard/
 services/nginx/certs/
 services/adguard/conf/
 services/adguard/work/
+services/homepage/kubernetes.yaml
 .env
