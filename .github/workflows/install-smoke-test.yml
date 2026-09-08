@@ -537,7 +537,9 @@ jobs:
           new_dns_test_peer lan-dns-peer br-lan-dns-test 192.168.1.50 192.168.1.51 lan
           new_dns_test_peer vpn-dns-peer br-vpn-dns-test 10.13.13.50 10.13.13.51 vpn
 
-          for host in adguard.home.arpa homepage.home.arpa jellyfin.home.arpa syncthing.home.arpa dockge.home.arpa truenas.home.arpa; do
+          mapfile -t hosts < <(.github/scripts/nginx-proxied-hosts.sh services/nginx/templates/conf.d)
+
+          for host in "${hosts[@]}"; do
             lan_ip=$(sudo ip netns exec lan-dns-peer dig +short @192.168.1.50 "$host")
             if [ "$lan_ip" != "192.168.1.10" ]; then
               echo "expected $host to resolve to 192.168.1.10 (ADGUARD_LAN_IP) from a LAN-sourced query, got '$lan_ip'"
@@ -549,7 +551,7 @@ jobs:
               exit 1
             fi
           done
-          echo "all six nginx hostnames resolve correctly per zone (split-horizon)"
+          echo "all ${#hosts[@]} nginx hostnames resolve correctly per zone (split-horizon)"
 
       # Runs against an isolated copy in /tmp so none of these paths touch the real
       # stack or state relied on by the steps before/after this one.
@@ -922,11 +924,17 @@ jobs:
               echo "nginx never successfully proxied https://$host$path after 30s"
               return 1
           }
-          check_via_nginx adguard.home.arpa "/"
-          check_via_nginx homepage.home.arpa "/"
-          check_via_nginx jellyfin.home.arpa "/health"
-          check_via_nginx syncthing.home.arpa "/rest/noauth/health"
-          check_via_nginx dockge.home.arpa "/"
+          # Health path per service, only needed when it isn't "/". New services default to "/",
+          # same convention adguard/homepage/dockge already use -- add an entry here if that's wrong.
+          declare -A HEALTH_PATH=(
+              [jellyfin]="/health"
+              [syncthing]="/rest/noauth/health"
+          )
+          # truenas proxies to an external NAS (TRUENAS_IP); no live backend to check in CI
+          mapfile -t hosts < <(../.github/scripts/nginx-proxied-hosts.sh nginx/templates/conf.d truenas)
+          for host in "${hosts[@]}"; do
+              check_via_nginx "$host" "${HEALTH_PATH[${host%.home.arpa}]:-/}"
+          done
 
           # And it must be nginx doing the classifying, not just passing the backend's own response through
           zone_header=$(grep -i '^X-Client-Zone:' /tmp/nginx-check-jellyfin.home.arpa.headers)
