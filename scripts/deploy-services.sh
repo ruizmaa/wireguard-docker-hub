@@ -12,8 +12,9 @@ status=$?
 
 docker compose -f services/docker-compose.yml up -d --remove-orphans || status=1
 
-# up -d won't pick up bind-mounted config edits (e.g. homepage's YAML) on its own
+# up -d won't pick up bind-mounted config edits (e.g. homepage's YAML, nginx's templates) on its own
 docker compose -f services/docker-compose.yml restart homepage || status=1
+docker compose -f services/docker-compose.yml restart nginx || status=1
 
 docker image prune -f
 
