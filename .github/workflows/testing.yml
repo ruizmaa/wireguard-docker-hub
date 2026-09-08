@@ -80,5 +80,22 @@ jobs:
               sys.exit(1)
           PY
 
+      - name: Check all services are listed in nginx
+        run: |
+          # nginx doesn't proxy itself; every other service needs a conf.d template
+          # declaring its own <service>.home.arpa hostname
+          services=$(docker compose -f services/docker-compose.yml config --services | grep -v '^nginx$')
+          missing=""
+          for svc in $services; do
+            template="services/nginx/templates/conf.d/$svc.conf.template"
+            if [ ! -f "$template" ] || ! grep -q "server_name $svc.home.arpa;" "$template"; then
+              missing="$missing $svc"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing nginx conf.d entry for:$missing"
+            exit 1
+          fi
+
       - name: ShellCheck
         run: find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck -x
