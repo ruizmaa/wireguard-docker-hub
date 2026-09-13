@@ -10,4 +10,6 @@ services/adguard/conf/
 services/adguard/work/
 services/glances/
 services/homepage/kubernetes.yaml
+services/homepage/docker.yaml
+services/homepage/proxmox.yaml
 .env
