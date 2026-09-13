@@ -3,6 +3,13 @@
     # cpu/memory disabled: they'd only show this container's own usage, not the whole machine's
     # cpu: true
     # memory: true
+- glances:
+    url: http://glances:61208
+    username: "{{HOMEPAGE_VAR_GLANCES_USERNAME}}"
+    password: "{{HOMEPAGE_VAR_GLANCES_PASSWORD}}"
+    version: 4
+    uptime: true
+    # cputemp not available: this proxmox VM has no hardware temperature sensor to read (see SERVICES.md)
 - datetime:
     text_size: xl
     format:

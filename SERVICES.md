@@ -40,7 +40,7 @@ The services are defined in `services/docker-compose.yml`. Copy the services you
 
 Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) and Jellyfin (`JELLYFIN_MEDIA_1`, `JELLYFIN_MEDIA_2`, etc.) data mounts, each a full `host_path:container_path`.
 
-The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
 `LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing.
 
@@ -116,7 +116,7 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 >
 > Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
 >
-> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`truenas.home.arpa`, showing what it's about to change before asking for confirmation:
+> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`, showing what it's about to change before asking for confirmation:
 >
 > - LAN clients resolve them to this host's LAN IP, found via a route lookup against `LAN_SUBNET` (overridable with `ADGUARD_LAN_IP`, CI sets this).
 > - VPN (WireGuard) clients resolve them to this host's own tunnel IP instead, read from its `wg0` interface (overridable with `ADGUARD_VPN_IP`, CI sets this).
@@ -134,7 +134,7 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
-If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`truenas.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
 
 #### Tracking your config
 
@@ -261,6 +261,29 @@ Open the web UI at `http://<SERVER_IP>:5001` (or `https://dockge.home.arpa` if [
 
 Its username, password hash, and UI settings all live inside the `dockge_data` volume as a SQLite database, not a plain file. You set the username/password once, interactively, the first time you open the web UI. If that volume is ever removed, you'll go through this setup again.
 
+### [Glances](https://github.com/nicolargo/glances)
+
+A system monitor: CPU load, RAM, disk and network usage of the machine it runs on. Also feeds the CPU/RAM numbers shown at the top of [Homepage](#homepage) (see `services/homepage/widgets.yaml`), which can't get real machine-wide numbers on its own (see below).
+
+#### Glances **Configuration**
+
+- Web interface: `http://<SERVER_IP>:61208`, also proxied at `https://glances.home.arpa` if [nginx](#nginx-reverse-proxy) is in use
+- Unlike most system monitors run in Docker, this container has no `pid: host` and doesn't mount `/var/run/docker.sock`: CPU/RAM/disk/network are already visible from inside an unprivileged container (Linux doesn't isolate `/proc`/`/sys` by default), and those two extras would only add the host's full process list and per-container stats, neither of which this deployment uses.
+- CPU temperature isn't available: this only works with real hardware sensors, and a VM (which is what this project is designed to run on) doesn't have any to expose.
+
+> [!IMPORTANT]
+> Set `GLANCES_USERNAME` (defaults to `glances` if unset) and `GLANCES_PASSWORD` in `.env`, then before the first `docker compose up`, run:
+>
+> ```bash
+> ./services/generate-glances-config.sh
+> ```
+>
+> Reads both straight from `.env` and writes `services/glances/<username>.pwd`, hashed the same way Glances' own `--password` flag would. Without it, the container crash-loops instead of starting: it tries to prompt for a password interactively, which fails non-interactively in Docker. [Homepage](#homepage)'s dashboard widget reads the same `.env` values to authenticate against Glances. Re-run with `--force` after changing either value in `.env`.
+
+#### Glances **Start**
+
+Open the web UI at `http://<SERVER_IP>:61208` (or `https://glances.home.arpa` if [nginx](#nginx-reverse-proxy) is in use) and log in with the username/password you set above.
+
 ---
 
 ### [nginx](https://hub.docker.com/_/nginx) reverse proxy
@@ -303,7 +326,7 @@ nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, 
 docker compose up -d
 ```
 
-Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://truenas.home.arpa`.
+Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`.
 
 ---
 
