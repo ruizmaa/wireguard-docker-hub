@@ -59,7 +59,7 @@ services:
 
   syncthing:
     container_name: syncthing
-    image: lscr.io/linuxserver/syncthing:2.1.3
+    image: lscr.io/linuxserver/syncthing:2.1.5
     restart: unless-stopped
     hostname: minipc-syncthing
     ports:
@@ -85,7 +85,7 @@ services:
 
   homepage:
     container_name: homepage
-    image: ghcr.io/gethomepage/homepage:v2.2.0
+    image: ghcr.io/gethomepage/homepage:v2.3.0
     restart: unless-stopped
     ports:
       - "${HOMEPAGE_WEB_PORT:-3001}:3000"
