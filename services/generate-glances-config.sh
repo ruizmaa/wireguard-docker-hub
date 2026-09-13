@@ -1,8 +1,8 @@
 #!/bin/bash
 # Generates services/glances/<username>.pwd, the hashed password Glances' web server checks
-# HTTP Basic Auth against. Reads GLANCES_USERNAME and GLANCES_PASSWORD straight out of .env (via
-# docker compose config) so there's a single source of truth, also used by the glances service's
-# -u flag and Homepage's widget -- set them in .env before running this.
+# HTTP Basic Auth against. Reads GLANCES_USERNAME and GLANCES_PASSWORD straight out of .env, the
+# same source of truth the glances service's -u flag and Homepage's widget use.
+# Set them in .env before running this.
 # Usage: ./services/generate-glances-config.sh [--force]
 set -eo pipefail
 
@@ -13,8 +13,13 @@ source "$SCRIPT_DIR/../scripts/lib/colors.sh"
 source "$SCRIPT_DIR/../scripts/lib/writable-guard.sh"
 # shellcheck source=scripts/lib/force-flag.sh
 source "$SCRIPT_DIR/../scripts/lib/force-flag.sh"
+# shellcheck source=scripts/lib/restart-guard.sh
+source "$SCRIPT_DIR/../scripts/lib/restart-guard.sh"
+# shellcheck source=scripts/lib/env.sh
+source "$SCRIPT_DIR/../scripts/lib/env.sh"
 
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"  # queried below to resolve .env values
+ENV_FILE="$SCRIPT_DIR/.env"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
 # Fails clearly here if .env is incomplete, not with a cryptic docker error later
 if ! compose_json=$(docker compose -f "$COMPOSE_FILE" config --format json); then
@@ -23,13 +28,18 @@ if ! compose_json=$(docker compose -f "$COMPOSE_FILE" config --format json); the
 fi
 
 IMAGE=$(echo "$compose_json" | jq -r '.services.glances.image')
-# Same values the glances service passes to -u and homepage substitutes into widgets.yaml
-USERNAME=$(echo "$compose_json" | jq -r '.services.homepage.environment.HOMEPAGE_VAR_GLANCES_USERNAME')
-PASSWORD=$(echo "$compose_json" | jq -r '.services.homepage.environment.HOMEPAGE_VAR_GLANCES_PASSWORD')
+USERNAME=$(read_env GLANCES_USERNAME glances)
+PASSWORD=$(read_env GLANCES_PASSWORD)
 
 # The password has no default (unlike username), so it must be set
 if [ -z "$PASSWORD" ]; then
     echo -e "${RED}Error: GLANCES_PASSWORD is empty in .env. Set it, then re-run this script.${NC}"
+    exit 1
+fi
+
+# Rejects invalid characters that would break paths or argument parsing
+if [[ ! "$USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo -e "${RED}Error: GLANCES_USERNAME ('$USERNAME') must contain only letters, digits, '.', '_' or '-'.${NC}"
     exit 1
 fi
 
@@ -46,27 +56,8 @@ refuse_overwrite_without_force "$OUT_FILE"
 
 # The real glances container only reads its password file at startup
 # It must be stopped for a regenerate to take effect
-GLANCES_WAS_RUNNING="false"
-cleanup() {
-    if [ "$GLANCES_WAS_RUNNING" = "true" ]; then
-        echo -e "${YELLOW}-> Restarting glances...${NC}"
-        docker compose -f "$COMPOSE_FILE" start glances || echo -e "${RED}Error: failed to restart glances. Start it manually with 'docker compose start glances'.${NC}"
-    fi
-}
-trap cleanup EXIT
-
-# Get glances' container ID, if it's currently running, to know whether to stop/restart it below
-if ! glances_id=$(docker compose -f "$COMPOSE_FILE" ps -q glances); then
-    echo -e "${RED}Error: 'docker compose ps' failed. Check .env is fully filled in.${NC}"
-    exit 1
-fi
-
-# It's running: stop it now, and flag it so cleanup() restarts it once the new file is written
-if [ -n "$glances_id" ]; then
-    GLANCES_WAS_RUNNING="true"
-    echo -e "${YELLOW}-> Stopping the running glances container so the new password takes effect...${NC}"
-    docker compose -f "$COMPOSE_FILE" stop glances
-fi
+trap 'restart_service_if_was_running "$COMPOSE_FILE" glances "$GLANCES_WAS_RUNNING"' EXIT
+GLANCES_WAS_RUNNING=$(stop_service_if_running "$COMPOSE_FILE" glances "new password")
 
 echo -e "${YELLOW}-> Hashing the password with Glances' own binary (not a reimplementation)...${NC}"
 # Uses Glances' own hashing code

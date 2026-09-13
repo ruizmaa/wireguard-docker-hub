@@ -18,6 +18,8 @@ source "$SCRIPT_DIR/../scripts/lib/writable-guard.sh"
 source "$SCRIPT_DIR/../scripts/lib/force-flag.sh"
 # shellcheck source=scripts/lib/adguard-users.sh
 source "$SCRIPT_DIR/../scripts/lib/adguard-users.sh"
+# shellcheck source=scripts/lib/restart-guard.sh
+source "$SCRIPT_DIR/../scripts/lib/restart-guard.sh"
 
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
@@ -230,10 +232,7 @@ tmp_name="adguard-config-gen-$$"
 # Runs on every exit path. Removes the throwaway container, and restarts adguard if this script stopped it
 cleanup() {
     docker rm -f "$tmp_name" > /dev/null 2>&1 || true
-    if [ "$ADGUARD_WAS_RUNNING" = "true" ]; then
-        echo -e "${YELLOW}-> Restarting adguard...${NC}"
-        docker compose -f "$COMPOSE_FILE" start adguard || echo -e "${RED}Error: failed to restart adguard. Start it manually with 'docker compose start adguard'.${NC}"
-    fi
+    restart_service_if_was_running "$COMPOSE_FILE" adguard "$ADGUARD_WAS_RUNNING"
 }
 trap cleanup EXIT
 
@@ -272,15 +271,7 @@ fi
 # It must be stopped for a regenerate to take effect
 ADGUARD_WAS_RUNNING="false"
 if [ "$FORCE" = "true" ]; then
-    if ! adguard_id=$(docker compose -f "$COMPOSE_FILE" ps -q adguard); then
-        echo -e "${RED}Error: 'docker compose ps' failed. Check .env is fully filled in.${NC}"
-        exit 1
-    fi
-    if [ -n "$adguard_id" ]; then
-        ADGUARD_WAS_RUNNING="true"
-        echo -e "${YELLOW}-> Stopping the running adguard container so the new config takes effect...${NC}"
-        docker compose -f "$COMPOSE_FILE" stop adguard
-    fi
+    ADGUARD_WAS_RUNNING=$(stop_service_if_running "$COMPOSE_FILE" adguard "new config")
 fi
 
 # Create the confing and working (blocklists/query/log/stats) directories with your user

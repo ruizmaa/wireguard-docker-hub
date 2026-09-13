@@ -337,13 +337,14 @@ jobs:
 
       # Must exist before "docker compose up" (all required, no default). Uses the simulated LAN/wg0
       # addresses set up later, so the LAN/VPN links can be checked end-to-end below.
-      - name: Set required Homepage/nginx env vars for the smoke test
+      - name: Set required Homepage/nginx/Glances env vars for the smoke test
         working-directory: services
         run: |
           echo "HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001,10.99.99.1:3001,10.13.13.1:3001,homepage.home.arpa" > .env
           echo "LAN_SUBNET=192.168.1.0/24" >> .env
           echo "VPN_SUBNET=10.13.13.0/24" >> .env
           echo "TRUENAS_IP=192.168.1.99" >> .env
+          echo "GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD" >> .env
 
       - name: Verify generate-nginx-certs.sh rejects an unknown flag
         working-directory: services
@@ -433,12 +434,82 @@ jobs:
         working-directory: services
         run: ./generate-nginx-certs.sh
 
-      - name: Generate Glances config for the smoke test
+      - name: Verify generate-glances-config.sh rejects an unknown flag
         working-directory: services
         run: |
-          # generate-glances-config.sh reads these straight from .env, no prompt
-          echo "GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD" >> .env
-          ./generate-glances-config.sh
+          set +e
+          output=$(./generate-glances-config.sh --bogus 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-glances-config.sh to reject an unknown flag, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "unknown flag"; then
+            echo "expected the shared force-flag parser's error message, got something else instead"
+            exit 1
+          fi
+          if [ -f glances/glances.pwd ]; then
+            echo "rejecting an unknown flag must not generate a password file"
+            exit 1
+          fi
+
+      - name: Verify generate-glances-config.sh rejects a root-owned glances dir
+        working-directory: services
+        run: |
+          # Simulates `docker compose up` auto-creating this dir as root before the script ever runs.
+          sudo mkdir -p glances
+          sudo chown root:root glances
+
+          set +e
+          output=$(./generate-glances-config.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-glances-config.sh to fail on a root-owned glances dir, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "isn't a writable directory"; then
+            echo "expected the clear permission-guard error message, got something else instead"
+            exit 1
+          fi
+
+          sudo rm -rf glances
+
+      - name: Verify generate-glances-config.sh rejects an invalid GLANCES_USERNAME
+        working-directory: services
+        run: |
+          sed -i '/^GLANCES_USERNAME=/d' .env
+          echo "GLANCES_USERNAME=../escaped" >> .env
+
+          set +e
+          output=$(./generate-glances-config.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected generate-glances-config.sh to reject a GLANCES_USERNAME containing '/', but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "must contain only letters, digits"; then
+            echo "expected the username-validation error message, got something else instead"
+            exit 1
+          fi
+          if [ -f glances/escaped.pwd ] || [ -f ../escaped.pwd ]; then
+            echo "rejecting an invalid GLANCES_USERNAME must not write a password file anywhere"
+            exit 1
+          fi
+
+          sed -i '/^GLANCES_USERNAME=/d' .env
+
+      - name: Generate Glances config for the smoke test
+        working-directory: services
+        run: ./generate-glances-config.sh
 
       - name: Start services stack
         working-directory: services
