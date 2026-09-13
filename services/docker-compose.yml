@@ -84,7 +84,7 @@ services:
 
   homepage:
     container_name: homepage
-    image: ghcr.io/gethomepage/homepage:v2.2.0
+    image: ghcr.io/gethomepage/homepage:v2.3.0
     restart: unless-stopped
     ports:
       - "${HOMEPAGE_WEB_PORT:-3001}:3000"
