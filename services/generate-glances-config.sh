@@ -37,8 +37,8 @@ if [ -z "$PASSWORD" ]; then
     exit 1
 fi
 
-# Homepage substitutes this into a quoted YAML string in widgets.yaml; either would break it
-if [[ "$PASSWORD" == *'"'* || "$PASSWORD" == *'\'* ]]; then
+# Homepage substitutes this into a quoted YAML string in widgets.yaml, either would break it
+if [[ "$PASSWORD" == *'"'* || "$PASSWORD" == *"\\"* ]]; then
     echo -e "${RED}Error: GLANCES_PASSWORD can't contain a double quote or backslash (breaks services/homepage/widgets.yaml).${NC}"
     exit 1
 fi
