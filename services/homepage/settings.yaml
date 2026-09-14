@@ -6,3 +6,6 @@ layout:
   Home Server:
     style: row
     columns: 6
+  System Monitor:
+    style: row
+    columns: 5
