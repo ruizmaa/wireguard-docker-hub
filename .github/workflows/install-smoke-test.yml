@@ -685,6 +685,7 @@ jobs:
           VPN_SUBNET=10.13.13.0/24
           TRUENAS_IP=192.168.1.99
           HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001
+          GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD
           SYNCTHING_MOUNT_1=/tmp/adguard-rewrite-paths-data:/data1
           JELLYFIN_MEDIA_1=/tmp/adguard-rewrite-paths-data:/media
           ENVEOF
