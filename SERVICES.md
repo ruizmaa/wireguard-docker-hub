@@ -42,7 +42,7 @@ Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID
 
 The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
-`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing.
+`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing. `GLANCES_PASSWORD` is also required, see [Glances](#glances), but it only fails that one container instead of the whole stack.
 
 Start the services:
 

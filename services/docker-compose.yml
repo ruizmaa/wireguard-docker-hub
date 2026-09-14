@@ -96,7 +96,7 @@ services:
       - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS:?Set HOMEPAGE_ALLOWED_HOSTS in .env}  # host[:port] you access this from: LAN IP, and WireGuard tunnel IP if used over the VPN, plus homepage.home.arpa (nginx)
       - HOMEPAGE_VAR_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}  # substituted into services.yaml hrefs, see services/homepage/services.yaml
       - HOMEPAGE_VAR_GLANCES_USERNAME=${GLANCES_USERNAME:-glances}  # substituted into widgets.yaml, see services/homepage/widgets.yaml
-      - HOMEPAGE_VAR_GLANCES_PASSWORD=${GLANCES_PASSWORD:?Set GLANCES_PASSWORD in .env and run ./services/generate-glances-config.sh}  # substituted into widgets.yaml, see services/homepage/widgets.yaml
+      - HOMEPAGE_VAR_GLANCES_PASSWORD=${GLANCES_PASSWORD:-}  # substituted into widgets.yaml, set in .env and run ./services/generate-glances-config.sh
     volumes:
       - ./homepage:/app/config
       - homepage_disk_probe:/host:ro
