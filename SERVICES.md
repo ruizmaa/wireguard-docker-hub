@@ -365,3 +365,13 @@ The script also pings each device and warns (without blocking) if it doesn't ans
 ```bash
 sudo ./scripts/check-network-config-home.sh
 ```
+
+## Test environment
+
+Before merging a branch that touches `services/`, you can try it out on the same home server without touching production: a second, isolated copy of this stack (project name `test-env`, ports and scratch data completely separate from production) that only ever exists while you're actively testing.
+
+- **One-time setup** (only needed once, ever): `sudo mkdir -p /opt/test-env-data && sudo chown <runner-user>:<runner-user> /opt/test-env-data` on the home server, replacing `<runner-user>` with whichever user runs the self-hosted GitHub Actions runner. This mirrors how [Dockge's `DOCKGE_STACKS_DIR`](#dockge) already needs a real host path.
+- **To test a branch:** in GitHub, go to Actions -> "Test Services (on-demand)" -> Run workflow, pick your branch, leave `action` as `deploy`. It tears down and wipes any previous test run first, so it's always a clean start regardless of what branch was tested last.
+- **When you're done:** run the same workflow again with `action` set to `teardown`, otherwise the test stack keeps running (and using host resources) until the next `deploy` wipes it.
+
+This only checks that the containers themselves start correctly with your changes (images, compose syntax, env vars, healthchecks). It does **not** exercise real nginx reverse-proxy routing, AdGuard's split-horizon DNS, or the WireGuard tunnel, the test stack's `LAN_SUBNET`/`VPN_SUBNET`/`TRUENAS_IP` are dummy values (see `services/.env.test.example`), not your real network.

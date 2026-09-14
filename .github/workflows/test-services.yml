@@ -1,0 +1,69 @@
+name: Test Services (on-demand)
+
+# SECURITY: keep this workflow_dispatch-only, never pull_request(_target), this runs on our own home server
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'deploy: tear down any previous test run and (re)create it from this branch. teardown: stop it and wipe scratch data.'
+        required: true
+        type: choice
+        options:
+          - deploy
+          - teardown
+        default: deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-env
+  cancel-in-progress: false
+
+jobs:
+  test-env:
+    runs-on: [self-hosted, home]
+    env:
+      TEST_DATA_DIR: /opt/test-env-data
+      # Also keeps the generate-*.sh scripts below off production's default project
+      COMPOSE_PROJECT_NAME: test-env
+      # Throwaway admin account + IP overrides, since LAN_SUBNET/VPN_SUBNET below are dummy
+      ADGUARD_SETUP_USER: admin
+      ADGUARD_SETUP_PASSWORD: test-password-only
+      ADGUARD_LAN_IP: 192.0.2.1
+      ADGUARD_VPN_IP: 198.51.100.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up test .env
+        run: cp services/.env.test.example services/.env
+
+      - name: Stop any previous test stack
+        run: docker compose -f services/docker-compose.yml down -v --remove-orphans
+
+      - name: Wipe scratch data
+        run: rm -rf "$TEST_DATA_DIR"
+
+      - name: Recreate scratch data dirs
+        if: ${{ inputs.action == 'deploy' }}
+        run: mkdir -p "$TEST_DATA_DIR"/syncthing1 "$TEST_DATA_DIR"/syncthing2 "$TEST_DATA_DIR"/jellyfin-media "$TEST_DATA_DIR"/dockge-stacks
+
+      - name: Generate nginx cert
+        if: ${{ inputs.action == 'deploy' }}
+        run: ./services/generate-nginx-certs.sh
+
+      - name: Generate glances config
+        if: ${{ inputs.action == 'deploy' }}
+        run: ./services/generate-glances-config.sh
+
+      - name: Generate AdGuard config
+        if: ${{ inputs.action == 'deploy' }}
+        run: ./services/generate-adguard-config.sh
+
+      - name: Start test stack
+        if: ${{ inputs.action == 'deploy' }}
+        run: |
+          docker compose -f services/docker-compose.yml pull
+          docker compose -f services/docker-compose.yml up -d --remove-orphans
+          docker compose -f services/docker-compose.yml ps
