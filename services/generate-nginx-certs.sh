@@ -12,6 +12,8 @@ source "$SCRIPT_DIR/../scripts/lib/writable-guard.sh"
 # shellcheck source=scripts/lib/force-flag.sh
 source "$SCRIPT_DIR/../scripts/lib/force-flag.sh"
 
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+
 CERT_DIR="$SCRIPT_DIR/nginx/certs"
 CERT_FILE="$CERT_DIR/cert.pem"
 KEY_FILE="$CERT_DIR/key.pem"
@@ -57,3 +59,9 @@ chmod 600 "$KEY_FILE"  # private key, readable only by the user
 echo -e "${GREEN}-> Generated a cert for *.home.arpa at $CERT_DIR, signed by the local CA at $CAROOT.${NC}"
 echo "   Import $CAROOT/rootCA.pem as a trusted authority on each device once (see SERVICES.md)."
 echo "   Future --force renewals won't need re-importing anything, since the CA stays the same."
+
+# If nginx is already up, restart it to pick up the new cert
+if [ -n "$(docker compose -f "$COMPOSE_FILE" ps -q nginx 2>/dev/null)" ]; then
+    echo -e "${YELLOW}-> Restarting nginx to pick up the new cert...${NC}"
+    docker compose -f "$COMPOSE_FILE" restart nginx || echo -e "${RED}Error: failed to restart nginx. Restart it manually with 'docker compose restart nginx'.${NC}"
+fi
