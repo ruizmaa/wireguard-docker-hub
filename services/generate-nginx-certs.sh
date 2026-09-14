@@ -17,11 +17,6 @@ CERT_FILE="$CERT_DIR/cert.pem"
 KEY_FILE="$CERT_DIR/key.pem"
 CAROOT="$SCRIPT_DIR/nginx/ca"
 
-if ! command -v mkcert >/dev/null 2>&1; then
-    echo -e "${RED}Error: mkcert is not installed. See https://github.com/FiloSottile/mkcert#installation${NC}"
-    exit 1
-fi
-
 parse_force_flag "$@"
 
 guard_writable_dir "$CERT_DIR"
@@ -33,6 +28,11 @@ guard_writable_file "$KEY_FILE"
 
 # Refuse to overwrite an existing cert unless the caller explicitly opted in
 refuse_overwrite_without_force "$CERT_FILE"
+
+if ! command -v mkcert >/dev/null 2>&1; then
+    echo -e "${RED}Error: mkcert is not installed. See https://github.com/FiloSottile/mkcert#installation${NC}"
+    exit 1
+fi
 
 # CAROOT fixes where mkcert keeps the root CA. Reusing the same directory on every run (instead of
 # mkcert's per-user default) is what makes --force renewals below reuse the same CA instead of a new one.

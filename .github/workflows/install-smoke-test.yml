@@ -346,6 +346,9 @@ jobs:
           echo "TRUENAS_IP=192.168.1.99" >> .env
           echo "GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD" >> .env
 
+      - name: Install mkcert (used by generate-nginx-certs.sh)
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mkcert
+
       - name: Verify generate-nginx-certs.sh rejects an unknown flag
         working-directory: services
         run: |
