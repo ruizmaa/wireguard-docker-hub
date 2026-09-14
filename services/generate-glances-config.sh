@@ -54,19 +54,21 @@ guard_writable_file "$OUT_FILE"
 # Refuse to overwrite an existing password unless the caller explicitly opted in
 refuse_overwrite_without_force "$OUT_FILE"
 
-# The real glances container only reads its password file at startup
-# It must be stopped for a regenerate to take effect
+GLANCES_WAS_RUNNING="false"
 trap 'restart_service_if_was_running "$COMPOSE_FILE" glances "$GLANCES_WAS_RUNNING"' EXIT
-GLANCES_WAS_RUNNING=$(stop_service_if_running "$COMPOSE_FILE" glances "new password")
+if [ "$FORCE" = "true" ]; then  # on first setup there's nothing running yet to stop
+    GLANCES_WAS_RUNNING=$(stop_service_if_running "$COMPOSE_FILE" glances "new password")
+fi
 
 echo -e "${YELLOW}-> Hashing the password with Glances' own binary (not a reimplementation)...${NC}"
 # Uses Glances' own hashing code
-hashed_password=$(docker run --rm "$IMAGE" python3 -c "
+hashed_password=$(printf '%s\n%s\n' "$PASSWORD" "$USERNAME" | docker run --rm -i "$IMAGE" python3 -c "
 import sys
 from glances.password import GlancesPassword
-gp = GlancesPassword(username=sys.argv[2])
-print(gp.hash_password(gp.get_hash(sys.argv[1])))
-" "$PASSWORD" "$USERNAME")
+password, username = sys.stdin.read().splitlines()[:2]
+gp = GlancesPassword(username=username)
+print(gp.hash_password(gp.get_hash(password)))
+")
 
 # Don't write an empty/corrupt .pwd if docker run "succeeded" but printed nothing
 if [ -z "$hashed_password" ]; then
@@ -74,11 +76,12 @@ if [ -z "$hashed_password" ]; then
     exit 1
 fi
 
-# Write the hash to disk, exact bytes (no trailing newline)
+# Write the hash to disk
 mkdir -p "$OUT_DIR"
-printf '%s' "$hashed_password" > "$OUT_FILE"
-# Read/write for your user only
-chmod 600 "$OUT_FILE"
+OUT_TMP="$OUT_FILE.tmp"
+printf '%s' "$hashed_password" > "$OUT_TMP"
+chmod 600 "$OUT_TMP"
+mv "$OUT_TMP" "$OUT_FILE"
 
 echo -e "${GREEN}-> Generated $OUT_FILE.${NC}"
 echo "   Username is '$USERNAME'. Restarting (handled above if it was running) picks up the new password."

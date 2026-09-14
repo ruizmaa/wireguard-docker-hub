@@ -566,6 +566,35 @@ jobs:
           echo "expected the allowlisted host to get the real service-card data (200), got $status"
           exit 1
 
+      # /api/4/status is intentionally unauthenticated (docker-compose.yml's own healthcheck uses it),
+      # so it never exercises the password hash generate-glances-config.sh wrote. This does.
+      - name: Verify Glances' Basic Auth actually accepts the generated password
+        run: |
+          for i in $(seq 1 12); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:61208/api/4/cpu) || true
+            [ "$status" != "000" ] && break
+            echo "not ready yet (attempt $i/12), retrying in 5s..."
+            sleep 5
+          done
+
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:61208/api/4/cpu)
+          if [ "$status" != "401" ]; then
+            echo "expected 401 with no credentials, got $status"
+            exit 1
+          fi
+
+          status=$(curl -s -o /dev/null -w '%{http_code}' -u glances:wrong-password http://127.0.0.1:61208/api/4/cpu)
+          if [ "$status" != "401" ]; then
+            echo "expected 401 with a wrong password, got $status"
+            exit 1
+          fi
+
+          status=$(curl -s -o /dev/null -w '%{http_code}' -u glances:CI-TESTING-ONLY-NOT-A-REAL-PASSWORD http://127.0.0.1:61208/api/4/cpu)
+          if [ "$status" != "200" ]; then
+            echo "expected 200 with the real password from .env, got $status"
+            exit 1
+          fi
+
       - name: Install dig for DNS check
         run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsutils
 
