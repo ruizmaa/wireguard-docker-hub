@@ -39,6 +39,18 @@ jobs:
       - name: Set up test .env
         run: cp services/.env.test.example services/.env
 
+      - name: Isolate container/volume names from production
+        # container_name/volume name: are fixed in docker-compose.yml
+        run: |
+          services=$(docker compose -f services/docker-compose.yml config --services)
+          volumes=$(docker compose -f services/docker-compose.yml config --volumes)
+          for s in $services; do
+            sed -i "s/^\(\s*container_name:\s*\)$s\$/\1test-env-$s/" services/docker-compose.yml
+          done
+          for v in $volumes; do
+            sed -i "s/^\(\s*name:\s*\)$v\$/\1test-env-$v/" services/docker-compose.yml
+          done
+
       - name: Stop any previous test stack
         run: docker compose -f services/docker-compose.yml down -v --remove-orphans
 
