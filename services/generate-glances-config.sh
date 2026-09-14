@@ -85,3 +85,7 @@ mv "$OUT_TMP" "$OUT_FILE"
 
 echo -e "${GREEN}-> Generated $OUT_FILE.${NC}"
 echo "   Username is '$USERNAME'. Restarting (handled above if it was running) picks up the new password."
+
+# Homepage's widget reads these same .env values, baked in at container creation, so it needs recreating too.
+echo -e "${YELLOW}-> Recreating homepage so its widget picks up the current .env values...${NC}"
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate homepage || echo -e "${RED}Error: failed to recreate homepage. Run 'docker compose up -d --force-recreate homepage' manually.${NC}"
