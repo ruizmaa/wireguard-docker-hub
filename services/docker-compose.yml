@@ -19,6 +19,7 @@ services:
     depends_on:
       - adguard
       - dockge
+      - glances
       - homepage
       - jellyfin
       - syncthing
@@ -94,6 +95,8 @@ services:
       - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
       - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS:?Set HOMEPAGE_ALLOWED_HOSTS in .env}  # host[:port] you access this from: LAN IP, and WireGuard tunnel IP if used over the VPN, plus homepage.home.arpa (nginx)
       - HOMEPAGE_VAR_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}  # substituted into services.yaml hrefs, see services/homepage/services.yaml
+      - HOMEPAGE_VAR_GLANCES_USERNAME=${GLANCES_USERNAME:-glances}  # substituted into widgets.yaml, see services/homepage/widgets.yaml
+      - HOMEPAGE_VAR_GLANCES_PASSWORD=${GLANCES_PASSWORD:-}  # substituted into widgets.yaml, set in .env and run ./services/generate-glances-config.sh
     volumes:
       - ./homepage:/app/config
       - homepage_disk_probe:/host:ro
@@ -135,6 +138,25 @@ services:
       # Host path must equal container path as Dockge runs `docker compose` against this path itself
       - ${DOCKGE_STACKS_DIR:-/opt/stacks}:${DOCKGE_STACKS_DIR:-/opt/stacks}
     # healthcheck: already baked into this image, no need to add one
+
+  glances:
+    container_name: glances
+    image: nicolargo/glances:4.5.6
+    restart: unless-stopped
+    ports:
+      - "${GLANCES_WEB_PORT:-61208}:61208"
+    environment:
+      - GLANCES_OPT=-w --password -u ${GLANCES_USERNAME:-glances}
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    volumes:
+      # No pid: host, no docker.sock: CPU/RAM/disk/network already work without them (see SERVICES.md)
+      - ./glances:/root/.config/glances:ro
+    healthcheck:
+      test: curl -fsS -m 2 -o /dev/null 127.0.0.1:61208/api/4/status || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
 
 volumes:
   homepage_disk_probe:

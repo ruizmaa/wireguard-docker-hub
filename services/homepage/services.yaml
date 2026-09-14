@@ -11,6 +11,10 @@
         icon: dockge.png
         href: "https://dockge.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
         description: Container/stack manager
+    - Glances:
+        icon: glances.png
+        href: "https://glances.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: System monitor
     - Syncthing:
         icon: syncthing.png
         href: "https://syncthing.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
