@@ -23,3 +23,48 @@
         icon: truenas-scale.png
         href: "https://truenas.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}/ui"
         description: TrueNAS ui
+
+- System Monitor:
+    - Top Processes:
+        widget:
+          type: glances
+          url: http://glances:61208
+          username: "{{HOMEPAGE_VAR_GLANCES_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_GLANCES_PASSWORD}}"
+          version: 4
+          metric: process
+    - CPU:
+        widget:
+          type: glances
+          url: http://glances:61208
+          username: "{{HOMEPAGE_VAR_GLANCES_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_GLANCES_PASSWORD}}"
+          version: 4
+          metric: cpu
+          chart: true
+    - Memory:
+        widget:
+          type: glances
+          url: http://glances:61208
+          username: "{{HOMEPAGE_VAR_GLANCES_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_GLANCES_PASSWORD}}"
+          version: 4
+          metric: memory
+          chart: true
+    - Network:
+        widget:
+          type: glances
+          url: http://glances:61208
+          username: "{{HOMEPAGE_VAR_GLANCES_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_GLANCES_PASSWORD}}"
+          version: 4
+          metric: network:eth0
+          chart: true
+    - Disk I/O:
+        widget:
+          type: glances
+          url: http://glances:61208
+          username: "{{HOMEPAGE_VAR_GLANCES_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_GLANCES_PASSWORD}}"
+          version: 4
+          metric: disk:sda
