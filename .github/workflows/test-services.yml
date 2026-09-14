@@ -34,7 +34,7 @@ jobs:
       ADGUARD_VPN_IP: 198.51.100.1
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up test .env
         run: cp services/.env.test.example services/.env
