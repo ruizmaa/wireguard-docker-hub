@@ -310,7 +310,7 @@ These are `.conf.template`, not `.conf`, nginx's own Docker image substitutes `$
 > ./services/generate-nginx-certs.sh
 > ```
 >
-> This creates a root CA once at `services/nginx/ca/` and a cert signed by it. Import `services/nginx/ca/rootCA.pem` as a trusted authority on each of your devices once. After that, re-running with `--force` (e.g. once the cert is close to expiring) renews the cert without any browser warnings or re-importing, since it's signed by the same CA your devices already trust.
+> This creates a root CA once at `services/nginx/ca/` and a cert signed by it. Import `services/nginx/ca/rootCA.pem` as a trusted authority on each of your devices once. After that, re-running with `--force` (e.g. once the cert is close to expiring) renews the cert without any browser warnings or re-importing, since it's signed by the same CA your devices already trust. If nginx is already running, this also restarts it so it picks up the new cert.
 >
 > Also set `LAN_SUBNET` and `VPN_SUBNET` in `.env` (see `.env.example`). Your LAN's CIDR, and the VPS's `INTERNAL_SUBNET` as a CIDR, these decide the `lan`/`vpn`/`external` split described below.
 
