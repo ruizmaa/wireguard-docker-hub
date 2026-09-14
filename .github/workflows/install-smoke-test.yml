@@ -577,19 +577,19 @@ jobs:
             sleep 5
           done
 
-          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:61208/api/4/cpu)
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:61208/api/4/cpu) || true
           if [ "$status" != "401" ]; then
             echo "expected 401 with no credentials, got $status"
             exit 1
           fi
 
-          status=$(curl -s -o /dev/null -w '%{http_code}' -u glances:wrong-password http://127.0.0.1:61208/api/4/cpu)
+          status=$(curl -s -o /dev/null -w '%{http_code}' -u glances:wrong-password http://127.0.0.1:61208/api/4/cpu) || true
           if [ "$status" != "401" ]; then
             echo "expected 401 with a wrong password, got $status"
             exit 1
           fi
 
-          status=$(curl -s -o /dev/null -w '%{http_code}' -u glances:CI-TESTING-ONLY-NOT-A-REAL-PASSWORD http://127.0.0.1:61208/api/4/cpu)
+          status=$(curl -s -o /dev/null -w '%{http_code}' -u glances:CI-TESTING-ONLY-NOT-A-REAL-PASSWORD http://127.0.0.1:61208/api/4/cpu) || true
           if [ "$status" != "200" ]; then
             echo "expected 200 with the real password from .env, got $status"
             exit 1
