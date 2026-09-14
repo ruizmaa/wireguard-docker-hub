@@ -1,5 +1,5 @@
 #!/bin/bash
-# Generates a self-signed wildcard TLS cert for nginx's *.home.arpa subdomains.
+# Generates a wildcard TLS cert for nginx's *.home.arpa subdomains, signed by a local mkcert CA.
 # Run once on the home server before the first `docker compose up`.
 # Usage: ./services/generate-nginx-certs.sh [--force]
 set -e
@@ -15,13 +15,18 @@ source "$SCRIPT_DIR/../scripts/lib/force-flag.sh"
 CERT_DIR="$SCRIPT_DIR/nginx/certs"
 CERT_FILE="$CERT_DIR/cert.pem"
 KEY_FILE="$CERT_DIR/key.pem"
-DAYS=825
+CAROOT="$SCRIPT_DIR/nginx/ca"
+
+if ! command -v mkcert >/dev/null 2>&1; then
+    echo -e "${RED}Error: mkcert is not installed. See https://github.com/FiloSottile/mkcert#installation${NC}"
+    exit 1
+fi
 
 parse_force_flag "$@"
 
 guard_writable_dir "$CERT_DIR"
 
-mkdir -p "$CERT_DIR"
+mkdir -p "$CERT_DIR" "$CAROOT"
 
 guard_writable_file "$CERT_FILE"
 guard_writable_file "$KEY_FILE"
@@ -29,21 +34,20 @@ guard_writable_file "$KEY_FILE"
 # Refuse to overwrite an existing cert unless the caller explicitly opted in
 refuse_overwrite_without_force "$CERT_FILE"
 
-# req: generate a certificate, self-signed directly instead of a request for a real CA (see -x509 below)
-# -x509: self-sign the cert instead of producing a CSR to be signed by someone else
-# -nodes: no passphrase, so nginx can read the key unattended on container start
-# -newkey rsa:2048: generate a fresh 2048-bit RSA key together with the cert
-# -days: how many days the certificate stays valid
-# -keyout: where to write the private key
-# -out: where to write the certificate
-# -subj: sets the cert's Common Name without prompting interactively
-# -addext subjectAltName: the field browsers actually check, wildcard covers every *.home.arpa subdomain
-openssl req -x509 -nodes -newkey rsa:2048 -days "$DAYS" \
-    -keyout "$KEY_FILE" -out "$CERT_FILE" \
-    -subj "/CN=home.arpa" \
-    -addext "subjectAltName=DNS:*.home.arpa,DNS:home.arpa"
+# CAROOT fixes where mkcert keeps the root CA. Reusing the same directory on every run (instead of
+# mkcert's per-user default) is what makes --force renewals below reuse the same CA instead of a new one.
+export CAROOT
+
+# Creates the root CA under $CAROOT the first time it's missing, and installs it into this
+# machine's trust store. A no-op on later runs, since the CA already exists here.
+mkcert -install
+
+# Signed by the CA above instead of self-signed: devices that already trust that CA (imported
+# once, see SERVICES.md) automatically trust this cert too, and any future renewal of it.
+mkcert -cert-file "$CERT_FILE" -key-file "$KEY_FILE" "*.home.arpa" home.arpa
 
 chmod 600 "$KEY_FILE"  # private key, readable only by the user
 
-echo -e "${GREEN}-> Generated a self-signed cert for *.home.arpa at $CERT_DIR.${NC}"
-echo "   It's self-signed, so browsers will warn until you import $CERT_FILE as a trusted authority on your devices."
+echo -e "${GREEN}-> Generated a cert for *.home.arpa at $CERT_DIR, signed by the local CA at $CAROOT.${NC}"
+echo "   Import $CAROOT/rootCA.pem as a trusted authority on each device once (see SERVICES.md)."
+echo "   Future --force renewals won't need re-importing anything, since the CA stays the same."

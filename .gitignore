@@ -6,6 +6,7 @@ wireguard/
 **/*.key
 **/*.log
 services/nginx/certs/
+services/nginx/ca/
 services/adguard/conf/
 services/adguard/work/
 services/glances/

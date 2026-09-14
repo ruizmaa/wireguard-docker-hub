@@ -304,13 +304,13 @@ All configuration lives in `services/nginx/templates/`, tracked in this reposito
 These are `.conf.template`, not `.conf`, nginx's own Docker image substitutes `${LAN_SUBNET}`/`${VPN_SUBNET}`/`${NGINX_HTTPS_PORT}` into them and writes the result to `/etc/nginx/` (mirroring this folder's own layout) at container start (`NGINX_ENVSUBST_FILTER` in `docker-compose.yml` restricts substitution to exactly those variables, so it can't touch nginx's own `$host`/`$remote_addr`/etc., which use the same `$` syntax).
 
 > [!IMPORTANT]
-> Before the first `docker compose up`, generate a self-signed TLS certificate (one wildcard cert covers all `*.home.arpa` subdomains):
+> Before the first `docker compose up`, install [mkcert](https://github.com/FiloSottile/mkcert#installation) on the home server (on Linux, also install `libnss3-tools` if you'll trust the CA in Firefox there), then generate a wildcard TLS cert for all `*.home.arpa` subdomains, signed by a local CA:
 >
 > ```bash
 > ./services/generate-nginx-certs.sh
 > ```
 >
-> It's self-signed, so browsers will warn until you import `services/nginx/certs/cert.pem` as a trusted authority on each of your devices. Re-run with `--force` to replace it (e.g. once it's close to expiring).
+> This creates a root CA once at `services/nginx/ca/` and a cert signed by it. Import `services/nginx/ca/rootCA.pem` as a trusted authority on each of your devices once. After that, re-running with `--force` (e.g. once the cert is close to expiring) renews the cert without any browser warnings or re-importing, since it's signed by the same CA your devices already trust.
 >
 > Also set `LAN_SUBNET` and `VPN_SUBNET` in `.env` (see `.env.example`). Your LAN's CIDR, and the VPS's `INTERNAL_SUBNET` as a CIDR, these decide the `lan`/`vpn`/`external` split described below.
 
