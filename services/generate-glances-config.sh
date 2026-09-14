@@ -37,6 +37,12 @@ if [ -z "$PASSWORD" ]; then
     exit 1
 fi
 
+# Homepage substitutes this into a quoted YAML string in widgets.yaml, either would break it
+if [[ "$PASSWORD" == *'"'* || "$PASSWORD" == *"\\"* ]]; then
+    echo -e "${RED}Error: GLANCES_PASSWORD can't contain a double quote or backslash (breaks services/homepage/widgets.yaml).${NC}"
+    exit 1
+fi
+
 # Rejects invalid characters that would break paths or argument parsing
 if [[ ! "$USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]]; then
     echo -e "${RED}Error: GLANCES_USERNAME ('$USERNAME') must contain only letters, digits, '.', '_' or '-'.${NC}"
@@ -85,3 +91,7 @@ mv "$OUT_TMP" "$OUT_FILE"
 
 echo -e "${GREEN}-> Generated $OUT_FILE.${NC}"
 echo "   Username is '$USERNAME'. Restarting (handled above if it was running) picks up the new password."
+
+# Homepage's widget reads these same .env values, baked in at container creation, so it needs recreating too.
+echo -e "${YELLOW}-> Recreating homepage so its widget picks up the current .env values...${NC}"
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate homepage || echo -e "${RED}Error: failed to recreate homepage. Run 'docker compose up -d --force-recreate homepage' manually.${NC}"

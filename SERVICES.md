@@ -278,7 +278,7 @@ A system monitor: CPU load, RAM, disk and network usage of the machine it runs o
 > ./services/generate-glances-config.sh
 > ```
 >
-> Reads both straight from `.env` and writes `services/glances/<username>.pwd`, hashed the same way Glances' own `--password` flag would. Without it, the container crash-loops instead of starting: it tries to prompt for a password interactively, which fails non-interactively in Docker. [Homepage](#homepage)'s dashboard widget reads the same `.env` values to authenticate against Glances. Re-run with `--force` after changing either value in `.env`.
+> Reads both straight from `.env` and writes `services/glances/<username>.pwd`, hashed the same way Glances' own `--password` flag would. Without it, the container crash-loops instead of starting: it tries to prompt for a password interactively, which fails non-interactively in Docker. [Homepage](#homepage)'s dashboard widget reads the same `.env` values to authenticate against Glances, so this also recreates Homepage to pick them up. Re-run with `--force` after changing either value in `.env`.
 
 #### Glances **Start**
 
