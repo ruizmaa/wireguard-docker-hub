@@ -43,7 +43,8 @@ jobs:
         run: docker compose -f services/docker-compose.yml down -v --remove-orphans
 
       - name: Wipe scratch data
-        run: rm -rf "$TEST_DATA_DIR"
+        # Empties the directory's contents, not the directory itself (deleting that needs write access to /opt)
+        run: find "$TEST_DATA_DIR" -mindepth 1 -delete
 
       - name: Recreate scratch data dirs
         if: ${{ inputs.action == 'deploy' }}
