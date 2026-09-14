@@ -304,7 +304,7 @@ All configuration lives in `services/nginx/templates/`, tracked in this reposito
 These are `.conf.template`, not `.conf`, nginx's own Docker image substitutes `${LAN_SUBNET}`/`${VPN_SUBNET}`/`${NGINX_HTTPS_PORT}` into them and writes the result to `/etc/nginx/` (mirroring this folder's own layout) at container start (`NGINX_ENVSUBST_FILTER` in `docker-compose.yml` restricts substitution to exactly those variables, so it can't touch nginx's own `$host`/`$remote_addr`/etc., which use the same `$` syntax).
 
 > [!IMPORTANT]
-> Before the first `docker compose up`, install [mkcert](https://github.com/FiloSottile/mkcert#installation) on the home server (on Linux, also install `libnss3-tools` if you'll trust the CA in Firefox there), then generate a wildcard TLS cert for all `*.home.arpa` subdomains, signed by a local CA:
+> Before the first `docker compose up`, generate a wildcard TLS cert for all `*.home.arpa` subdomains, signed by a local CA (this installs [mkcert](https://github.com/FiloSottile/mkcert#installation) via `apt-get` if it's missing. Install `libnss3-tools` yourself first if you also want the CA trusted by Firefox on the home server itself):
 >
 > ```bash
 > ./services/generate-nginx-certs.sh

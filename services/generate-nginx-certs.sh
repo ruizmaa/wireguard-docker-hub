@@ -20,6 +20,7 @@ CAROOT="$SCRIPT_DIR/nginx/ca"
 parse_force_flag "$@"
 
 guard_writable_dir "$CERT_DIR"
+guard_writable_dir "$CAROOT"
 
 mkdir -p "$CERT_DIR" "$CAROOT"
 
@@ -29,8 +30,13 @@ guard_writable_file "$KEY_FILE"
 # Refuse to overwrite an existing cert unless the caller explicitly opted in
 refuse_overwrite_without_force "$CERT_FILE"
 
+# Same pattern as install-wireguard.sh: install the dependency ourselves instead of
+# just erroring out, so a fresh server doesn't need a separate manual step first.
+sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq > /dev/null
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mkcert > /dev/null
+
 if ! command -v mkcert >/dev/null 2>&1; then
-    echo -e "${RED}Error: mkcert is not installed. See https://github.com/FiloSottile/mkcert#installation${NC}"
+    echo -e "${RED}Error: mkcert installation failed. See https://github.com/FiloSottile/mkcert#installation${NC}"
     exit 1
 fi
 
