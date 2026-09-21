@@ -128,7 +128,7 @@ services:
       - /dev/dri:/dev/dri  # Intel QuickSync hardware acceleration
     # healthcheck: no HEALTHCHECK, its /health endpoint can't be used during startup migrations
     # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
-  
+
   qbittorrent:
     container_name: qbittorrent
     image: lscr.io/linuxserver/qbittorrent:5.2.3
@@ -152,7 +152,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-  
+
   prowlarr:
     container_name: prowlarr
     image: lscr.io/linuxserver/prowlarr:2.6.5

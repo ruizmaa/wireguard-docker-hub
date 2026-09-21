@@ -2,16 +2,16 @@
 # Mounts the TrueNAS NFS share at LOCAL_MOUNT_MEDIA_PATH and persists it in /etc/fstab, so
 # radarr/sonarr/qbittorrent/jellyfin all see the same media library. Run once on the home
 # server before the first `docker compose up`.
-# Usage: ./services/arr_tower/setup_nfs.sh
+# Usage: ./services/setup-nfs.sh
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
-source "$SCRIPT_DIR/../../scripts/lib/colors.sh"
+source "$SCRIPT_DIR/../scripts/lib/colors.sh"
 # shellcheck source=scripts/lib/env.sh
-source "$SCRIPT_DIR/../../scripts/lib/env.sh"
+source "$SCRIPT_DIR/../scripts/lib/env.sh"
 
-ENV_FILE="$SCRIPT_DIR/../.env"
+ENV_FILE="$SCRIPT_DIR/.env"
 
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "${RED}Error: $ENV_FILE not found. Copy .env.example to services/.env and set TRUENAS_IP/TRUENAS_MEDIA_PATH first.${NC}"
