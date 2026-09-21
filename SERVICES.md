@@ -248,6 +248,32 @@ A media server for streaming your personal video, audio and photo collections to
 >
 > Mounts your TrueNAS NFS share (`TRUENAS_IP`/`TRUENAS_MEDIA_PATH`) at `LOCAL_MOUNT_MEDIA_PATH` and persists it in `/etc/fstab`. Without this, `LOCAL_MOUNT_MEDIA_PATH` doesn't exist yet, so Docker creates it as an empty local directory and every service below silently starts against an empty library instead of your NAS media.
 
+> [!IMPORTANT]
+> The compose file passes through `/dev/dri` for Intel QuickSync hardware transcoding. On a host without an Intel iGPU (AMD, ARM, a VM without GPU passthrough...), that device doesn't exist and the container fails to start. Comment out the `devices:` block under `jellyfin` in `services/docker-compose.yml` if that's your case; Jellyfin falls back to software transcoding.
+>
+> If you do have an Intel iGPU, run this once before the first `docker compose up` so the container actually has drivers to use it:
+>
+> ```bash
+> ./services/setup-jellyfin-hwaccel.sh
+> ```
+>
+> Installs `intel-media-va-driver-non-free` and its firmware, then verifies `vainfo` reports a working VAAPI device. Enable it afterwards in Jellyfin: `Dashboard > Playback > Transcoding > Hardware acceleration > Intel QuickSync (QSV)`.
+
+> [!NOTE]
+> **Running the home server as a Proxmox VM?** `/dev/dri` won't exist in a fresh VM on its own, the iGPU has to be passed through from the hypervisor first:
+>
+> 1. On the **Proxmox host** (not the VM): enable IOMMU by adding `intel_iommu=on iommu=pt` to `GRUB_CMDLINE_LINUX_DEFAULT` in `/etc/default/grub`, then `update-grub` and reboot. Confirm VT-d is enabled in the BIOS first with `ls /sys/firmware/acpi/tables/ | grep -i dmar`, should print `DMAR`, if it doesn't, enable VT-d in the BIOS setup and try again.
+> 2. Still on the host: find the iGPU's PCI ID (`lspci -nn | grep -i vga`, e.g. `8086:46d1`) and reserve it for passthrough instead of letting the host's own `i915` grab it:
+>    ```bash
+>    printf 'vfio\nvfio_iommu_type1\nvfio_pci\n' >> /etc/modules
+>    echo 'options vfio-pci ids=<vendor:device>' > /etc/modprobe.d/vfio.conf
+>    echo 'blacklist i915' > /etc/modprobe.d/blacklist-igpu.conf
+>    update-initramfs -u -k all
+>    ```
+>    Reboot, then confirm with `lspci -k -s <pci-address>` that `Kernel driver in use` is now `vfio-pci`.
+> 3. Shut the VM down, attach the device (`qm set <vmid> -hostpci0 <pci-address>,pcie=0,x-vga=0`, or `Hardware > Add > PCI Device` in the UI, leaving "Primary GPU" unchecked), and start it back up.
+> 4. Inside the VM, run `./services/setup-jellyfin-hwaccel.sh` above as usual.
+
 ### [qBittorrent](https://hub.docker.com/r/linuxserver/qbittorrent)
 
 A BitTorrent client, used by [Radarr](#radarr)/[Sonarr](#sonarr) as their download client.
