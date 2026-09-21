@@ -22,6 +22,7 @@ services:
       - glances
       - homepage
       - jellyfin
+      - qbittorrent
       - radarr
       - sonarr
       - prowlarr
