@@ -17,12 +17,26 @@ services:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
-      - adguard
-      - dockge
-      - glances
-      - homepage
-      - jellyfin
-      - syncthing
+      adguard:
+        condition: service_healthy
+      dockge:
+        condition: service_healthy
+      glances:
+        condition: service_healthy
+      homepage:
+        condition: service_healthy
+      jellyfin:
+        condition: service_started
+      prowlarr:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_healthy
+      radarr:
+        condition: service_healthy
+      sonarr:
+        condition: service_healthy
+      syncthing:
+        condition: service_healthy
     healthcheck:
       test: curl -fsS -m 2 127.0.0.1/healthz || exit 1
       interval: 1m
@@ -117,10 +131,109 @@ services:
     volumes:
       - jellyfin_config:/config
       - jellyfin_cache:/cache
-      - ${JELLYFIN_MEDIA_1:-/path/to/media:/media}
-      # - ${JELLYFIN_MEDIA_2:-/path/to/media2:/media2}  # Add more media paths as needed
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/movies:/data/movies:ro
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/series:/data/series:ro
+      # - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/music:/data/music:ro  # Add more media categories as needed
+    devices:
+      - /dev/dri:/dev/dri  # Intel QuickSync hardware acceleration
     # healthcheck: no HEALTHCHECK, its /health endpoint can't be used during startup migrations
     # See: https://jellyfin.org/docs/general/post-install/networking/advanced/monitoring/
+
+  qbittorrent:
+    container_name: qbittorrent
+    image: lscr.io/linuxserver/qbittorrent:5.2.3
+    restart: unless-stopped
+    ports:
+      - "${QBITTORRENT_WEB_PORT:-8081}:8080"
+      - "${QBITTORRENT_TORRENT_PORT:-6881}:${QBITTORRENT_TORRENT_PORT:-6881}/tcp"
+      - "${QBITTORRENT_TORRENT_PORT:-6881}:${QBITTORRENT_TORRENT_PORT:-6881}/udp"
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=${QBITTORRENT_TORRENT_PORT:-6881}  # must match the port mapping above
+    volumes:
+      - qbittorrent_config:/config
+      # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}:/media
+    healthcheck:
+      test: curl -fsS -m 2 http://127.0.0.1:8080 || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+
+  prowlarr:
+    container_name: prowlarr
+    image: lscr.io/linuxserver/prowlarr:2.6.5
+    restart: unless-stopped
+    ports:
+      - "${PROWLARR_WEB_PORT:-9696}:9696"
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    volumes:
+      - prowlarr_config:/config
+    healthcheck:
+      test: curl -fsS -m 2 http://127.0.0.1:9696/ping || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+
+  radarr:
+    container_name: radarr
+    image: lscr.io/linuxserver/radarr:6.4.4
+    restart: unless-stopped
+    ports:
+      - "${RADARR_WEB_PORT:-7878}:7878"
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    volumes:
+      - radarr_config:/config
+      # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}:/media
+    depends_on:
+      prowlarr:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_healthy
+    healthcheck:
+      test: curl -fsS -m 2 http://127.0.0.1:7878/ping || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+
+  sonarr:
+    container_name: sonarr
+    image: lscr.io/linuxserver/sonarr:4.0.20
+    restart: unless-stopped
+    ports:
+      - "${SONARR_WEB_PORT:-8989}:8989"
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    volumes:
+      - sonarr_config:/config
+      # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}:/media
+    depends_on:
+      prowlarr:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_healthy
+    healthcheck:
+      test: curl -fsS -m 2 http://127.0.0.1:8989/ping || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
 
   dockge:
     container_name: dockge
@@ -169,3 +282,11 @@ volumes:
     name: jellyfin_cache
   dockge_data:
     name: dockge_data
+  qbittorrent_config:
+    name: qbittorrent_config
+  prowlarr_config:
+    name: prowlarr_config
+  radarr_config:
+    name: radarr_config
+  sonarr_config:
+    name: sonarr_config

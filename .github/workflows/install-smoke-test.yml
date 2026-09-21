@@ -345,6 +345,327 @@ jobs:
           echo "VPN_SUBNET=10.13.13.0/24" >> .env
           echo "TRUENAS_IP=192.168.1.99" >> .env
           echo "GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD" >> .env
+          echo "QBITTORRENT_TORRENT_PORT=16881" >> .env
+
+      - name: Verify setup-jellyfin-hwaccel.sh rejects a host without an Intel iGPU
+        run: |
+          set +e
+          output=$(./services/setup-jellyfin-hwaccel.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-jellyfin-hwaccel.sh to fail without an Intel iGPU"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "/dev/dri/renderD128 not found"; then
+            echo "expected the clear missing-iGPU error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh rejects incomplete TrueNAS configuration
+        working-directory: services
+        run: |
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail with incomplete TrueNAS configuration"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "TRUENAS_IP or TRUENAS_MEDIA_PATH is empty"; then
+            echo "expected the clear missing-configuration error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh rejects LOCAL_MOUNT_MEDIA_PATH=/
+        working-directory: services
+        run: |
+          echo "TRUENAS_MEDIA_PATH=/mnt/media" >> .env
+          echo "LOCAL_MOUNT_MEDIA_PATH=/" >> .env
+
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          # Remove the test-only overrides before subsequent steps use .env
+          sed -i '/^TRUENAS_MEDIA_PATH=/d;/^LOCAL_MOUNT_MEDIA_PATH=/d' .env
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail with LOCAL_MOUNT_MEDIA_PATH=/"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "Refusing to use the root filesystem as the NFS mount point"; then
+            echo "expected the clear root-path guard error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      # Real NFS loopback set in .env, next steps use this mount at the default path
+      - name: Set up a loopback NFS server for setup-nfs.sh tests
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nfs-kernel-server
+          sudo mkdir -p /opt/nfs-export-a /opt/nfs-export-b
+          echo "/opt/nfs-export-a 127.0.0.1(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports > /dev/null
+          echo "/opt/nfs-export-b 127.0.0.1(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports > /dev/null
+          sudo exportfs -ra
+          sudo systemctl enable --now nfs-kernel-server
+
+      - name: Verify setup-nfs.sh rejects a missing .env file
+        working-directory: services
+        run: |
+          mv .env .env.bak
+
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          mv .env.bak .env
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail with a missing .env, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "not found. Copy .env.example"; then
+            echo "expected the clear missing-.env error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh rejects a variable containing whitespace
+        working-directory: services
+        run: |
+          echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
+          echo "LOCAL_MOUNT_MEDIA_PATH=/tmp/bad path" >> .env
+
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          sed -i '/^TRUENAS_MEDIA_PATH=/d;/^LOCAL_MOUNT_MEDIA_PATH=/d' .env
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail with a whitespace-containing path, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "contains whitespace"; then
+            echo "expected the clear whitespace-guard error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh rejects a system directory outside root
+        working-directory: services
+        run: |
+          echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
+          echo "LOCAL_MOUNT_MEDIA_PATH=/srv" >> .env
+
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          sed -i '/^TRUENAS_MEDIA_PATH=/d;/^LOCAL_MOUNT_MEDIA_PATH=/d' .env
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail with LOCAL_MOUNT_MEDIA_PATH=/srv, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "a system directory"; then
+            echo "expected the clear system-directory guard error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh refuses to mount over a populated local directory
+        working-directory: services
+        run: |
+          sudo mkdir -p /opt/populated-test-dir
+          sudo touch /opt/populated-test-dir/keepme.txt
+          echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
+          echo "LOCAL_MOUNT_MEDIA_PATH=/opt/populated-test-dir" >> .env
+
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          sed -i '/^TRUENAS_MEDIA_PATH=/d;/^LOCAL_MOUNT_MEDIA_PATH=/d' .env
+          sudo rm -rf /opt/populated-test-dir
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to refuse a populated, non-NFS mount point, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "already contains files"; then
+            echo "expected the clear populated-directory guard error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      # .env now uses the real NFS mount for the rest of the stack
+      - name: Verify setup-nfs.sh performs a real NFS mount and persists it in fstab
+        working-directory: services
+        run: |
+          sed -i '/^TRUENAS_IP=/d' .env
+          echo "TRUENAS_IP=127.0.0.1" >> .env
+          echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
+
+          output=$(./setup-nfs.sh 2>&1)
+          echo "$output"
+
+          if ! echo "$output" | grep -q "NFS mount succeeded"; then
+            echo "expected a real NFS mount to succeed"
+            exit 1
+          fi
+          if ! mountpoint -q /mnt/nas_media; then
+            echo "expected /mnt/nas_media to actually be a mount point"
+            exit 1
+          fi
+          source="$(findmnt -no SOURCE /mnt/nas_media)"
+          if [ "$source" != "127.0.0.1:/opt/nfs-export-a" ]; then
+            echo "expected /mnt/nas_media to be mounted from 127.0.0.1:/opt/nfs-export-a, got '$source'"
+            exit 1
+          fi
+          if ! grep -q "^127.0.0.1:/opt/nfs-export-a  /mnt/nas_media  nfs" /etc/fstab; then
+            echo "expected an fstab entry for this mount"
+            exit 1
+          fi
+
+      - name: Verify a re-run with the same source skips the mount and the fstab entry
+        working-directory: services
+        run: |
+          output=$(./setup-nfs.sh 2>&1)
+          echo "$output"
+
+          if ! echo "$output" | grep -q "is already mounted from"; then
+            echo "expected the already-mounted skip message"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "already exists in /etc/fstab, skipping"; then
+            echo "expected the fstab-entry-exists skip message"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh refuses to remount while a media container is running
+        working-directory: services
+        run: |
+          sudo docker compose up -d qbittorrent
+          sed -i '/^TRUENAS_MEDIA_PATH=/d' .env
+          echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-b" >> .env
+
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to refuse to remount while qbittorrent is running, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "Stop the stack first"; then
+            echo "expected the running-containers guard error, got:"
+            echo "$output"
+            exit 1
+          fi
+          if [ "$(findmnt -no SOURCE /mnt/nas_media)" != "127.0.0.1:/opt/nfs-export-a" ]; then
+            echo "the original mount must be untouched after a refused remount"
+            exit 1
+          fi
+
+          sudo docker compose stop qbittorrent
+
+      - name: Verify setup-nfs.sh remounts a new source once the container is stopped
+        working-directory: services
+        run: |
+          output=$(./setup-nfs.sh 2>&1)
+          echo "$output"
+
+          if ! echo "$output" | grep -q "Unmounting stale mount from"; then
+            echo "expected the stale-mount unmount message"
+            exit 1
+          fi
+          source="$(findmnt -no SOURCE /mnt/nas_media)"
+          if [ "$source" != "127.0.0.1:/opt/nfs-export-b" ]; then
+            echo "expected /mnt/nas_media to now be mounted from 127.0.0.1:/opt/nfs-export-b, got '$source'"
+            exit 1
+          fi
+          if grep -q "/opt/nfs-export-a  /mnt/nas_media" /etc/fstab; then
+            echo "the stale fstab entry for the old source should have been replaced"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh reports a clear error when TRUENAS_IP is unreachable
+        working-directory: services
+        run: |
+          sed -i '/^TRUENAS_IP=/d' .env
+          echo "TRUENAS_IP=192.0.2.1" >> .env
+
+          set +e
+          output=$(timeout 30 ./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail against an unreachable TRUENAS_IP, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "cannot reach"; then
+            echo "expected the clear connectivity error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh reports a clear error for a remote path that isn't exported
+        working-directory: services
+        run: |
+          sed -i '/^TRUENAS_IP=/d;/^TRUENAS_MEDIA_PATH=/d' .env
+          echo "TRUENAS_IP=127.0.0.1" >> .env
+          echo "TRUENAS_MEDIA_PATH=/opt/not-exported" >> .env
+
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail mounting a non-exported path, but it exited 0"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "failed to mount"; then
+            echo "expected the clear mount-failure error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      # Leaves /mnt/nas_media on a real, successful NFS mount for the rest of this job
+      - name: Restore a working NFS mount before starting the stack
+        working-directory: services
+        run: |
+          sed -i '/^TRUENAS_MEDIA_PATH=/d' .env
+          echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
+
+          output=$(./setup-nfs.sh 2>&1)
+          echo "$output"
+
+          if ! echo "$output" | grep -q "NFS mount succeeded"; then
+            echo "expected the final restore mount to succeed"
+            exit 1
+          fi
 
       - name: Verify generate-nginx-certs.sh rejects an unknown flag
         working-directory: services
@@ -687,7 +1008,6 @@ jobs:
           HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001
           GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD
           SYNCTHING_MOUNT_1=/tmp/adguard-rewrite-paths-data:/data1
-          JELLYFIN_MEDIA_1=/tmp/adguard-rewrite-paths-data:/media
           ENVEOF
           rm -f adguard/conf/AdGuardHome.yaml
 
@@ -773,8 +1093,8 @@ jobs:
 
           block=$(awk '/^user_rules:/{f=1} f && !/^user_rules:/ && /^[^ ]/{exit} f' adguard/conf/AdGuardHome.yaml)
           rule_count=$(echo "$block" | grep -c "^  - ")
-          if [ "$rule_count" -ne 14 ]; then
-            echo "expected exactly 14 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
+          if [ "$rule_count" -ne 22 ]; then
+            echo "expected exactly 22 user_rules entries after a generate -> snapshot -> generate cycle, got $rule_count:"
             echo "$block"
             exit 1
           fi
@@ -1052,6 +1372,89 @@ jobs:
             exit 1
           fi
           echo "$zone_header"
+
+      # Prowlarr/Radarr/Sonarr write their own ApiKey to config.xml on first boot (Servarr apps)
+
+      # qBittorrent rejects API calls via port 8081 unless the Host header 
+      # is forced to its internal port (8080) to prevent 401 errors.
+      - name: Set a fixed qBittorrent WebUI password
+        working-directory: services
+        run: |
+          temp_pw=$(sudo docker compose logs qbittorrent | grep -o "session: .*" | awk '{print $2}' | tail -n1)
+          if [ -z "$temp_pw" ]; then
+            echo "could not find qBittorrent's temporary WebUI password in its logs"
+            exit 1
+          fi
+          curl -sf -c /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/auth/login \
+            --data "username=admin&password=$temp_pw"
+          curl -sf -b /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/app/setPreferences \
+            --data-urlencode 'json={"web_ui_username":"admin","web_ui_password":"CI-Arr-Stack-Test-Pw1"}'
+          # The password just changed, the cookie above is now stale -- get a fresh one
+          curl -sf -c /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/auth/login \
+            --data "username=admin&password=CI-Arr-Stack-Test-Pw1"
+
+      - name: Verify qBittorrent's actual listening port matches QBITTORRENT_TORRENT_PORT
+        working-directory: services
+        run: |
+          expected_port=$(grep '^QBITTORRENT_TORRENT_PORT=' .env | tail -n1 | cut -d= -f2)
+          listen_port=$(curl -sf -b /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" http://127.0.0.1:8081/api/v2/app/preferences | jq -r '.listen_port')
+          if [ "$listen_port" != "$expected_port" ]; then
+            echo "qBittorrent is listening on $listen_port but QBITTORRENT_TORRENT_PORT is $expected_port"
+            exit 1
+          fi
+          # Guards the exact regression class this branch fixed: host/container sides of the
+          # port mapping silently drifting apart in docker-compose.yml
+          mapped=$(sudo docker compose port qbittorrent "${expected_port}")
+          if [[ "$mapped" != *":$expected_port" ]]; then
+            echo "expected port $expected_port to be published on host too, got: '$mapped'"
+            exit 1
+          fi
+          echo "qBittorrent listens on $listen_port, published as $mapped -- matches QBITTORRENT_TORRENT_PORT"
+
+      - name: Configure Prowlarr's application links to Radarr/Sonarr and verify they connect
+        working-directory: services
+        run: |
+          get_api_key() { sudo docker compose exec -T "$1" sh -c "grep -o '<ApiKey>[^<]*</ApiKey>' /config/config.xml | sed 's/<[^>]*>//g'"; }
+          PROWLARR_KEY=$(get_api_key prowlarr)
+
+          add_app() {
+            name="$1" port="$2" api_key="$3"
+            cap="${name^}"
+            body="{\"name\":\"$name\",\"syncLevel\":\"fullSync\",\"implementation\":\"$cap\",\"configContract\":\"${cap}Settings\",\"fields\":[{\"name\":\"prowlarrUrl\",\"value\":\"http://prowlarr:9696\"},{\"name\":\"baseUrl\",\"value\":\"http://$name:$port\"},{\"name\":\"apiKey\",\"value\":\"$api_key\"}],\"tags\":[]}"
+            status=$(curl -s -o /tmp/prowlarr-app-$name.json -w '%{http_code}' -X POST -H "X-Api-Key: $PROWLARR_KEY" \
+              -H "Content-Type: application/json" -d "$body" http://127.0.0.1:9696/api/v1/applications/test)
+            if [ "$status" != "200" ]; then
+              echo "Prowlarr could not connect to $name (test returned $status):"
+              cat /tmp/prowlarr-app-$name.json
+              exit 1
+            fi
+            curl -sf -X POST -H "X-Api-Key: $PROWLARR_KEY" -H "Content-Type: application/json" \
+              -d "$body" http://127.0.0.1:9696/api/v1/applications > /dev/null
+            echo "Prowlarr <-> $name application link verified and saved"
+          }
+          add_app radarr 7878 "$(get_api_key radarr)"
+          add_app sonarr 8989 "$(get_api_key sonarr)"
+
+      - name: Configure qBittorrent as Radarr/Sonarr's download client and verify it connects
+        working-directory: services
+        run: |
+          add_download_client() {
+            name="$1" port="$2" api_key="$3" category_field="$4" category_value="$5"
+            body="{\"enable\":true,\"protocol\":\"torrent\",\"priority\":1,\"name\":\"qBittorrent\",\"implementation\":\"QBittorrent\",\"configContract\":\"QBittorrentSettings\",\"fields\":[{\"name\":\"host\",\"value\":\"qbittorrent\"},{\"name\":\"port\",\"value\":8080},{\"name\":\"username\",\"value\":\"admin\"},{\"name\":\"password\",\"value\":\"CI-Arr-Stack-Test-Pw1\"},{\"name\":\"$category_field\",\"value\":\"$category_value\"}],\"tags\":[]}"
+            status=$(curl -s -o /tmp/dc-test-$name.json -w '%{http_code}' -X POST -H "X-Api-Key: $api_key" \
+              -H "Content-Type: application/json" -d "$body" "http://127.0.0.1:$port/api/v3/downloadclient/test")
+            if [ "$status" != "200" ]; then
+              echo "$name could not connect to qBittorrent as a download client (test returned $status):"
+              cat /tmp/dc-test-$name.json
+              exit 1
+            fi
+            curl -sf -X POST -H "X-Api-Key: $api_key" -H "Content-Type: application/json" \
+              -d "$body" "http://127.0.0.1:$port/api/v3/downloadclient" > /dev/null
+            echo "$name <-> qBittorrent download client verified and saved"
+          }
+          get_api_key() { sudo docker compose exec -T "$1" sh -c "grep -o '<ApiKey>[^<]*</ApiKey>' /config/config.xml | sed 's/<[^>]*>//g'"; }
+          add_download_client radarr 7878 "$(get_api_key radarr)" movieCategory radarr
+          add_download_client sonarr 8989 "$(get_api_key sonarr)" tvCategory tv-sonarr
 
       # 127.0.0.1 bypasses the firewall entirely, so it can't test fix-home-net.sh
       # These steps simulate real LAN devices and a VPN peer via netns/veth instead

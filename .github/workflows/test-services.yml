@@ -60,7 +60,7 @@ jobs:
 
       - name: Recreate scratch data dirs
         if: ${{ inputs.action == 'deploy' }}
-        run: mkdir -p "$TEST_DATA_DIR"/syncthing1 "$TEST_DATA_DIR"/syncthing2 "$TEST_DATA_DIR"/jellyfin-media "$TEST_DATA_DIR"/dockge-stacks
+        run: mkdir -p "$TEST_DATA_DIR"/syncthing1 "$TEST_DATA_DIR"/syncthing2 "$TEST_DATA_DIR"/nas-media "$TEST_DATA_DIR"/dockge-stacks
 
       - name: Generate nginx cert
         if: ${{ inputs.action == 'deploy' }}

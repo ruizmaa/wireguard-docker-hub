@@ -38,9 +38,9 @@ This installs `wireguard`/`resolvconf` on the home server if missing, fetches th
 
 The services are defined in `services/docker-compose.yml`. Copy the services you need to your main `docker-compose.yml` or run them directly from that directory.
 
-Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) and Jellyfin (`JELLYFIN_MEDIA_1`, `JELLYFIN_MEDIA_2`, etc.) data mounts, each a full `host_path:container_path`.
+Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) data mounts, each a full `host_path:container_path`.
 
-The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`, `QBITTORRENT_WEB_PORT`, `QBITTORRENT_TORRENT_PORT`, `PROWLARR_WEB_PORT`, `RADARR_WEB_PORT`, `SONARR_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
 `LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing. `GLANCES_PASSWORD` is also required, see [Glances](#glances), but it only fails that one container instead of the whole stack.
 
@@ -65,7 +65,7 @@ A highly customizable homepage with quick access to all your self-hosted service
 #### Homepage **Configuration**
 
 - Web interface: `http://<SERVER_IP>:3001`, also proxied at `https://homepage.home.arpa` if [nginx](#nginx-reverse-proxy) is in use
-- Config directory (bind mount): `services/homepage/` → `/app/config`
+- Config directory (bind mount): `services/homepage/` -> `/app/config`
 
 > [!IMPORTANT]
 > Set `HOMEPAGE_ALLOWED_HOSTS` in `.env`: every host[:port] you access Homepage from, comma-separated (e.g. `192.168.1.X:3001` for its LAN IP, `10.13.13.X:3001` for its WireGuard tunnel IP if you also reach it over the VPN, plus `homepage.home.arpa` if [nginx](#nginx-reverse-proxy) is in use). This is a security allowlist: whichever address you type in your browser is sent as the `Host` header, and Homepage only trusts `localhost:3000`/`127.0.0.1:3000` by default (its container-internal port, not the published `HOMEPAGE_WEB_PORT`). So every widget (resources, service status, search suggestions...) would otherwise fail with a "Host validation failed" error. `docker compose up` refuses to start the whole stack if it's missing.
@@ -116,7 +116,7 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 >
 > Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
 >
-> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`, showing what it's about to change before asking for confirmation:
+> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`, showing what it's about to change before asking for confirmation:
 >
 > - LAN clients resolve them to this host's LAN IP, found via a route lookup against `LAN_SUBNET` (overridable with `ADGUARD_LAN_IP`, CI sets this).
 > - VPN (WireGuard) clients resolve them to this host's own tunnel IP instead, read from its `wg0` interface (overridable with `ADGUARD_VPN_IP`, CI sets this).
@@ -134,7 +134,7 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
-If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
 
 #### Tracking your config
 
@@ -235,11 +235,102 @@ A media server for streaming your personal video, audio and photo collections to
 - Web interface: `http://<SERVER_IP>:8096`
 - Auto-discovery (DLNA/clients): UDP `7359`
 - Persistent volumes:
-  - `jellyfin_config` → `/config`
-  - `jellyfin_cache`  → `/cache`
-- Media path: map your host directories to `/media` (e.g. `/mnt/hdd/movies:/media`)
+  - `jellyfin_config` -> `/config`
+  - `jellyfin_cache`  -> `/cache`
+- Media path (read-only): `${LOCAL_MOUNT_MEDIA_PATH}/movies` -> `/data/movies`, `${LOCAL_MOUNT_MEDIA_PATH}/series` -> `/data/series`, same source as [radarr](#radarr)/[sonarr](#sonarr)/[qbittorrent](#qbittorrent)
 
-> Set `JELLYFIN_MEDIA_1` (and `JELLYFIN_MEDIA_2`, etc.) in `.env` to your actual media library path, as a full `host_path:container_path` (e.g. `/mnt/hdd/movies:/media`).
+> [!IMPORTANT]
+> Before the first `docker compose up`, run:
+>
+> ```bash
+> ./services/setup-nfs.sh
+> ```
+>
+> Mounts your TrueNAS NFS share (`TRUENAS_IP`/`TRUENAS_MEDIA_PATH`) at `LOCAL_MOUNT_MEDIA_PATH` and persists it in `/etc/fstab`. Without this, `LOCAL_MOUNT_MEDIA_PATH` doesn't exist yet, so Docker creates it as an empty local directory and every service below silently starts against an empty library instead of your NAS media.
+
+> [!IMPORTANT]
+> The compose file passes through `/dev/dri` for Intel QuickSync hardware transcoding. On a host without an Intel iGPU (AMD, ARM, a VM without GPU passthrough...), that device doesn't exist and the container fails to start. Comment out the `devices:` block under `jellyfin` in `services/docker-compose.yml` if that's your case; Jellyfin falls back to software transcoding.
+>
+> If you do have an Intel iGPU, run this once before the first `docker compose up` so the container actually has drivers to use it:
+>
+> ```bash
+> ./services/setup-jellyfin-hwaccel.sh
+> ```
+>
+> Installs `intel-media-va-driver-non-free` and its firmware, then verifies `vainfo` reports a working VAAPI device. The container picks up the device's host group on its own (linuxserver's `ATTACHED_DEVICES_PERMS`), no extra config needed. Enable it afterwards in Jellyfin: `Dashboard > Playback > Transcoding > Hardware acceleration > Intel QuickSync (QSV)`.
+
+> [!NOTE]
+> **Running the home server as a Proxmox VM?** `/dev/dri` won't exist in a fresh VM on its own, the iGPU has to be passed through from the hypervisor first:
+>
+> 1. On the **Proxmox host** (not the VM): enable IOMMU by adding `intel_iommu=on iommu=pt` to `GRUB_CMDLINE_LINUX_DEFAULT` in `/etc/default/grub`, then `update-grub` and reboot. Confirm VT-d is enabled in the BIOS first with `ls /sys/firmware/acpi/tables/ | grep -i dmar`, should print `DMAR`, if it doesn't, enable VT-d in the BIOS setup and try again.
+> 2. Still on the host: find the iGPU's PCI ID (`lspci -nn | grep -i vga`, e.g. `8086:46d1`) and reserve it for passthrough instead of letting the host's own `i915` grab it:
+>    ```bash
+>    printf 'vfio\nvfio_iommu_type1\nvfio_pci\n' >> /etc/modules
+>    echo 'options vfio-pci ids=<vendor:device>' > /etc/modprobe.d/vfio.conf
+>    echo 'blacklist i915' > /etc/modprobe.d/blacklist-igpu.conf
+>    update-initramfs -u -k all
+>    ```
+>    Reboot, then confirm with `lspci -k -s <pci-address>` that `Kernel driver in use` is now `vfio-pci`.
+> 3. Shut the VM down, attach the device (`qm set <vmid> -hostpci0 <pci-address>,pcie=0,x-vga=0`, or `Hardware > Add > PCI Device` in the UI, leaving "Primary GPU" unchecked), and start it back up.
+> 4. Inside the VM, run `./services/setup-jellyfin-hwaccel.sh` above as usual.
+
+### [qBittorrent](https://hub.docker.com/r/linuxserver/qbittorrent)
+
+A BitTorrent client, used by [Radarr](#radarr)/[Sonarr](#sonarr) as their download client.
+
+#### qBittorrent **Configuration**
+
+- Web interface: `http://<SERVER_IP>:8081`
+- Persistent volume: `qbittorrent_config` -> `/config`
+- Media path: `${LOCAL_MOUNT_MEDIA_PATH}` -> `/media`, same source [Radarr](#radarr)/[Sonarr](#sonarr)/[Jellyfin](#jellyfin) read from
+
+> [!IMPORTANT]
+> On first start, the linuxserver image generates a random temporary admin password. Find it with `docker compose logs qbittorrent | grep password`, log in, then change it under `Tools > Options > WebUI`.
+
+#### qBittorrent **Start**
+
+Open the web UI at `http://<SERVER_IP>:8081`, log in with the temporary password above, and change the credentials under `Tools > Options > WebUI`. [Radarr](#radarr)/[Sonarr](#sonarr) reach qBittorrent over the Docker network (not localhost), so `WebUI > Authentication > Bypass authentication for clients on localhost` doesn't apply to them, enter these same credentials when adding qBittorrent as their download client instead. Also set the default save path (`Tools > Options > Downloads`) to `/media/downloads`, so it matches the path [Radarr](#radarr)/[Sonarr](#sonarr) see under their own `/media` mount and Completed Download Handling can import automatically.
+
+### [Prowlarr](https://hub.docker.com/r/linuxserver/prowlarr)
+
+An indexer manager: configure your indexers once here, then [Radarr](#radarr)/[Sonarr](#sonarr) pull them automatically instead of being set up per-app.
+
+#### Prowlarr **Configuration**
+
+- Web interface: `http://<SERVER_IP>:9696`
+- Persistent volume: `prowlarr_config` -> `/config`
+
+#### Prowlarr **Start**
+
+Open the web UI at `http://<SERVER_IP>:9696` and add your indexers under `Indexers`. Then add [Radarr](#radarr) and [Sonarr](#sonarr) under `Settings > Apps` (Prowlarr Server: `http://prowlarr:9696`, app URLs `http://radarr:7878`/`http://sonarr:8989`) so it keeps their indexer lists in sync.
+
+### [Radarr](https://hub.docker.com/r/linuxserver/radarr)
+
+A movie collection manager: tracks a wishlist, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).
+
+#### Radarr **Configuration**
+
+- Web interface: `http://<SERVER_IP>:7878`
+- Persistent volume: `radarr_config` -> `/config`
+- Media path: `${LOCAL_MOUNT_MEDIA_PATH}` -> `/media`, same source [Jellyfin](#jellyfin) reads from
+
+#### Radarr **Start**
+
+Open the web UI at `http://<SERVER_IP>:7878`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/movies` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
+
+### [Sonarr](https://hub.docker.com/r/linuxserver/sonarr)
+
+Same as [Radarr](#radarr), for TV shows instead of movies.
+
+#### Sonarr **Configuration**
+
+- Web interface: `http://<SERVER_IP>:8989`
+- Persistent volume: `sonarr_config` -> `/config`
+- Media path: `${LOCAL_MOUNT_MEDIA_PATH}` -> `/media`, same source [Jellyfin](#jellyfin) reads from
+
+#### Sonarr **Start**
+
+Open the web UI at `http://<SERVER_IP>:8989`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/series` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
 ### [Dockge](https://github.com/louislam/dockge)
 
@@ -326,7 +417,7 @@ nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, 
 docker compose up -d
 ```
 
-Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`.
+Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://qbittorrent.home.arpa`, `https://prowlarr.home.arpa`, `https://radarr.home.arpa`, `https://sonarr.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`.
 
 ---
 

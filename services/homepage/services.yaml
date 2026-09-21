@@ -3,10 +3,6 @@
         icon: adguard-home.png
         href: "https://adguard.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
         description: DNS sinkhole
-    - Jellyfin:
-        icon: jellyfin.png
-        href: "https://jellyfin.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
-        description: Media server
     - Dockge:
         icon: dockge.png
         href: "https://dockge.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
@@ -23,6 +19,28 @@
         icon: truenas-scale.png
         href: "https://truenas.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}/ui"
         description: TrueNAS ui
+
+- Media Arr Stack:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: "https://jellyfin.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: Media server
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: "https://qbittorrent.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: BitTorrent client
+    - Prowlarr:
+        icon: prowlarr.png
+        href: "https://prowlarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: Indexer manager
+    - Radarr:
+        icon: radarr.png
+        href: "https://radarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: Movie collection manager
+    - Sonarr:
+        icon: sonarr.png
+        href: "https://sonarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: TV show collection manager
 
 - System Monitor:
     - Top Processes:
