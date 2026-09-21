@@ -1404,9 +1404,9 @@ jobs:
           fi
           # Guards the exact regression class this branch fixed: host/container sides of the
           # port mapping silently drifting apart in docker-compose.yml
-          mapped=$(sudo docker compose port qbittorrent "${expected_port}/tcp")
+          mapped=$(sudo docker compose port qbittorrent "${expected_port}")
           if [[ "$mapped" != *":$expected_port" ]]; then
-            echo "expected ${expected_port}/tcp to be published as host port $expected_port too, got: '$mapped'"
+            echo "expected port $expected_port to be published on host too, got: '$mapped'"
             exit 1
           fi
           echo "qBittorrent listens on $listen_port, published as $mapped -- matches QBITTORRENT_TORRENT_PORT"
