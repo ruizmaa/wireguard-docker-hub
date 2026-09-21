@@ -62,9 +62,8 @@ sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq \
     vainfo > /dev/null
 
 echo -e "    ${YELLOW}[4/5] Verifying render device permissions...${NC}"
-# The current user must be able to access the render device so VAAPI can be verified,
-# and Jellyfin needs the device's group inside the container for QuickSync access
-DEVICE_GID="$(stat -c '%g' /dev/dri/renderD128)"
+# The current user must be able to access the render device so VAAPI can be verified
+# and Jellyfin can use the device without running the container as root
 if [ ! -r /dev/dri/renderD128 ] || [ ! -w /dev/dri/renderD128 ]; then
     DEVICE_GROUP="$(stat -c '%G' /dev/dri/renderD128)"
     echo -e "    ${RED}-> ERROR: your user can't read/write /dev/dri/renderD128 (it belongs to the '${DEVICE_GROUP}' group).${NC}"
@@ -78,8 +77,6 @@ echo -e "    ${YELLOW}[5/5] Verifying VAAPI...${NC}"
 # Require vainfo to report at least one VAAPI profile before considering the setup successful
 if vainfo --display drm --device /dev/dri/renderD128 2>&1 | grep -q VAProfile; then
     echo -e "      ${GREEN}-> VAAPI is working.${NC}"
-    echo "      -> Add this to services/.env and re-run 'docker compose up -d':"
-    echo "         JELLYFIN_RENDER_GID=${DEVICE_GID}"
     echo "      -> Enable Intel QuickSync (QSV) in Jellyfin:"
     echo "         Dashboard > Playback > Transcoding > Hardware acceleration"
 else
