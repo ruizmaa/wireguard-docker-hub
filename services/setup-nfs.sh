@@ -15,7 +15,7 @@ NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
 
 ENV_FILE="$SCRIPT_DIR/.env"
 
-echo -e "    ${YELLOW}[1/5] Reading configuration...${NC}"
+echo -e "    ${YELLOW}[1/6] Reading configuration...${NC}"
 # Require the services environment file to be present
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "    ${RED}-> ERROR: $ENV_FILE not found. Copy .env.example to services/.env and set TRUENAS_IP/TRUENAS_MEDIA_PATH first.${NC}"
@@ -26,17 +26,37 @@ TRUENAS_IP=$(read_env TRUENAS_IP "")
 TRUENAS_MEDIA_PATH=$(read_env TRUENAS_MEDIA_PATH "")
 LOCAL_MOUNT_MEDIA_PATH=$(read_env LOCAL_MOUNT_MEDIA_PATH "/mnt/nas_media")
 
+echo -e "    ${YELLOW}[2/6] Validating configuration...${NC}"
 # Ensure the TrueNAS address and remote media path are configured
 if [ -z "$TRUENAS_IP" ] || [ -z "$TRUENAS_MEDIA_PATH" ]; then
     echo -e "    ${RED}-> ERROR: TRUENAS_IP or TRUENAS_MEDIA_PATH is empty in $ENV_FILE.${NC}"
     exit 1
 fi
 
-# Prevent a typo in LOCAL_MOUNT_MEDIA_PATH from allowing the stale-mount cleanup to unmount /
+# /etc/fstab is whitespace-delimited
+for var_name in TRUENAS_IP TRUENAS_MEDIA_PATH LOCAL_MOUNT_MEDIA_PATH; do
+    if [[ "${!var_name}" =~ [[:space:]] ]]; then
+        echo -e "    ${RED}-> ERROR: $var_name contains whitespace in $ENV_FILE, which /etc/fstab can't represent.${NC}"
+        exit 1
+    fi
+done
+
+# Normalize the path before applying mount-point safety checks
+LOCAL_MOUNT_MEDIA_PATH="$(realpath -ms -- "$LOCAL_MOUNT_MEDIA_PATH")"
+
+# Never allow the root filesystem as the mount point
 if [ "$LOCAL_MOUNT_MEDIA_PATH" = "/" ]; then
     echo -e "    ${RED}-> ERROR: LOCAL_MOUNT_MEDIA_PATH is '/' in $ENV_FILE. Refusing to use the root filesystem as the NFS mount point.${NC}"
     exit 1
 fi
+
+# Never mount the NFS share over a top-level system directory
+case "$LOCAL_MOUNT_MEDIA_PATH" in
+    /bin|/boot|/dev|/etc|/home|/lib|/lib64|/media|/mnt|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
+        echo -e "    ${RED}-> ERROR: LOCAL_MOUNT_MEDIA_PATH is '$LOCAL_MOUNT_MEDIA_PATH' in $ENV_FILE, a system directory. Refusing to use it as the NFS mount point.${NC}"
+        exit 1
+        ;;
+esac
 
 NFS_SOURCE="${TRUENAS_IP}:${TRUENAS_MEDIA_PATH}"
 # Let systemd mount the share on first access, so Docker bind mounts wait for NFS
@@ -47,11 +67,11 @@ FSTAB_ENTRY="${NFS_SOURCE}  ${LOCAL_MOUNT_MEDIA_PATH}  nfs  ${FSTAB_OPTS}  0  0"
 echo "      -> NFS source: $NFS_SOURCE"
 echo "      -> Mount point: $LOCAL_MOUNT_MEDIA_PATH"
 
-echo -e "    ${YELLOW}[2/5] Installing NFS client...${NC}"
+echo -e "    ${YELLOW}[3/6] Installing NFS client...${NC}"
 sudo "${NO_INTERACTIVE_APT[@]}" update -qq > /dev/null
 sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq nfs-common > /dev/null
 
-echo -e "    ${YELLOW}[3/5] Configuring NFS mount...${NC}"
+echo -e "    ${YELLOW}[4/6] Configuring NFS mount...${NC}"
 sudo mkdir -p "$LOCAL_MOUNT_MEDIA_PATH"
 
 # Read the current mount source only when the path is actually mounted. On a plain directory,
@@ -89,13 +109,13 @@ else
     fi
 fi
 
-echo -e "    ${YELLOW}[4/5] Verifying NFS mount...${NC}"
+echo -e "    ${YELLOW}[5/6] Verifying NFS mount...${NC}"
 echo "      -> Contents of $LOCAL_MOUNT_MEDIA_PATH:"
 
 # Show the mounted share contents as a basic access check
 ls -la "$LOCAL_MOUNT_MEDIA_PATH" || echo -e "      ${YELLOW}-> WARNING: couldn't list $LOCAL_MOUNT_MEDIA_PATH (permission issue?). The mount itself succeeded.${NC}"
 
-echo -e "    ${YELLOW}[5/5] Persisting mount in /etc/fstab...${NC}"
+echo -e "    ${YELLOW}[6/6] Persisting mount in /etc/fstab...${NC}"
 
 # Skip only if source, mount point AND options already match
 # An entry with stale options (e.g. a hand-edited one) falls through to the replace branch instead
