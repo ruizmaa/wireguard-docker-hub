@@ -51,7 +51,12 @@ if [ "${CURRENT_SOURCE}" = "${NFS_SOURCE}" ]; then
 else
     if [ -n "${CURRENT_SOURCE}" ]; then
         echo "Unmounting stale mount from ${CURRENT_SOURCE}..."
-        sudo umount "${LOCAL_MOUNT_MEDIA_PATH}"
+        sudo umount -l "${LOCAL_MOUNT_MEDIA_PATH}"
+    fi
+    echo "Checking connectivity to ${TRUENAS_IP}:2049 (NFS)..."
+    if ! timeout 5 bash -c "echo > /dev/tcp/${TRUENAS_IP}/2049" 2>/dev/null; then
+        echo -e "${RED}Error: cannot reach ${TRUENAS_IP} on port 2049 (NFS). Is TrueNAS up and TRUENAS_IP correct?${NC}"
+        exit 1
     fi
     if sudo mount -t nfs "${NFS_SOURCE}" "${LOCAL_MOUNT_MEDIA_PATH}"; then
         echo -e "${GREEN}Mount succeeded.${NC}"
@@ -62,7 +67,7 @@ else
 fi
 
 echo "Contents of ${LOCAL_MOUNT_MEDIA_PATH}:"
-ls -la "${LOCAL_MOUNT_MEDIA_PATH}"
+ls -la "${LOCAL_MOUNT_MEDIA_PATH}" || echo -e "${YELLOW}Warning: couldn't list ${LOCAL_MOUNT_MEDIA_PATH} (permission issue?). The mount itself succeeded.${NC}"
 
 echo "Persisting the mount in /etc/fstab..."
 if awk -v src="${NFS_SOURCE}" -v path="${LOCAL_MOUNT_MEDIA_PATH}" '$1 !~ /^#/ && $1 == src && $2 == path { found=1 } END { exit !found }' /etc/fstab; then
@@ -71,10 +76,10 @@ else
     # Drop any stale entry for this mount point (e.g. from an older TRUENAS_MEDIA_PATH) before adding the current one
     TMP_FSTAB="$(mktemp)"
     awk -v path="${LOCAL_MOUNT_MEDIA_PATH}" '$1 ~ /^#/ || $2 != path' /etc/fstab > "${TMP_FSTAB}"
+    echo "${FSTAB_ENTRY}" >> "${TMP_FSTAB}"
     sudo cp /etc/fstab "/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
     sudo install -m 644 "${TMP_FSTAB}" /etc/fstab
     rm -f "${TMP_FSTAB}"
-    echo "${FSTAB_ENTRY}" | sudo tee -a /etc/fstab > /dev/null
     echo -e "${GREEN}Entry added to /etc/fstab.${NC}"
 fi
 
