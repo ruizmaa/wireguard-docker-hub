@@ -78,8 +78,8 @@ echo -e "    ${YELLOW}[5/5] Verifying VAAPI...${NC}"
 # Require vainfo to report at least one VAAPI profile before considering the setup successful
 if vainfo --display drm --device /dev/dri/renderD128 2>&1 | grep -q VAProfile; then
     echo -e "      ${GREEN}-> VAAPI is working.${NC}"
-echo "      -> Add this to services/.env and re-run 'docker compose up -d':"
-echo "         JELLYFIN_RENDER_GID=${DEVICE_GID}"
+    echo "      -> Add this to services/.env and re-run 'docker compose up -d':"
+    echo "         JELLYFIN_RENDER_GID=${DEVICE_GID}"
     echo "      -> Enable Intel QuickSync (QSV) in Jellyfin:"
     echo "         Dashboard > Playback > Transcoding > Hardware acceleration"
 else

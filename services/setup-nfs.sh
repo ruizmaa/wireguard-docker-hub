@@ -41,7 +41,8 @@ fi
 NFS_SOURCE="${TRUENAS_IP}:${TRUENAS_MEDIA_PATH}"
 # Let systemd mount the share on first access, so Docker bind mounts wait for NFS
 # instead of racing the mount and seeing an empty local directory
-FSTAB_ENTRY="${NFS_SOURCE}  ${LOCAL_MOUNT_MEDIA_PATH}  nfs  defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30  0  0"
+FSTAB_OPTS="defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30"
+FSTAB_ENTRY="${NFS_SOURCE}  ${LOCAL_MOUNT_MEDIA_PATH}  nfs  ${FSTAB_OPTS}  0  0"
 
 echo "      -> NFS source: $NFS_SOURCE"
 echo "      -> Mount point: $LOCAL_MOUNT_MEDIA_PATH"
@@ -96,12 +97,15 @@ ls -la "$LOCAL_MOUNT_MEDIA_PATH" || echo -e "      ${YELLOW}-> WARNING: couldn't
 
 echo -e "    ${YELLOW}[5/5] Persisting mount in /etc/fstab...${NC}"
 
-# Keep the existing entry when it already matches the configured NFS share
-if awk -v src="$NFS_SOURCE" -v path="$LOCAL_MOUNT_MEDIA_PATH" '$1 !~ /^#/ && $1 == src && $2 == path { found=1 } END { exit !found }' /etc/fstab; then
+# Skip only if source, mount point AND options already match
+# An entry with stale options (e.g. a hand-edited one) falls through to the replace branch instead
+if awk -v src="$NFS_SOURCE" -v path="$LOCAL_MOUNT_MEDIA_PATH" -v opts="$FSTAB_OPTS" \
+    '$1 !~ /^#/ && $1 == src && $2 == path && $4 == opts { found=1 } END { exit !found }' /etc/fstab; then
     echo -e "      ${YELLOW}-> An entry for ${NFS_SOURCE} -> ${LOCAL_MOUNT_MEDIA_PATH} already exists in /etc/fstab, skipping.${NC}"
 else
     # Remove stale entries for this mount point before adding the current configuration
     TMP_FSTAB="$(mktemp)"
+    trap 'rm -f "$TMP_FSTAB"' EXIT
     awk -v path="$LOCAL_MOUNT_MEDIA_PATH" '$1 ~ /^#/ || $2 != path' /etc/fstab > "$TMP_FSTAB"
     echo "$FSTAB_ENTRY" >> "$TMP_FSTAB"
 
@@ -110,7 +114,14 @@ else
     sudo install -m 644 "$TMP_FSTAB" /etc/fstab
     rm -f "$TMP_FSTAB"
 
-    echo -e "      ${GREEN}-> Entry added to /etc/fstab.${NC}"
+    # Regenerate the automount unit from the entry just written
+    # Skipped on hosts where systemd isn't actually running as PID 1 (e.g. a container), where it would just fail
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        sudo systemctl daemon-reload
+        echo -e "      ${GREEN}-> Entry added to /etc/fstab and systemd reloaded.${NC}"
+    else
+        echo -e "      ${GREEN}-> Entry added to /etc/fstab.${NC}"
+    fi
 fi
 
 echo -e "${GREEN}NFS setup complete.${NC}"
