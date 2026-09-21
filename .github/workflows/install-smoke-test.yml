@@ -346,6 +346,43 @@ jobs:
           echo "TRUENAS_IP=192.168.1.99" >> .env
           echo "GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD" >> .env
 
+      - name: Verify setup-jellyfin-hwaccel.sh rejects a host without an Intel iGPU
+        run: |
+          set +e
+          output=$(./services/setup-jellyfin-hwaccel.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-jellyfin-hwaccel.sh to fail without an Intel iGPU"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "/dev/dri/renderD128 not found"; then
+            echo "expected the clear missing-iGPU error, got:"
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Verify setup-nfs.sh rejects incomplete TrueNAS configuration
+        working-directory: services
+        run: |
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail with incomplete TrueNAS configuration"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "TRUENAS_IP or TRUENAS_MEDIA_PATH is empty"; then
+            echo "expected the clear missing-configuration error, got:"
+            echo "$output"
+            exit 1
+          fi
+
       - name: Verify generate-nginx-certs.sh rejects an unknown flag
         working-directory: services
         run: |
