@@ -40,7 +40,12 @@ echo "Creating mount point ${LOCAL_MOUNT_MEDIA_PATH}..."
 sudo mkdir -p "${LOCAL_MOUNT_MEDIA_PATH}"
 
 echo "Testing the mount..."
-CURRENT_SOURCE="$(findmnt -no SOURCE --target "${LOCAL_MOUNT_MEDIA_PATH}" 2>/dev/null || true)"
+CURRENT_SOURCE=""
+if mountpoint -q "${LOCAL_MOUNT_MEDIA_PATH}"; then
+    # Only ask findmnt for the source once we know it's actually a mountpoint: on a plain directory,
+    # --target resolves to the nearest ancestor mount (e.g. the root filesystem) instead of empty.
+    CURRENT_SOURCE="$(findmnt -no SOURCE --target "${LOCAL_MOUNT_MEDIA_PATH}")"
+fi
 if [ "${CURRENT_SOURCE}" = "${NFS_SOURCE}" ]; then
     echo -e "${YELLOW}${LOCAL_MOUNT_MEDIA_PATH} is already mounted from ${NFS_SOURCE}, skipping.${NC}"
 else
