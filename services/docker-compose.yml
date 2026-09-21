@@ -1,7 +1,7 @@
 services:
   nginx:
     container_name: nginx
-    image: nginx:1.31.5-alpine
+    image: nginx:1.31.6-alpine
     restart: unless-stopped
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
@@ -89,7 +89,7 @@ services:
 
   homepage:
     container_name: homepage
-    image: ghcr.io/gethomepage/homepage:v2.3.0
+    image: ghcr.io/gethomepage/homepage:v2.4.0
     restart: unless-stopped
     ports:
       - "${HOMEPAGE_WEB_PORT:-3001}:3000"
