@@ -257,7 +257,7 @@ A media server for streaming your personal video, audio and photo collections to
 > ./services/setup-jellyfin-hwaccel.sh
 > ```
 >
-> Installs `intel-media-va-driver-non-free` and its firmware, then verifies `vainfo` reports a working VAAPI device. Enable it afterwards in Jellyfin: `Dashboard > Playback > Transcoding > Hardware acceleration > Intel QuickSync (QSV)`.
+> Installs `intel-media-va-driver-non-free` and its firmware, then verifies `vainfo` reports a working VAAPI device. It prints a `JELLYFIN_RENDER_GID` value at the end: add that to `services/.env` and recreate the container (`docker compose up -d`), otherwise Jellyfin only gets the `/dev/dri` device file, not the host group that owns it, and QuickSync fails with a permission error. Enable it afterwards in Jellyfin: `Dashboard > Playback > Transcoding > Hardware acceleration > Intel QuickSync (QSV)`.
 
 > [!NOTE]
 > **Running the home server as a Proxmox VM?** `/dev/dri` won't exist in a fresh VM on its own, the iGPU has to be passed through from the hypervisor first:

@@ -32,8 +32,16 @@ if [ -z "$TRUENAS_IP" ] || [ -z "$TRUENAS_MEDIA_PATH" ]; then
     exit 1
 fi
 
+# Prevent a typo in LOCAL_MOUNT_MEDIA_PATH from allowing the stale-mount cleanup to unmount /
+if [ "$LOCAL_MOUNT_MEDIA_PATH" = "/" ]; then
+    echo -e "    ${RED}-> ERROR: LOCAL_MOUNT_MEDIA_PATH is '/' in $ENV_FILE. Refusing to use the root filesystem as the NFS mount point.${NC}"
+    exit 1
+fi
+
 NFS_SOURCE="${TRUENAS_IP}:${TRUENAS_MEDIA_PATH}"
-FSTAB_ENTRY="${NFS_SOURCE}  ${LOCAL_MOUNT_MEDIA_PATH}  nfs  defaults,_netdev,nofail,bg  0  0"
+# Let systemd mount the share on first access, so Docker bind mounts wait for NFS
+# instead of racing the mount and seeing an empty local directory
+FSTAB_ENTRY="${NFS_SOURCE}  ${LOCAL_MOUNT_MEDIA_PATH}  nfs  defaults,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30  0  0"
 
 echo "      -> NFS source: $NFS_SOURCE"
 echo "      -> Mount point: $LOCAL_MOUNT_MEDIA_PATH"
@@ -64,7 +72,8 @@ else
 
     echo "      -> Checking connectivity to $TRUENAS_IP:2049 (NFS)..."
     # Require the TrueNAS NFS port to be reachable before attempting the mount
-    if ! timeout 5 bash -c "echo > /dev/tcp/${TRUENAS_IP}/2049" 2>/dev/null; then
+    # $1 prevents command injection if TRUENAS_IP contains shell special characters
+    if ! timeout 5 bash -c 'echo > "/dev/tcp/$1/2049"' _ "$TRUENAS_IP" 2>/dev/null; then
         echo -e "      ${RED}-> ERROR: cannot reach $TRUENAS_IP on port 2049 (NFS). Is TrueNAS up and TRUENAS_IP correct?${NC}"
         exit 1
     fi

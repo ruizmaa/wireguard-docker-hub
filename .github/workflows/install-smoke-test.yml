@@ -383,6 +383,31 @@ jobs:
             exit 1
           fi
 
+      - name: Verify setup-nfs.sh rejects LOCAL_MOUNT_MEDIA_PATH=/
+        working-directory: services
+        run: |
+          echo "TRUENAS_MEDIA_PATH=/mnt/media" >> .env
+          echo "LOCAL_MOUNT_MEDIA_PATH=/" >> .env
+
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          # Remove the test-only overrides before subsequent steps use .env
+          sed -i '/^TRUENAS_MEDIA_PATH=/d;/^LOCAL_MOUNT_MEDIA_PATH=/d' .env
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail with LOCAL_MOUNT_MEDIA_PATH=/"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "Refusing to use the root filesystem as the NFS mount point"; then
+            echo "expected the clear root-path guard error, got:"
+            echo "$output"
+            exit 1
+          fi
+
       - name: Verify generate-nginx-certs.sh rejects an unknown flag
         working-directory: services
         run: |
