@@ -135,8 +135,8 @@ services:
     restart: unless-stopped
     ports:
       - "${QBITTORRENT_WEB_PORT:-8081}:8080"
-      - "${QBITTORRENT_TORRENT_PORT:-6881}:6881/tcp"
-      - "${QBITTORRENT_TORRENT_PORT:-6881}:6881/udp"
+      - "${QBITTORRENT_TORRENT_PORT:-6881}:${QBITTORRENT_TORRENT_PORT:-6881}/tcp"
+      - "${QBITTORRENT_TORRENT_PORT:-6881}:${QBITTORRENT_TORRENT_PORT:-6881}/udp"
     environment:
       - PUID=1000  # You can check your PUID with the command `id`
       - PGID=1000  # You can check your PGID with the command `id`
