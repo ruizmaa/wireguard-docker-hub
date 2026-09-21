@@ -40,22 +40,31 @@ echo "Creating mount point ${LOCAL_MOUNT_MEDIA_PATH}..."
 sudo mkdir -p "${LOCAL_MOUNT_MEDIA_PATH}"
 
 echo "Testing the mount..."
-if mountpoint -q "${LOCAL_MOUNT_MEDIA_PATH}"; then
-    echo -e "${YELLOW}${LOCAL_MOUNT_MEDIA_PATH} is already mounted, skipping.${NC}"
-elif sudo mount -t nfs "${NFS_SOURCE}" "${LOCAL_MOUNT_MEDIA_PATH}"; then
-    echo -e "${GREEN}Mount succeeded.${NC}"
+CURRENT_SOURCE="$(findmnt -no SOURCE --target "${LOCAL_MOUNT_MEDIA_PATH}" 2>/dev/null || true)"
+if [ "${CURRENT_SOURCE}" = "${NFS_SOURCE}" ]; then
+    echo -e "${YELLOW}${LOCAL_MOUNT_MEDIA_PATH} is already mounted from ${NFS_SOURCE}, skipping.${NC}"
 else
-    echo -e "${RED}Error: failed to mount ${NFS_SOURCE} at ${LOCAL_MOUNT_MEDIA_PATH}.${NC}"
-    exit 1
+    if [ -n "${CURRENT_SOURCE}" ]; then
+        echo "Unmounting stale mount from ${CURRENT_SOURCE}..."
+        sudo umount "${LOCAL_MOUNT_MEDIA_PATH}"
+    fi
+    if sudo mount -t nfs "${NFS_SOURCE}" "${LOCAL_MOUNT_MEDIA_PATH}"; then
+        echo -e "${GREEN}Mount succeeded.${NC}"
+    else
+        echo -e "${RED}Error: failed to mount ${NFS_SOURCE} at ${LOCAL_MOUNT_MEDIA_PATH}.${NC}"
+        exit 1
+    fi
 fi
 
 echo "Contents of ${LOCAL_MOUNT_MEDIA_PATH}:"
 ls -la "${LOCAL_MOUNT_MEDIA_PATH}"
 
 echo "Persisting the mount in /etc/fstab..."
-if awk -v path="${LOCAL_MOUNT_MEDIA_PATH}" '$1 !~ /^#/ && $2 == path { found=1 } END { exit !found }' /etc/fstab; then
-    echo -e "${YELLOW}An entry for ${LOCAL_MOUNT_MEDIA_PATH} already exists in /etc/fstab, skipping.${NC}"
+if awk -v src="${NFS_SOURCE}" -v path="${LOCAL_MOUNT_MEDIA_PATH}" '$1 !~ /^#/ && $1 == src && $2 == path { found=1 } END { exit !found }' /etc/fstab; then
+    echo -e "${YELLOW}An entry for ${NFS_SOURCE} -> ${LOCAL_MOUNT_MEDIA_PATH} already exists in /etc/fstab, skipping.${NC}"
 else
+    # Drop any stale entry for this mount point (e.g. from an older TRUENAS_MEDIA_PATH) before adding the current one
+    sudo sed -i "\\|[[:space:]]${LOCAL_MOUNT_MEDIA_PATH}[[:space:]]|d" /etc/fstab
     echo "${FSTAB_ENTRY}" | sudo tee -a /etc/fstab > /dev/null
     echo -e "${GREEN}Entry added to /etc/fstab.${NC}"
 fi

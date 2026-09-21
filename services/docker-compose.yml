@@ -22,10 +22,10 @@ services:
       - glances
       - homepage
       - jellyfin
+      - prowlarr
       - qbittorrent
       - radarr
       - sonarr
-      - prowlarr
       - syncthing
     healthcheck:
       test: curl -fsS -m 2 127.0.0.1/healthz || exit 1
