@@ -122,7 +122,7 @@ services:
       - jellyfin_config:/config
       - jellyfin_cache:/cache
       - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/movies:/data/movies:ro
-      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/tvshows:/data/tvshows:ro
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/series:/data/series:ro
       # - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/music:/data/music:ro  # Add more media categories as needed
     devices:
       - /dev/dri:/dev/dri  # Intel QuickSync hardware acceleration

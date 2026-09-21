@@ -237,7 +237,7 @@ A media server for streaming your personal video, audio and photo collections to
 - Persistent volumes:
   - `jellyfin_config` -> `/config`
   - `jellyfin_cache`  -> `/cache`
-- Media path (read-only): `${LOCAL_MOUNT_MEDIA_PATH}/movies` -> `/data/movies`, `${LOCAL_MOUNT_MEDIA_PATH}/tvshows` -> `/data/tvshows`, same source as [radarr](#radarr)/[sonarr](#sonarr)/[qbittorrent](#qbittorrent)
+- Media path (read-only): `${LOCAL_MOUNT_MEDIA_PATH}/movies` -> `/data/movies`, `${LOCAL_MOUNT_MEDIA_PATH}/series` -> `/data/series`, same source as [radarr](#radarr)/[sonarr](#sonarr)/[qbittorrent](#qbittorrent)
 
 > [!IMPORTANT]
 > Before the first `docker compose up`, run:
@@ -316,7 +316,7 @@ A movie collection manager: tracks a wishlist, searches [Prowlarr](#prowlarr)'s 
 
 #### Radarr **Start**
 
-Open the web UI at `http://<SERVER_IP>:7878`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/movies` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`tvshows` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
+Open the web UI at `http://<SERVER_IP>:7878`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/movies` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
 ### [Sonarr](https://hub.docker.com/r/linuxserver/sonarr)
 
@@ -330,7 +330,7 @@ Same as [Radarr](#radarr), for TV shows instead of movies.
 
 #### Sonarr **Start**
 
-Open the web UI at `http://<SERVER_IP>:8989`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/tvshows` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`tvshows` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
+Open the web UI at `http://<SERVER_IP>:8989`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/series` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
 ### [Dockge](https://github.com/louislam/dockge)
 
