@@ -142,6 +142,7 @@ services:
       - PGID=1000  # You can check your PGID with the command `id`
       - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
       - WEBUI_PORT=8080
+      - TORRENTING_PORT=${QBITTORRENT_TORRENT_PORT:-6881}  # must match the port mapping above
     volumes:
       - qbittorrent_config:/config
       # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
