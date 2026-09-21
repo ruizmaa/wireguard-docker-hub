@@ -1374,6 +1374,9 @@ jobs:
           echo "$zone_header"
 
       # Prowlarr/Radarr/Sonarr write their own ApiKey to config.xml on first boot (Servarr apps)
+
+      # qBittorrent rejects API calls via port 8081 unless the Host header 
+      # is forced to its internal port (8080) to prevent 401 errors.
       - name: Set a fixed qBittorrent WebUI password
         working-directory: services
         run: |
@@ -1382,19 +1385,19 @@ jobs:
             echo "could not find qBittorrent's temporary WebUI password in its logs"
             exit 1
           fi
-          curl -sf -c /tmp/qbit-cookies.txt -X POST http://127.0.0.1:8081/api/v2/auth/login \
+          curl -sf -c /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/auth/login \
             --data "username=admin&password=$temp_pw"
-          curl -sf -b /tmp/qbit-cookies.txt -X POST http://127.0.0.1:8081/api/v2/app/setPreferences \
+          curl -sf -b /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/app/setPreferences \
             --data-urlencode 'json={"web_ui_username":"admin","web_ui_password":"CI-Arr-Stack-Test-Pw1"}'
           # The password just changed, the cookie above is now stale -- get a fresh one
-          curl -sf -c /tmp/qbit-cookies.txt -X POST http://127.0.0.1:8081/api/v2/auth/login \
+          curl -sf -c /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/auth/login \
             --data "username=admin&password=CI-Arr-Stack-Test-Pw1"
 
       - name: Verify qBittorrent's actual listening port matches QBITTORRENT_TORRENT_PORT
         working-directory: services
         run: |
           expected_port=$(grep '^QBITTORRENT_TORRENT_PORT=' .env | tail -n1 | cut -d= -f2)
-          listen_port=$(curl -sf -b /tmp/qbit-cookies.txt http://127.0.0.1:8081/api/v2/app/preferences | jq -r '.listen_port')
+          listen_port=$(curl -sf -b /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" http://127.0.0.1:8081/api/v2/app/preferences | jq -r '.listen_port')
           if [ "$listen_port" != "$expected_port" ]; then
             echo "qBittorrent is listening on $listen_port but QBITTORRENT_TORRENT_PORT is $expected_port"
             exit 1
