@@ -120,8 +120,8 @@ services:
     volumes:
       - jellyfin_config:/config
       - jellyfin_cache:/cache
-      - ${NAS_MEDIA_PATH:-/mnt/nas_media}/movies:/data/movies:ro
-      - ${NAS_MEDIA_PATH:-/mnt/nas_media}/tvshows:/data/tvshows:ro
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/movies:/data/movies:ro
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/tvshows:/data/tvshows:ro
       # - ${JELLYFIN_MEDIA_3:-/path/to/media3:/media3}  # Add more media paths as needed
     devices:
       - /dev/dri:/dev/dri  # Intel QuickSync hardware acceleration
@@ -133,7 +133,7 @@ services:
     image: lscr.io/linuxserver/qbittorrent:5.2.3
     restart: unless-stopped
     ports:
-      - "${QBITTORRENT_WEB_PORT:-8080}:8080"
+      - "${QBITTORRENT_WEB_PORT:-8081}:8080"
       - "6881:6881"
       - "6881:6881/udp"
     environment:
