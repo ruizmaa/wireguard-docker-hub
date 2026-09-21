@@ -14,6 +14,7 @@ source "$SCRIPT_DIR/../scripts/lib/env.sh"
 NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
 
 ENV_FILE="$SCRIPT_DIR/.env"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
 echo -e "    ${YELLOW}[1/6] Reading configuration...${NC}"
 # Require the services environment file to be present
@@ -88,9 +89,9 @@ else
     # Remove any existing mount that points to a different source.
     if [ -n "$CURRENT_SOURCE" ]; then
         # Refuse to unmount out from under running containers that bind-mount this path
-        RUNNING_MEDIA_CONTAINERS="$(docker compose -f "$SCRIPT_DIR/docker-compose.yml" ps -q jellyfin qbittorrent radarr sonarr 2>/dev/null)"
+        RUNNING_MEDIA_CONTAINERS="$(docker compose -f "$COMPOSE_FILE" ps -q jellyfin qbittorrent radarr sonarr 2>/dev/null)"
         if [ -n "$RUNNING_MEDIA_CONTAINERS" ]; then
-            echo -e "      ${RED}-> ERROR: jellyfin/qbittorrent/radarr/sonarr are still using $LOCAL_MOUNT_MEDIA_PATH. Stop the stack first: docker compose -f services/docker-compose.yml down${NC}"
+            echo -e "      ${RED}-> ERROR: jellyfin/qbittorrent/radarr/sonarr are still using $LOCAL_MOUNT_MEDIA_PATH. Stop the stack first: docker compose -f $COMPOSE_FILE down${NC}"
             exit 1
         fi
         echo "      -> Unmounting stale mount from $CURRENT_SOURCE..."
@@ -124,6 +125,23 @@ echo "      -> Contents of $LOCAL_MOUNT_MEDIA_PATH:"
 
 # Show the mounted share contents as a basic access check
 ls -la "$LOCAL_MOUNT_MEDIA_PATH" || echo -e "      ${YELLOW}-> WARNING: couldn't list $LOCAL_MOUNT_MEDIA_PATH (permission issue?). The mount itself succeeded.${NC}"
+
+echo -e "    ${YELLOW}Ensuring required media directories exist...${NC}"
+# Create any subdirectories referenced in the compose file, so the containers can bind-mount them without creating empty directories on the host
+if [ -f "$COMPOSE_FILE" ]; then
+    while IFS= read -r subpath; do
+        if [ -n "$subpath" ]; then
+            target_dir="$LOCAL_MOUNT_MEDIA_PATH/$subpath"
+            if [ ! -d "$target_dir" ]; then
+                sudo mkdir -p "$target_dir"
+                echo "      -> Created directory: $target_dir"
+            fi
+        fi
+    done < <(grep -oP '\$\{LOCAL_MOUNT_MEDIA_PATH:-[^}]+\}/\K[^:/]+' "$COMPOSE_FILE" | sort -u)
+fi
+
+sudo chown -R 1000:1000 "$LOCAL_MOUNT_MEDIA_PATH"
+echo -e "      -> Permissions set to 1000:1000 for $LOCAL_MOUNT_MEDIA_PATH"
 
 echo -e "    ${YELLOW}[6/6] Persisting mount in /etc/fstab...${NC}"
 
