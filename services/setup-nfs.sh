@@ -40,7 +40,9 @@ echo "Creating mount point ${LOCAL_MOUNT_MEDIA_PATH}..."
 sudo mkdir -p "${LOCAL_MOUNT_MEDIA_PATH}"
 
 echo "Testing the mount..."
-if sudo mount -t nfs "${NFS_SOURCE}" "${LOCAL_MOUNT_MEDIA_PATH}"; then
+if mountpoint -q "${LOCAL_MOUNT_MEDIA_PATH}"; then
+    echo -e "${YELLOW}${LOCAL_MOUNT_MEDIA_PATH} is already mounted, skipping.${NC}"
+elif sudo mount -t nfs "${NFS_SOURCE}" "${LOCAL_MOUNT_MEDIA_PATH}"; then
     echo -e "${GREEN}Mount succeeded.${NC}"
 else
     echo -e "${RED}Error: failed to mount ${NFS_SOURCE} at ${LOCAL_MOUNT_MEDIA_PATH}.${NC}"
