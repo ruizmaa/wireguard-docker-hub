@@ -135,12 +135,12 @@ services:
     restart: unless-stopped
     ports:
       - "${QBITTORRENT_WEB_PORT:-8081}:8080"
-      - "6881:6881"
-      - "6881:6881/udp"
+      - "${QBITTORRENT_TORRENT_PORT:-6881}:6881/tcp"
+      - "${QBITTORRENT_TORRENT_PORT:-6881}:6881/udp"
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ:-Etc/UTC}
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
       - WEBUI_PORT=8080
     volumes:
       - qbittorrent_config:/config
@@ -160,9 +160,9 @@ services:
     ports:
       - "${PROWLARR_WEB_PORT:-9696}:9696"
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ:-Etc/UTC}
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
     volumes:
       - prowlarr_config:/config
     healthcheck:
@@ -179,9 +179,9 @@ services:
     ports:
       - "${RADARR_WEB_PORT:-7878}:7878"
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ:-Etc/UTC}
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
     volumes:
       - radarr_config:/config
       # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
@@ -203,9 +203,9 @@ services:
     ports:
       - "${SONARR_WEB_PORT:-8989}:8989"
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ:-Etc/UTC}
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
     volumes:
       - sonarr_config:/config
       # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
