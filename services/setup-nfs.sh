@@ -64,7 +64,7 @@ if awk -v src="${NFS_SOURCE}" -v path="${LOCAL_MOUNT_MEDIA_PATH}" '$1 !~ /^#/ &&
     echo -e "${YELLOW}An entry for ${NFS_SOURCE} -> ${LOCAL_MOUNT_MEDIA_PATH} already exists in /etc/fstab, skipping.${NC}"
 else
     # Drop any stale entry for this mount point (e.g. from an older TRUENAS_MEDIA_PATH) before adding the current one
-    sudo sed -i "\\|[[:space:]]${LOCAL_MOUNT_MEDIA_PATH}[[:space:]]|d" /etc/fstab
+    awk -v path="${LOCAL_MOUNT_MEDIA_PATH}" '$1 ~ /^#/ || $2 != path' /etc/fstab | sudo tee /etc/fstab > /dev/null
     echo "${FSTAB_ENTRY}" | sudo tee -a /etc/fstab > /dev/null
     echo -e "${GREEN}Entry added to /etc/fstab.${NC}"
 fi
