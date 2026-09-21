@@ -87,8 +87,18 @@ if [ "$CURRENT_SOURCE" = "$NFS_SOURCE" ]; then
 else
     # Remove any existing mount that points to a different source.
     if [ -n "$CURRENT_SOURCE" ]; then
+        # Refuse to unmount out from under running containers that bind-mount this path
+        RUNNING_MEDIA_CONTAINERS="$(docker compose -f "$SCRIPT_DIR/docker-compose.yml" ps -q jellyfin qbittorrent radarr sonarr 2>/dev/null)"
+        if [ -n "$RUNNING_MEDIA_CONTAINERS" ]; then
+            echo -e "      ${RED}-> ERROR: jellyfin/qbittorrent/radarr/sonarr are still using $LOCAL_MOUNT_MEDIA_PATH. Stop the stack first: docker compose -f services/docker-compose.yml down${NC}"
+            exit 1
+        fi
         echo "      -> Unmounting stale mount from $CURRENT_SOURCE..."
         sudo umount -l "$LOCAL_MOUNT_MEDIA_PATH"
+    # A directory that already has files and isn't our NFS mount would otherwise be silently hidden underneath the new mount
+    elif [ -n "$(ls -A "$LOCAL_MOUNT_MEDIA_PATH" 2>/dev/null)" ]; then
+        echo -e "      ${RED}-> ERROR: $LOCAL_MOUNT_MEDIA_PATH already contains files and isn't the NFS mount. Refusing to mount over it and hide its contents.${NC}"
+        exit 1
     fi
 
     echo "      -> Checking connectivity to $TRUENAS_IP:2049 (NFS)..."
