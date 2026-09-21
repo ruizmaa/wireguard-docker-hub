@@ -111,8 +111,16 @@ else
 
     # Back up the current fstab before replacing it with the updated configuration
     sudo cp /etc/fstab "/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
-    sudo install -m 644 "$TMP_FSTAB" /etc/fstab
-    rm -f "$TMP_FSTAB"
+
+    # Ensure the temporary fstab is not empty before overwriting the system file
+    if [ -s "$TMP_FSTAB" ]; then
+        sudo install -m 644 "$TMP_FSTAB" /etc/fstab
+        rm -f "$TMP_FSTAB"
+    else
+        echo -e "      ${RED}-> ERROR: El archivo fstab temporal está vacío, abortando.${NC}"
+        rm -f "$TMP_FSTAB"
+        exit 1
+    fi
 
     # Regenerate the automount unit from the entry just written
     # Skipped on hosts where systemd isn't actually running as PID 1 (e.g. a container), where it would just fail
