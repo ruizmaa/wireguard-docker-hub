@@ -17,16 +17,26 @@ services:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
-      - adguard
-      - dockge
-      - glances
-      - homepage
-      - jellyfin
-      - prowlarr
-      - qbittorrent
-      - radarr
-      - sonarr
-      - syncthing
+      adguard:
+        condition: service_healthy
+      dockge:
+        condition: service_healthy
+      glances:
+        condition: service_healthy
+      homepage:
+        condition: service_healthy
+      jellyfin:
+        condition: service_started
+      prowlarr:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_healthy
+      radarr:
+        condition: service_healthy
+      sonarr:
+        condition: service_healthy
+      syncthing:
+        condition: service_healthy
     healthcheck:
       test: curl -fsS -m 2 127.0.0.1/healthz || exit 1
       interval: 1m
@@ -188,8 +198,10 @@ services:
       # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
       - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}:/media
     depends_on:
-      - prowlarr
-      - qbittorrent
+      prowlarr:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_healthy
     healthcheck:
       test: curl -fsS -m 2 http://127.0.0.1:7878/ping || exit 1
       interval: 1m
@@ -212,8 +224,10 @@ services:
       # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
       - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}:/media
     depends_on:
-      - prowlarr
-      - qbittorrent
+      prowlarr:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_healthy
     healthcheck:
       test: curl -fsS -m 2 http://127.0.0.1:8989/ping || exit 1
       interval: 1m
