@@ -71,8 +71,9 @@ else
     fi
 
     echo "      -> Checking connectivity to $TRUENAS_IP:2049 (NFS)..."
-    # Require the TrueNAS NFS port to be reachable before attempting the mount
-    # $1 prevents command injection if TRUENAS_IP contains shell special characters
+    # Pass TRUENAS_IP as an argument rather than interpolating it into bash -c,
+    # so shell special characters in the value cannot be interpreted as commands
+    # shellcheck disable=SC2016
     if ! timeout 5 bash -c 'echo > "/dev/tcp/$1/2049"' _ "$TRUENAS_IP" 2>/dev/null; then
         echo -e "      ${RED}-> ERROR: cannot reach $TRUENAS_IP on port 2049 (NFS). Is TrueNAS up and TRUENAS_IP correct?${NC}"
         exit 1
