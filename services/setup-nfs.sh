@@ -147,7 +147,7 @@ else
         sudo install -m 644 "$TMP_FSTAB" /etc/fstab
         rm -f "$TMP_FSTAB"
     else
-        echo -e "      ${RED}-> ERROR: El archivo fstab temporal está vacío, abortando.${NC}"
+        echo -e "      ${RED}-> ERROR: temporary fstab is empty, aborting.${NC}"
         rm -f "$TMP_FSTAB"
         exit 1
     fi
