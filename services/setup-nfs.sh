@@ -18,8 +18,8 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-TRUENAS_IP=$(read_env TRUENAS_IP)
-TRUENAS_MEDIA_PATH=$(read_env TRUENAS_MEDIA_PATH)
+TRUENAS_IP=$(read_env TRUENAS_IP "")
+TRUENAS_MEDIA_PATH=$(read_env TRUENAS_MEDIA_PATH "")
 LOCAL_MOUNT_MEDIA_PATH=$(read_env LOCAL_MOUNT_MEDIA_PATH "/mnt/nas_media")
 
 if [ -z "$TRUENAS_IP" ] || [ -z "$TRUENAS_MEDIA_PATH" ]; then
@@ -53,7 +53,7 @@ echo "Contents of ${LOCAL_MOUNT_MEDIA_PATH}:"
 ls -la "${LOCAL_MOUNT_MEDIA_PATH}"
 
 echo "Persisting the mount in /etc/fstab..."
-if grep -qs "${LOCAL_MOUNT_MEDIA_PATH}" /etc/fstab; then
+if awk -v path="${LOCAL_MOUNT_MEDIA_PATH}" '$1 !~ /^#/ && $2 == path { found=1 } END { exit !found }' /etc/fstab; then
     echo -e "${YELLOW}An entry for ${LOCAL_MOUNT_MEDIA_PATH} already exists in /etc/fstab, skipping.${NC}"
 else
     echo "${FSTAB_ENTRY}" | sudo tee -a /etc/fstab > /dev/null
