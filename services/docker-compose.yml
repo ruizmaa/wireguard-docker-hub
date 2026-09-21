@@ -151,7 +151,7 @@ services:
       interval: 1m
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 1m
 
   prowlarr:
     container_name: prowlarr
@@ -170,7 +170,7 @@ services:
       interval: 1m
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 1m
 
   radarr:
     container_name: radarr
@@ -194,7 +194,7 @@ services:
       interval: 1m
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 1m
 
   sonarr:
     container_name: sonarr
@@ -218,7 +218,7 @@ services:
       interval: 1m
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 1m
 
   dockge:
     container_name: dockge
