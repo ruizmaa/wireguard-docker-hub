@@ -120,6 +120,7 @@ services:
     container_name: jellyfin
     image: lscr.io/linuxserver/jellyfin:10.11.11
     restart: unless-stopped
+    hostname: jellyfin
     ports:
       - "${JELLYFIN_WEB_PORT:-8096}:8096/tcp"  # Web GUI
       - "${JELLYFIN_DISCOVERY_PORT:-7359}:7359/udp"  # Auto discovery
