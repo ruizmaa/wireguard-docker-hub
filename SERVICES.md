@@ -249,6 +249,12 @@ A media server for streaming your personal video, audio and photo collections to
 > This script mounts your TrueNAS NFS share (`TRUENAS_IP`/`TRUENAS_MEDIA_PATH`) at `LOCAL_MOUNT_MEDIA_PATH` and persists it in `/etc/fstab` and automatically verifies that the media directories required by the `docker-compose` stack exist on your TrueNAS share. If any are missing, it will safely halt and provide you with the exact `mkdir` command needed to create them. Without running this setup, Docker would create an empty local directory and your services would start against an empty library.
 
 > [!IMPORTANT]
+> `radarr`/`sonarr`/`qbittorrent` run as `PUID=1000`/`PGID=1000`, but existing dirs won't have their permissions checked here, the directories above only get checked for existence. If TrueNAS owns them as a different user, writes will fail with `Permission denied` (qBittorrent downloads erroring out, Radarr/Sonarr logging `Folder '...' is not writable by user 'abc'`), even though the mount itself succeeds. Fix it on the TrueNAS side, either:
+>
+> - `chown -R 1000:1000` on the exported directories, or
+> - set `Mapall User`/`Mapall Group` to a user that owns them, on the NFS share itself (`Sharing > NFS`). This remaps every NFS client's UID to that user, so it also affects any other machine mounting the same share.
+
+> [!IMPORTANT]
 > The compose file passes through `/dev/dri` for Intel QuickSync hardware transcoding. On a host without an Intel iGPU (AMD, ARM, a VM without GPU passthrough...), that device doesn't exist and the container fails to start. Comment out the `devices:` block under `jellyfin` in `services/docker-compose.yml` if that's your case; Jellyfin falls back to software transcoding.
 >
 > If you do have an Intel iGPU, run this once before the first `docker compose up` so the container actually has drivers to use it:
@@ -273,6 +279,14 @@ A media server for streaming your personal video, audio and photo collections to
 >    Reboot, then confirm with `lspci -k -s <pci-address>` that `Kernel driver in use` is now `vfio-pci`.
 > 3. Shut the VM down, attach the device (`qm set <vmid> -hostpci0 <pci-address>,pcie=0,x-vga=0`, or `Hardware > Add > PCI Device` in the UI, leaving "Primary GPU" unchecked), and start it back up.
 > 4. Inside the VM, run `./services/setup-jellyfin-hwaccel.sh` above as usual.
+
+#### Jellyfin **Start**
+
+Open the web UI at `http://<SERVER_IP>:8096` and run through the setup wizard, or configure these manually afterwards under `Dashboard`:
+
+- **Users** (`Dashboard > Users > +`): set username/password, then on that user tune `Access` (which libraries they can see), `Playback` (allow/restrict direct play vs transcoding) and uncheck the admin permissions for non-admin accounts.
+- **Libraries** (`Dashboard > Libraries > Add Media Library`): one library with content type `Movies` and folder `/data/movies`, another with content type `Shows` and folder `/data/series` and so on, matching the mounts above. Set your preferred metadata language/country and enable the providers you want (TheMovieDB, TheTVDB, OpenSubtitles...), then let the initial library scan finish.
+- **Hardware acceleration** (after running `setup-jellyfin-hwaccel.sh` above): Go to `Dashboard > Playback > Transcoding` and set `Hardware acceleration` to `Intel QuickSync (QSV)` and `QSV device` to `/dev/dri/renderD128`. Enable hardware decoding for the codecs your library uses (H264, HEVC, HEVC 10bit, VP9, VP9 10bit, MPEG2, VC1, AV1). If `dmesg | grep -i huc` shows `HuC: authenticated for all workloads`, also enable the low-power encoders for H.264/HEVC. Leave AV1 encoding off unless your iGPU actually has a hardware AV1 encoder, otherwise enabling it just pushes the encode onto the CPU instead. Enable VPP tone mapping for HDR->SDR. Verify afterwards that compatible content plays back as `Direct Play` (no transcoding) in the active-sessions panel.
 
 ### [qBittorrent](https://hub.docker.com/r/linuxserver/qbittorrent)
 

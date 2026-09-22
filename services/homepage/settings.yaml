@@ -5,7 +5,9 @@ headerStyle: clean
 layout:
   Home Server:
     style: row
-    columns: 6
+    columns: 5
   System Monitor:
     style: row
     columns: 5
+  Media Arr Stack:
+    style: row
