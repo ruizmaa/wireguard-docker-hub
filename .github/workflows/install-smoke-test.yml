@@ -414,8 +414,8 @@ jobs:
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nfs-kernel-server
-          sudo mkdir -p /opt/nfs-export-a/movies /opt/nfs-export-a/series /opt/nfs-export-a/downloads
-          sudo mkdir -p /opt/nfs-export-b/movies /opt/nfs-export-b/series /opt/nfs-export-b/downloads
+          sudo mkdir -p /opt/nfs-export-a/movies /opt/nfs-export-a/series /opt/nfs-export-a/music /opt/nfs-export-a/downloads
+          sudo mkdir -p /opt/nfs-export-b/movies /opt/nfs-export-b/series /opt/nfs-export-b/music /opt/nfs-export-b/downloads
           echo "/opt/nfs-export-a 127.0.0.1(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports > /dev/null
           echo "/opt/nfs-export-b 127.0.0.1(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports > /dev/null
           sudo exportfs -ra
@@ -1413,7 +1413,7 @@ jobs:
           fi
           echo "$zone_header"
 
-      # Prowlarr/Radarr/Sonarr write their own ApiKey to config.xml on first boot (Servarr apps)
+      # Prowlarr/Lidarr/Radarr/Sonarr write their own ApiKey to config.xml on first boot (Servarr apps)
       - name: Set a fixed qBittorrent WebUI password
         working-directory: services
         run: |
@@ -1448,7 +1448,7 @@ jobs:
           fi
           echo "qBittorrent listens on $listen_port, published as $mapped -- matches QBITTORRENT_TORRENT_PORT"
 
-      - name: Configure Prowlarr's application links to Radarr/Sonarr and verify they connect
+      - name: Configure Prowlarr's application links to Lidarr/Radarr/Sonarr and verify they connect
         working-directory: services
         run: |
           get_api_key() { sudo docker compose exec -T "$1" sh -c "grep -o '<ApiKey>[^<]*</ApiKey>' /config/config.xml | sed 's/<[^>]*>//g'"; }
@@ -1469,10 +1469,11 @@ jobs:
               -d "$body" http://127.0.0.1:9696/api/v1/applications > /dev/null
             echo "Prowlarr <-> $name application link verified and saved"
           }
+          add_app lidarr 8686 "$(get_api_key lidarr)"
           add_app radarr 7878 "$(get_api_key radarr)"
           add_app sonarr 8989 "$(get_api_key sonarr)"
 
-      - name: Configure qBittorrent as Radarr/Sonarr's download client and verify it connects
+      - name: Configure qBittorrent as Lidarr/Radarr/Sonarr's download client and verify it connects
         working-directory: services
         run: |
           add_download_client() {
@@ -1490,6 +1491,7 @@ jobs:
             echo "$name <-> qBittorrent download client verified and saved"
           }
           get_api_key() { sudo docker compose exec -T "$1" sh -c "grep -o '<ApiKey>[^<]*</ApiKey>' /config/config.xml | sed 's/<[^>]*>//g'"; }
+          add_download_client lidarr 8686 "$(get_api_key lidarr)" musicCategory lidarr
           add_download_client radarr 7878 "$(get_api_key radarr)" movieCategory radarr
           add_download_client sonarr 8989 "$(get_api_key sonarr)" tvCategory tv-sonarr
 
