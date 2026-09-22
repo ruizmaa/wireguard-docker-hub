@@ -289,7 +289,7 @@ A BitTorrent client, used by [Radarr](#radarr)/[Sonarr](#sonarr) as their downlo
 
 #### qBittorrent **Start**
 
-Open the web UI at `http://<SERVER_IP>:8081`, log in with the temporary password above, and change the credentials under `Tools > Options > WebUI`. [Radarr](#radarr)/[Sonarr](#sonarr) reach qBittorrent over the Docker network (not localhost), so `WebUI > Authentication > Bypass authentication for clients on localhost` doesn't apply to them, enter these same credentials when adding qBittorrent as their download client instead. Also set the default save path (`Tools > Options > Downloads`) to `/media/downloads`, so it matches the path [Radarr](#radarr)/[Sonarr](#sonarr) see under their own `/media` mount and Completed Download Handling can import automatically.
+Open the web UI at `http://<SERVER_IP>:8081`, log in with the temporary password above, and change the credentials under `Tools > Options > WebUI`. [Radarr](#radarr)/[Sonarr](#sonarr) reach qBittorrent over the Docker network (not localhost), so `WebUI > Authentication > Bypass authentication for clients on localhost` doesn't apply to them, enter these same credentials when adding qBittorrent as their download client instead. The default save path (`Tools > Options > Downloads`) already points at `/media/downloads` via `qBittorrent.conf.defaults`, matching the path [Radarr](#radarr)/[Sonarr](#sonarr) see under their own `/media` mount, so Completed Download Handling can import automatically.
 
 ### [Prowlarr](https://hub.docker.com/r/linuxserver/prowlarr)
 
