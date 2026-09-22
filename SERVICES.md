@@ -40,7 +40,7 @@ The services are defined in `services/docker-compose.yml`. Copy the services you
 
 Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) data mounts, each a full `host_path:container_path`.
 
-The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`, `QBITTORRENT_WEB_PORT`, `QBITTORRENT_TORRENT_PORT`, `PROWLARR_WEB_PORT`, `RADARR_WEB_PORT`, `SONARR_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`, `QBITTORRENT_WEB_PORT`, `QBITTORRENT_TORRENT_PORT`, `PROWLARR_WEB_PORT`, `LIDARR_WEB_PORT`, `RADARR_WEB_PORT`, `SONARR_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
 `LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing. `GLANCES_PASSWORD` is also required, see [Glances](#glances), but it only fails that one container instead of the whole stack.
 
@@ -116,7 +116,7 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 >
 > Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
 >
-> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`, showing what it's about to change before asking for confirmation:
+> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`, showing what it's about to change before asking for confirmation:
 >
 > - LAN clients resolve them to this host's LAN IP, found via a route lookup against `LAN_SUBNET` (overridable with `ADGUARD_LAN_IP`, CI sets this).
 > - VPN (WireGuard) clients resolve them to this host's own tunnel IP instead, read from its `wg0` interface (overridable with `ADGUARD_VPN_IP`, CI sets this).
@@ -134,7 +134,7 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
-If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
 
 #### Tracking your config
 
@@ -237,7 +237,7 @@ A media server for streaming your personal video, audio and photo collections to
 - Persistent volumes:
   - `jellyfin_config` -> `/config`
   - `jellyfin_cache`  -> `/cache`
-- Media path (read-only): `${LOCAL_MOUNT_MEDIA_PATH}/movies` -> `/data/movies`, `${LOCAL_MOUNT_MEDIA_PATH}/series` -> `/data/series`, same source as [radarr](#radarr)/[sonarr](#sonarr)/[qbittorrent](#qbittorrent)
+- Media path (read-only): `${LOCAL_MOUNT_MEDIA_PATH}/movies` -> `/data/movies`, `${LOCAL_MOUNT_MEDIA_PATH}/series` -> `/data/series`, `${LOCAL_MOUNT_MEDIA_PATH}/music` -> `/data/music`, same source as [lidarr](#lidarr)/[radarr](#radarr)/[sonarr](#sonarr)/[qbittorrent](#qbittorrent)
 
 > [!IMPORTANT]
 > Before the first `docker compose up`, run:
@@ -249,7 +249,7 @@ A media server for streaming your personal video, audio and photo collections to
 > This script mounts your TrueNAS NFS share (`TRUENAS_IP`/`TRUENAS_MEDIA_PATH`) at `LOCAL_MOUNT_MEDIA_PATH` and persists it in `/etc/fstab` and automatically verifies that the media directories required by the `docker-compose` stack exist on your TrueNAS share. If any are missing, it will safely halt and provide you with the exact `mkdir` command needed to create them. Without running this setup, Docker would create an empty local directory and your services would start against an empty library.
 
 > [!IMPORTANT]
-> `radarr`/`sonarr`/`qbittorrent` run as `PUID=1000`/`PGID=1000`, but existing dirs won't have their permissions checked here, the directories above only get checked for existence. If TrueNAS owns them as a different user, writes will fail with `Permission denied` (qBittorrent downloads erroring out, Radarr/Sonarr logging `Folder '...' is not writable by user 'abc'`), even though the mount itself succeeds. Fix it on the TrueNAS side, either:
+> `lidarr`/`radarr`/`sonarr`/`qbittorrent` run as `PUID=1000`/`PGID=1000`, but existing dirs won't have their permissions checked here, the directories above only get checked for existence. If TrueNAS owns them as a different user, writes will fail with `Permission denied` (qBittorrent downloads erroring out, Lidarr/Radarr/Sonarr logging `Folder '...' is not writable by user 'abc'`), even though the mount itself succeeds. Fix it on the TrueNAS side, either:
 >
 > - `chown -R 1000:1000` on the exported directories, or
 > - set `Mapall User`/`Mapall Group` to a user that owns them, on the NFS share itself (`Sharing > NFS`). This remaps every NFS client's UID to that user, so it also affects any other machine mounting the same share.
@@ -285,29 +285,29 @@ A media server for streaming your personal video, audio and photo collections to
 Open the web UI at `http://<SERVER_IP>:8096` and run through the setup wizard, or configure these manually afterwards under `Dashboard`:
 
 - **Users** (`Dashboard > Users > +`): set username/password, then on that user tune `Access` (which libraries they can see), `Playback` (allow/restrict direct play vs transcoding) and uncheck the admin permissions for non-admin accounts.
-- **Libraries** (`Dashboard > Libraries > Add Media Library`): one library with content type `Movies` and folder `/data/movies`, another with content type `Shows` and folder `/data/series` and so on, matching the mounts above. Set your preferred metadata language/country and enable the providers you want (TheMovieDB, TheTVDB, OpenSubtitles...), then let the initial library scan finish.
+- **Libraries** (`Dashboard > Libraries > Add Media Library`): one library with content type `Movies` and folder `/data/movies`, another with content type `Shows` and folder `/data/series`, another with content type `Music` and folder `/data/music` and so on, matching the mounts above. Set your preferred metadata language/country and enable the providers you want (TheMovieDB, TheTVDB, OpenSubtitles...), then let the initial library scan finish.
 - **Hardware acceleration** (after running `setup-jellyfin-hwaccel.sh` above): Go to `Dashboard > Playback > Transcoding` and set `Hardware acceleration` to `Intel QuickSync (QSV)` and `QSV device` to `/dev/dri/renderD128`. Enable hardware decoding for the codecs your library uses (H264, HEVC, HEVC 10bit, VP9, VP9 10bit, MPEG2, VC1, AV1). If `dmesg | grep -i huc` shows `HuC: authenticated for all workloads`, also enable the low-power encoders for H.264/HEVC. Leave AV1 encoding off unless your iGPU actually has a hardware AV1 encoder, otherwise enabling it just pushes the encode onto the CPU instead. Enable VPP tone mapping for HDR->SDR. Verify afterwards that compatible content plays back as `Direct Play` (no transcoding) in the active-sessions panel.
 
 ### [qBittorrent](https://hub.docker.com/r/linuxserver/qbittorrent)
 
-A BitTorrent client, used by [Radarr](#radarr)/[Sonarr](#sonarr) as their download client.
+A BitTorrent client, used by [Lidarr](#lidarr)/[Radarr](#radarr)/[Sonarr](#sonarr) as their download client.
 
 #### qBittorrent **Configuration**
 
 - Web interface: `http://<SERVER_IP>:8081`
 - Persistent volume: `qbittorrent_config` -> `/config`
-- Media path: `${LOCAL_MOUNT_MEDIA_PATH}` -> `/media`, same source [Radarr](#radarr)/[Sonarr](#sonarr)/[Jellyfin](#jellyfin) read from
+- Media path: `${LOCAL_MOUNT_MEDIA_PATH}` -> `/media`, same source [Lidarr](#lidarr)/[Radarr](#radarr)/[Sonarr](#sonarr)/[Jellyfin](#jellyfin) read from
 
 > [!IMPORTANT]
 > On first start, the linuxserver image generates a random temporary admin password. Find it with `docker compose logs qbittorrent | grep password`, log in, then change it under `Tools > Options > WebUI`.
 
 #### qBittorrent **Start**
 
-Open the web UI at `http://<SERVER_IP>:8081`, log in with the temporary password above, and change the credentials under `Tools > Options > WebUI`. [Radarr](#radarr)/[Sonarr](#sonarr) reach qBittorrent over the Docker network (not localhost), so `WebUI > Authentication > Bypass authentication for clients on localhost` doesn't apply to them, enter these same credentials when adding qBittorrent as their download client instead. The default save path (`Tools > Options > Downloads`) already points at `/media/downloads` via `qBittorrent.conf.defaults`, matching the path [Radarr](#radarr)/[Sonarr](#sonarr) see under their own `/media` mount, so Completed Download Handling can import automatically.
+Open the web UI at `http://<SERVER_IP>:8081`, log in with the temporary password above, and change the credentials under `Tools > Options > WebUI`. [Lidarr](#lidarr)/[Radarr](#radarr)/[Sonarr](#sonarr) reach qBittorrent over the Docker network (not localhost), so `WebUI > Authentication > Bypass authentication for clients on localhost` doesn't apply to them, enter these same credentials when adding qBittorrent as their download client instead. The default save path (`Tools > Options > Downloads`) already points at `/media/downloads` via `qBittorrent.conf.defaults`, matching the path [Lidarr](#lidarr)/[Radarr](#radarr)/[Sonarr](#sonarr) see under their own `/media` mount, so Completed Download Handling can import automatically.
 
 ### [Prowlarr](https://hub.docker.com/r/linuxserver/prowlarr)
 
-An indexer manager: configure your indexers once here, then [Radarr](#radarr)/[Sonarr](#sonarr) pull them automatically instead of being set up per-app.
+An indexer manager: configure your indexers once here, then [Lidarr](#lidarr)/[Radarr](#radarr)/[Sonarr](#sonarr) pull them automatically instead of being set up per-app.
 
 #### Prowlarr **Configuration**
 
@@ -316,7 +316,21 @@ An indexer manager: configure your indexers once here, then [Radarr](#radarr)/[S
 
 #### Prowlarr **Start**
 
-Open the web UI at `http://<SERVER_IP>:9696` and add your indexers under `Indexers`. Then add [Radarr](#radarr) and [Sonarr](#sonarr) under `Settings > Apps` (Prowlarr Server: `http://prowlarr:9696`, app URLs `http://radarr:7878`/`http://sonarr:8989`) so it keeps their indexer lists in sync.
+Open the web UI at `http://<SERVER_IP>:9696` and add your indexers under `Indexers`. Then add [Lidarr](#lidarr), [Radarr](#radarr) and [Sonarr](#sonarr) under `Settings > Apps` (Prowlarr Server: `http://prowlarr:9696`, app URLs `http://lidarr:8686`/`http://radarr:7878`/`http://sonarr:8989`) so it keeps their indexer lists in sync.
+
+### [Lidarr](https://hub.docker.com/r/linuxserver/lidarr)
+
+A music collection manager: tracks your wanted artists and albums, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).
+
+#### Lidarr **Configuration**
+
+- Web interface: `http://<SERVER_IP>:8686`
+- Persistent volume: `lidarr_config` -> `/config`
+- Media path: `${LOCAL_MOUNT_MEDIA_PATH}` -> `/media`, same source [Jellyfin](#jellyfin) reads from
+
+#### Lidarr **Start**
+
+Open the web UI at `http://<SERVER_IP>:8686`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/music` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
 ### [Radarr](https://hub.docker.com/r/linuxserver/radarr)
 
@@ -330,11 +344,11 @@ A movie collection manager: tracks a wishlist, searches [Prowlarr](#prowlarr)'s 
 
 #### Radarr **Start**
 
-Open the web UI at `http://<SERVER_IP>:7878`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/movies` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
+Open the web UI at `http://<SERVER_IP>:7878`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/movies` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
 ### [Sonarr](https://hub.docker.com/r/linuxserver/sonarr)
 
-Same as [Radarr](#radarr), for TV shows instead of movies.
+A TV show collection manager: tracks your series and new episodes as they air, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).
 
 #### Sonarr **Configuration**
 
@@ -344,7 +358,7 @@ Same as [Radarr](#radarr), for TV shows instead of movies.
 
 #### Sonarr **Start**
 
-Open the web UI at `http://<SERVER_IP>:8989`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/series` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
+Open the web UI at `http://<SERVER_IP>:8989`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/series` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
 ### [Dockge](https://github.com/louislam/dockge)
 
@@ -431,7 +445,7 @@ nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, 
 docker compose up -d
 ```
 
-Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://qbittorrent.home.arpa`, `https://prowlarr.home.arpa`, `https://radarr.home.arpa`, `https://sonarr.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`.
+Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://qbittorrent.home.arpa`, `https://prowlarr.home.arpa`, `https://lidarr.home.arpa`, `https://radarr.home.arpa`, `https://sonarr.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`.
 
 ---
 
