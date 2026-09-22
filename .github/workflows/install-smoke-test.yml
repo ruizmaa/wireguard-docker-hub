@@ -1477,23 +1477,28 @@ jobs:
         working-directory: services
         run: |
           add_download_client() {
-            name="$1" port="$2" api_key="$3" category_field="$4" category_value="$5"
+            name="$1" port="$2" api_version="$3" api_key="$4" category_field="$5" category_value="$6"
             body="{\"enable\":true,\"protocol\":\"torrent\",\"priority\":1,\"name\":\"qBittorrent\",\"implementation\":\"QBittorrent\",\"configContract\":\"QBittorrentSettings\",\"fields\":[{\"name\":\"host\",\"value\":\"qbittorrent\"},{\"name\":\"port\",\"value\":8080},{\"name\":\"username\",\"value\":\"admin\"},{\"name\":\"password\",\"value\":\"CI-Arr-Stack-Test-Pw1\"},{\"name\":\"$category_field\",\"value\":\"$category_value\"}],\"tags\":[]}"
+            
             status=$(curl -s -o /tmp/dc-test-$name.json -w '%{http_code}' -X POST -H "X-Api-Key: $api_key" \
-              -H "Content-Type: application/json" -d "$body" "http://127.0.0.1:$port/api/v3/downloadclient/test")
+              -H "Content-Type: application/json" -d "$body" "http://127.0.0.1:$port/api/$api_version/downloadclient/test")
+            
             if [ "$status" != "200" ]; then
               echo "$name could not connect to qBittorrent as a download client (test returned $status):"
               cat /tmp/dc-test-$name.json
               exit 1
             fi
+            
             curl -sf -X POST -H "X-Api-Key: $api_key" -H "Content-Type: application/json" \
-              -d "$body" "http://127.0.0.1:$port/api/v3/downloadclient" > /dev/null
+              -d "$body" "http://127.0.0.1:$port/api/$api_version/downloadclient" > /dev/null
             echo "$name <-> qBittorrent download client verified and saved"
           }
+          
           get_api_key() { sudo docker compose exec -T "$1" sh -c "grep -o '<ApiKey>[^<]*</ApiKey>' /config/config.xml | sed 's/<[^>]*>//g'"; }
-          add_download_client lidarr 8686 "$(get_api_key lidarr)" musicCategory lidarr
-          add_download_client radarr 7878 "$(get_api_key radarr)" movieCategory radarr
-          add_download_client sonarr 8989 "$(get_api_key sonarr)" tvCategory tv-sonarr
+          
+          add_download_client lidarr 8686 v1 "$(get_api_key lidarr)" musicCategory lidarr
+          add_download_client radarr 7878 v3 "$(get_api_key radarr)" movieCategory radarr
+          add_download_client sonarr 8989 v3 "$(get_api_key sonarr)" tvCategory tv-sonarr
 
       # 127.0.0.1 bypasses the firewall entirely, so it can't test fix-home-net.sh
       # These steps simulate real LAN devices and a VPN peer via netns/veth instead
