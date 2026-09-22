@@ -696,6 +696,9 @@ jobs:
           sed -i '/^TRUENAS_MEDIA_PATH=/d' .env
           echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
 
+          # Force unmount in case a previous step left it mounted, but don't fail the job if it wasn't mounted
+          sudo umount -f /mnt/nas_media || true
+
           output=$(./setup-nfs.sh 2>&1)
           echo "$output"
 
