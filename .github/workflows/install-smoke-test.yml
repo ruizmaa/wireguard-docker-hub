@@ -655,6 +655,9 @@ jobs:
       - name: Verify setup-nfs.sh detects missing media directories and outputs the correct mkdir command
         working-directory: services
         run: |
+          # Remove the required media directories from the NFS export to simulate a fresh TrueNAS share
+          sudo rm -rf /opt/nfs-export-a/movies /opt/nfs-export-a/series
+
           # Since the export /opt/nfs-export-a is empty, the script should fail due to missing movies/series directories
           set +e
           output=$(./setup-nfs.sh 2>&1)
