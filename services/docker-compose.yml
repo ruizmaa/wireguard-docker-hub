@@ -144,21 +144,21 @@ services:
     image: lscr.io/linuxserver/qbittorrent:5.2.3
     restart: unless-stopped
     ports:
-      - "${QBITTORRENT_WEB_PORT:-8081}:8080"
+      - "${QBITTORRENT_WEB_PORT:-8081}:${QBITTORRENT_WEB_PORT:-8081}"
       - "${QBITTORRENT_TORRENT_PORT:-6881}:${QBITTORRENT_TORRENT_PORT:-6881}/tcp"
       - "${QBITTORRENT_TORRENT_PORT:-6881}:${QBITTORRENT_TORRENT_PORT:-6881}/udp"
     environment:
       - PUID=1000  # You can check your PUID with the command `id`
       - PGID=1000  # You can check your PGID with the command `id`
       - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
-      - WEBUI_PORT=8080
+      - WEBUI_PORT=${QBITTORRENT_WEB_PORT:-8081}  # must match the port mapping above, or qBittorrent's WebUI Host header check rejects every request
       - TORRENTING_PORT=${QBITTORRENT_TORRENT_PORT:-6881}  # must match the port mapping above
     volumes:
       - qbittorrent_config:/config
       # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
       - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}:/media
     healthcheck:
-      test: curl -fsS -m 2 http://127.0.0.1:8080 || exit 1
+      test: curl -fsS -m 2 http://127.0.0.1:${QBITTORRENT_WEB_PORT:-8081} || exit 1
       interval: 1m
       timeout: 10s
       retries: 3
