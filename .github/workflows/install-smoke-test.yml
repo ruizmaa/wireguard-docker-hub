@@ -640,6 +640,11 @@ jobs:
           output=$(./setup-nfs.sh 2>&1)
           exit_status=$?
           set -e
+          
+          # Remove the test-only overrides before subsequent steps use .env
+          sed -i '/^TRUENAS_MEDIA_PATH=/d' .env
+          echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
+
           echo "$output"
 
           if [ "$exit_status" -eq 0 ]; then
