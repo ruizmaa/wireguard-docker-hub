@@ -246,7 +246,7 @@ A media server for streaming your personal video, audio and photo collections to
 > ./services/setup-nfs.sh
 > ```
 >
-> Mounts your TrueNAS NFS share (`TRUENAS_IP`/`TRUENAS_MEDIA_PATH`) at `LOCAL_MOUNT_MEDIA_PATH` and persists it in `/etc/fstab`. Without this, `LOCAL_MOUNT_MEDIA_PATH` doesn't exist yet, so Docker creates it as an empty local directory and every service below silently starts against an empty library instead of your NAS media.
+> This script mounts your TrueNAS NFS share (`TRUENAS_IP`/`TRUENAS_MEDIA_PATH`) at `LOCAL_MOUNT_MEDIA_PATH` and persists it in `/etc/fstab` and automatically verifies that the media directories required by the `docker-compose` stack exist on your TrueNAS share. If any are missing, it will safely halt and provide you with the exact `mkdir` command needed to create them. Without running this setup, Docker would create an empty local directory and your services would start against an empty library.
 
 > [!IMPORTANT]
 > The compose file passes through `/dev/dri` for Intel QuickSync hardware transcoding. On a host without an Intel iGPU (AMD, ARM, a VM without GPU passthrough...), that device doesn't exist and the container fails to start. Comment out the `devices:` block under `jellyfin` in `services/docker-compose.yml` if that's your case; Jellyfin falls back to software transcoding.

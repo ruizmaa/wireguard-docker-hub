@@ -414,7 +414,8 @@ jobs:
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nfs-kernel-server
-          sudo mkdir -p /opt/nfs-export-a /opt/nfs-export-b
+          sudo mkdir -p /opt/nfs-export-a/movies /opt/nfs-export-a/series
+          sudo mkdir -p /opt/nfs-export-b/movies /opt/nfs-export-b/series
           echo "/opt/nfs-export-a 127.0.0.1(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports > /dev/null
           echo "/opt/nfs-export-b 127.0.0.1(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports > /dev/null
           sudo exportfs -ra
@@ -640,6 +641,11 @@ jobs:
           output=$(./setup-nfs.sh 2>&1)
           exit_status=$?
           set -e
+          
+          # Remove the test-only overrides before subsequent steps use .env
+          sed -i '/^TRUENAS_MEDIA_PATH=/d' .env
+          echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
+
           echo "$output"
 
           if [ "$exit_status" -eq 0 ]; then
@@ -652,12 +658,46 @@ jobs:
             exit 1
           fi
 
+      - name: Verify setup-nfs.sh detects missing media directories and outputs the correct mkdir command
+        working-directory: services
+        run: |
+          # Remove the required media directories from the NFS export to simulate a fresh TrueNAS share
+          sudo rm -rf /opt/nfs-export-a/movies /opt/nfs-export-a/series
+
+          # Since the export /opt/nfs-export-a is empty, the script should fail due to missing movies/series directories
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail because required media directories are missing on the fresh NFS export"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "The following media directories do not exist on the NFS share"; then
+            echo "expected the clear missing directories error, got:"
+            echo "$output"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "sudo mkdir -p"; then
+            echo "expected the helper mkdir command suggestion, got:"
+            echo "$output"
+            exit 1
+          fi
+
+          # Create the missing directories so the next step can succeed
+          sudo mkdir -p /opt/nfs-export-a/movies /opt/nfs-export-a/series
+
       # Leaves /mnt/nas_media on a real, successful NFS mount for the rest of this job
       - name: Restore a working NFS mount before starting the stack
         working-directory: services
         run: |
           sed -i '/^TRUENAS_MEDIA_PATH=/d' .env
           echo "TRUENAS_MEDIA_PATH=/opt/nfs-export-a" >> .env
+
+          # Force unmount in case a previous step left it mounted, but don't fail the job if it wasn't mounted
+          sudo umount -f /mnt/nas_media || true
 
           output=$(./setup-nfs.sh 2>&1)
           echo "$output"
@@ -1374,9 +1414,6 @@ jobs:
           echo "$zone_header"
 
       # Prowlarr/Radarr/Sonarr write their own ApiKey to config.xml on first boot (Servarr apps)
-
-      # qBittorrent rejects API calls via port 8081 unless the Host header 
-      # is forced to its internal port (8080) to prevent 401 errors.
       - name: Set a fixed qBittorrent WebUI password
         working-directory: services
         run: |
@@ -1385,19 +1422,19 @@ jobs:
             echo "could not find qBittorrent's temporary WebUI password in its logs"
             exit 1
           fi
-          curl -sf -c /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/auth/login \
+          curl -sf -c /tmp/qbit-cookies.txt -X POST http://127.0.0.1:8081/api/v2/auth/login \
             --data "username=admin&password=$temp_pw"
-          curl -sf -b /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/app/setPreferences \
+          curl -sf -b /tmp/qbit-cookies.txt -X POST http://127.0.0.1:8081/api/v2/app/setPreferences \
             --data-urlencode 'json={"web_ui_username":"admin","web_ui_password":"CI-Arr-Stack-Test-Pw1"}'
           # The password just changed, the cookie above is now stale -- get a fresh one
-          curl -sf -c /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" -X POST http://127.0.0.1:8081/api/v2/auth/login \
+          curl -sf -c /tmp/qbit-cookies.txt -X POST http://127.0.0.1:8081/api/v2/auth/login \
             --data "username=admin&password=CI-Arr-Stack-Test-Pw1"
 
       - name: Verify qBittorrent's actual listening port matches QBITTORRENT_TORRENT_PORT
         working-directory: services
         run: |
           expected_port=$(grep '^QBITTORRENT_TORRENT_PORT=' .env | tail -n1 | cut -d= -f2)
-          listen_port=$(curl -sf -b /tmp/qbit-cookies.txt -H "Host: 127.0.0.1:8080" http://127.0.0.1:8081/api/v2/app/preferences | jq -r '.listen_port')
+          listen_port=$(curl -sf -b /tmp/qbit-cookies.txt http://127.0.0.1:8081/api/v2/app/preferences | jq -r '.listen_port')
           if [ "$listen_port" != "$expected_port" ]; then
             echo "qBittorrent is listening on $listen_port but QBITTORRENT_TORRENT_PORT is $expected_port"
             exit 1

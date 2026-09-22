@@ -14,6 +14,7 @@ source "$SCRIPT_DIR/../scripts/lib/env.sh"
 NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
 
 ENV_FILE="$SCRIPT_DIR/.env"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
 echo -e "    ${YELLOW}[1/6] Reading configuration...${NC}"
 # Require the services environment file to be present
@@ -88,9 +89,9 @@ else
     # Remove any existing mount that points to a different source.
     if [ -n "$CURRENT_SOURCE" ]; then
         # Refuse to unmount out from under running containers that bind-mount this path
-        RUNNING_MEDIA_CONTAINERS="$(docker compose -f "$SCRIPT_DIR/docker-compose.yml" ps -q jellyfin qbittorrent radarr sonarr 2>/dev/null)"
+        RUNNING_MEDIA_CONTAINERS="$(docker compose -f "$COMPOSE_FILE" ps -q jellyfin qbittorrent radarr sonarr 2>/dev/null)"
         if [ -n "$RUNNING_MEDIA_CONTAINERS" ]; then
-            echo -e "      ${RED}-> ERROR: jellyfin/qbittorrent/radarr/sonarr are still using $LOCAL_MOUNT_MEDIA_PATH. Stop the stack first: docker compose -f services/docker-compose.yml down${NC}"
+            echo -e "      ${RED}-> ERROR: jellyfin/qbittorrent/radarr/sonarr are still using $LOCAL_MOUNT_MEDIA_PATH. Stop the stack first: docker compose -f $COMPOSE_FILE down${NC}"
             exit 1
         fi
         echo "      -> Unmounting stale mount from $CURRENT_SOURCE..."
@@ -124,6 +125,42 @@ echo "      -> Contents of $LOCAL_MOUNT_MEDIA_PATH:"
 
 # Show the mounted share contents as a basic access check
 ls -la "$LOCAL_MOUNT_MEDIA_PATH" || echo -e "      ${YELLOW}-> WARNING: couldn't list $LOCAL_MOUNT_MEDIA_PATH (permission issue?). The mount itself succeeded.${NC}"
+
+echo -e "    ${YELLOW}Verifying required media directories exist...${NC}"
+
+missing_dirs=()
+
+# Check for missing media directories referenced in the docker-compose.yml file
+if [ -f "$COMPOSE_FILE" ]; then
+    while IFS= read -r subpath; do
+        if [ -n "$subpath" ]; then
+            target_dir="$LOCAL_MOUNT_MEDIA_PATH/$subpath"
+            if [ ! -d "$target_dir" ]; then
+                missing_dirs+=("$subpath")
+            fi
+        fi
+    done < <(grep -v '^[[:space:]]*#' "$COMPOSE_FILE" | grep -oP '\$\{LOCAL_MOUNT_MEDIA_PATH:-[^}]+\}/\K[^:/]+' | sort -u)
+fi
+
+# If any required media directories are missing, print an error message and instructions to create them on the TrueNAS server
+if [ ${#missing_dirs[@]} -gt 0 ]; then
+    echo -e "      ${RED}-> ERROR: The following media directories do not exist on the NFS share:${NC}"
+    for dir in "${missing_dirs[@]}"; do
+        echo -e "         - $LOCAL_MOUNT_MEDIA_PATH/$dir"
+    done
+    echo -e "\n      ${YELLOW}Please create them manually on your TrueNAS server by running:${NC}"
+    
+    # Use the configured TRUENAS_MEDIA_PATH if set, otherwise default to /mnt/tank/media
+    truenas_base_path="${TRUENAS_MEDIA_PATH:-/mnt/tank/media}"
+    cmd="sudo mkdir -p"
+    for dir in "${missing_dirs[@]}"; do
+        cmd="$cmd ${truenas_base_path}/$dir"
+    done
+    echo -e "         ${GREEN}$cmd${NC}\n"
+    exit 1
+else
+    echo -e "      ${GREEN}-> All required media directories exist.${NC}"
+fi
 
 echo -e "    ${YELLOW}[6/6] Persisting mount in /etc/fstab...${NC}"
 

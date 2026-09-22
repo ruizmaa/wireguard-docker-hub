@@ -155,6 +155,8 @@ services:
       - TORRENTING_PORT=${QBITTORRENT_TORRENT_PORT:-6881}  # must match the port mapping above
     volumes:
       - qbittorrent_config:/config
+      # Disables WebUI Host header validation, or qBittorrent rejects requests via QBITTORRENT_WEB_PORT (8081 != internal 8080)
+      - ./qbittorrent/qBittorrent.conf.defaults:/defaults/qBittorrent.conf:ro
       # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
       - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}:/media
     healthcheck:
