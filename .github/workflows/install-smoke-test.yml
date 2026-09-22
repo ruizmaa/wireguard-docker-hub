@@ -652,6 +652,34 @@ jobs:
             exit 1
           fi
 
+      - name: Verify setup-nfs.sh detects missing media directories and outputs the correct mkdir command
+        working-directory: services
+        run: |
+          # Since the export /opt/nfs-export-a is empty, the script should fail due to missing movies/series directories
+          set +e
+          output=$(./setup-nfs.sh 2>&1)
+          exit_status=$?
+          set -e
+          echo "$output"
+
+          if [ "$exit_status" -eq 0 ]; then
+            echo "expected setup-nfs.sh to fail because required media directories are missing on the fresh NFS export"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "The following media directories do not exist on the NFS share"; then
+            echo "expected the clear missing directories error, got:"
+            echo "$output"
+            exit 1
+          fi
+          if ! echo "$output" | grep -q "sudo mkdir -p"; then
+            echo "expected the helper mkdir command suggestion, got:"
+            echo "$output"
+            exit 1
+          fi
+
+          # Create the missing directories so the next step can succeed
+          sudo mkdir -p /opt/nfs-export-a/movies /opt/nfs-export-a/series
+
       # Leaves /mnt/nas_media on a real, successful NFS mount for the rest of this job
       - name: Restore a working NFS mount before starting the stack
         working-directory: services
