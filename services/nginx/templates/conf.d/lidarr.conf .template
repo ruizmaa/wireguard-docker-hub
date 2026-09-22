@@ -8,6 +8,6 @@ server {
     listen 443 ssl;
     server_name lidarr.home.arpa;
 
-    set $backend lidarr:8989;
+    set $backend lidarr:8686;
     include /etc/nginx/proxy_params.conf;
 }
