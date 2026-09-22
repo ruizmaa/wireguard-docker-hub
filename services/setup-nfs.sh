@@ -142,6 +142,11 @@ if [ -f "$COMPOSE_FILE" ]; then
     done < <(grep -v '^[[:space:]]*#' "$COMPOSE_FILE" | grep -oP '\$\{LOCAL_MOUNT_MEDIA_PATH:-[^}]+\}/\K[^:/]+' | sort -u)
 fi
 
+# qBittorrent.conf.defaults sets Downloads\SavePath to /media/downloads/ directly, it isn't a compose volume
+if [ ! -d "$LOCAL_MOUNT_MEDIA_PATH/downloads" ]; then
+    missing_dirs+=("downloads")
+fi
+
 # If any required media directories are missing, print an error message and instructions to create them on the TrueNAS server
 if [ ${#missing_dirs[@]} -gt 0 ]; then
     echo -e "      ${RED}-> ERROR: The following media directories do not exist on the NFS share:${NC}"
