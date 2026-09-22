@@ -126,18 +126,40 @@ echo "      -> Contents of $LOCAL_MOUNT_MEDIA_PATH:"
 # Show the mounted share contents as a basic access check
 ls -la "$LOCAL_MOUNT_MEDIA_PATH" || echo -e "      ${YELLOW}-> WARNING: couldn't list $LOCAL_MOUNT_MEDIA_PATH (permission issue?). The mount itself succeeded.${NC}"
 
-echo -e "    ${YELLOW}Ensuring required media directories exist...${NC}"
-# Create any subdirectories referenced in the compose file, so the containers can bind-mount them without creating empty directories on the host
+echo -e "    ${YELLOW}Verifying required media directories exist...${NC}"
+
+missing_dirs=()
+
+# Check for missing media directories referenced in the docker-compose.yml file
 if [ -f "$COMPOSE_FILE" ]; then
     while IFS= read -r subpath; do
         if [ -n "$subpath" ]; then
             target_dir="$LOCAL_MOUNT_MEDIA_PATH/$subpath"
             if [ ! -d "$target_dir" ]; then
-                sudo mkdir -p "$target_dir"
-                echo "      -> Created directory: $target_dir"
+                missing_dirs+=("$subpath")
             fi
         fi
     done < <(grep -oP '\$\{LOCAL_MOUNT_MEDIA_PATH:-[^}]+\}/\K[^:/]+' "$COMPOSE_FILE" | sort -u)
+fi
+
+# If any required media directories are missing, print an error message and instructions to create them on the TrueNAS server
+if [ ${#missing_dirs[@]} -gt 0 ]; then
+    echo -e "      ${RED}-> ERROR: The following media directories do not exist on the NFS share:${NC}"
+    for dir in "${missing_dirs[@]}"; do
+        echo -e "         - $LOCAL_MOUNT_MEDIA_PATH/$dir"
+    done
+    echo -e "\n      ${YELLOW}Please create them manually on your TrueNAS server by running:${NC}"
+    
+    # Use the configured TRUENAS_MEDIA_PATH if set, otherwise default to /mnt/tank/media
+    truenas_base_path="${TRUENAS_MEDIA_PATH:-/mnt/tank/media}"
+    cmd="sudo mkdir -p"
+    for dir in "${missing_dirs[@]}"; do
+        cmd="$cmd ${truenas_base_path}/$dir"
+    done
+    echo -e "         ${GREEN}$cmd${NC}\n"
+    exit 1
+else
+    echo -e "      ${GREEN}-> All required media directories exist.${NC}"
 fi
 
 sudo chown -R 1000:1000 "$LOCAL_MOUNT_MEDIA_PATH"
