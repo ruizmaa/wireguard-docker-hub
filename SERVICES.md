@@ -249,6 +249,12 @@ A media server for streaming your personal video, audio and photo collections to
 > This script mounts your TrueNAS NFS share (`TRUENAS_IP`/`TRUENAS_MEDIA_PATH`) at `LOCAL_MOUNT_MEDIA_PATH` and persists it in `/etc/fstab` and automatically verifies that the media directories required by the `docker-compose` stack exist on your TrueNAS share. If any are missing, it will safely halt and provide you with the exact `mkdir` command needed to create them. Without running this setup, Docker would create an empty local directory and your services would start against an empty library.
 
 > [!IMPORTANT]
+> `radarr`/`sonarr`/`qbittorrent` run as `PUID=1000`/`PGID=1000`, but existing dirs won't have their permissions checked here, the directories above only get checked for existence. If TrueNAS owns them as a different user, writes will fail with `Permission denied` (qBittorrent downloads erroring out, Radarr/Sonarr logging `Folder '...' is not writable by user 'abc'`), even though the mount itself succeeds. Fix it on the TrueNAS side, either:
+>
+> - `chown -R 1000:1000` on the exported directories, or
+> - set `Mapall User`/`Mapall Group` to a user that owns them, on the NFS share itself (`Sharing > NFS`). This remaps every NFS client's UID to that user, so it also affects any other machine mounting the same share.
+
+> [!IMPORTANT]
 > The compose file passes through `/dev/dri` for Intel QuickSync hardware transcoding. On a host without an Intel iGPU (AMD, ARM, a VM without GPU passthrough...), that device doesn't exist and the container fails to start. Comment out the `devices:` block under `jellyfin` in `services/docker-compose.yml` if that's your case; Jellyfin falls back to software transcoding.
 >
 > If you do have an Intel iGPU, run this once before the first `docker compose up` so the container actually has drivers to use it:
