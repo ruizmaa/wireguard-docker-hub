@@ -162,9 +162,6 @@ else
     echo -e "      ${GREEN}-> All required media directories exist.${NC}"
 fi
 
-sudo chown -R 1000:1000 "$LOCAL_MOUNT_MEDIA_PATH"
-echo -e "      -> Permissions set to 1000:1000 for $LOCAL_MOUNT_MEDIA_PATH"
-
 echo -e "    ${YELLOW}[6/6] Persisting mount in /etc/fstab...${NC}"
 
 # Skip only if source, mount point AND options already match
