@@ -139,7 +139,7 @@ if [ -f "$COMPOSE_FILE" ]; then
                 missing_dirs+=("$subpath")
             fi
         fi
-    done < <(grep -oP '\$\{LOCAL_MOUNT_MEDIA_PATH:-[^}]+\}/\K[^:/]+' "$COMPOSE_FILE" | sort -u)
+    done < <(grep -v '^[[:space:]]*#' "$COMPOSE_FILE" | grep -oP '\$\{LOCAL_MOUNT_MEDIA_PATH:-[^}]+\}/\K[^:/]+' | sort -u)
 fi
 
 # If any required media directories are missing, print an error message and instructions to create them on the TrueNAS server
