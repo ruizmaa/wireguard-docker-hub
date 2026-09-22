@@ -414,7 +414,8 @@ jobs:
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nfs-kernel-server
-          sudo mkdir -p /opt/nfs-export-a /opt/nfs-export-b
+          sudo mkdir -p /opt/nfs-export-a/movies /opt/nfs-export-a/series
+          sudo mkdir -p /opt/nfs-export-b/movies /opt/nfs-export-b/series
           echo "/opt/nfs-export-a 127.0.0.1(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports > /dev/null
           echo "/opt/nfs-export-b 127.0.0.1(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports > /dev/null
           sudo exportfs -ra
