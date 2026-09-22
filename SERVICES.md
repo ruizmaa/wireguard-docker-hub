@@ -280,6 +280,14 @@ A media server for streaming your personal video, audio and photo collections to
 > 3. Shut the VM down, attach the device (`qm set <vmid> -hostpci0 <pci-address>,pcie=0,x-vga=0`, or `Hardware > Add > PCI Device` in the UI, leaving "Primary GPU" unchecked), and start it back up.
 > 4. Inside the VM, run `./services/setup-jellyfin-hwaccel.sh` above as usual.
 
+#### Jellyfin **Start**
+
+Open the web UI at `http://<SERVER_IP>:8096` and run through the setup wizard, or configure these manually afterwards under `Dashboard`:
+
+- **Users** (`Dashboard > Users > +`): set username/password, then on that user tune `Access` (which libraries they can see), `Playback` (allow/restrict direct play vs transcoding) and uncheck the admin permissions for non-admin accounts.
+- **Libraries** (`Dashboard > Libraries > Add Media Library`): one library with content type `Movies` and folder `/data/movies`, another with content type `Shows` and folder `/data/series` and so on, matching the mounts above. Set your preferred metadata language/country and enable the providers you want (TheMovieDB, TheTVDB, OpenSubtitles...), then let the initial library scan finish.
+- **Hardware acceleration** (after running `setup-jellyfin-hwaccel.sh` above): Go to `Dashboard > Playback > Transcoding` and set `Hardware acceleration` to `Intel QuickSync (QSV)` and `QSV device` to `/dev/dri/renderD128`. Enable hardware decoding for the codecs your library uses (H264, HEVC, HEVC 10bit, VP9, VP9 10bit, MPEG2, VC1, AV1). If `dmesg | grep -i huc` shows `HuC: authenticated for all workloads`, also enable the low-power encoders for H.264/HEVC. Leave AV1 encoding off unless your iGPU actually has a hardware AV1 encoder, otherwise enabling it just pushes the encode onto the CPU instead. Enable VPP tone mapping for HDR->SDR. Verify afterwards that compatible content plays back as `Direct Play` (no transcoding) in the active-sessions panel.
+
 ### [qBittorrent](https://hub.docker.com/r/linuxserver/qbittorrent)
 
 A BitTorrent client, used by [Radarr](#radarr)/[Sonarr](#sonarr) as their download client.
