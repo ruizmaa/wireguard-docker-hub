@@ -33,6 +33,10 @@
         icon: prowlarr.png
         href: "https://prowlarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
         description: Indexer manager
+    - Lidarr:
+        icon: lidarr.png
+        href: "https://lidarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: Music collection manager
     - Radarr:
         icon: radarr.png
         href: "https://radarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"

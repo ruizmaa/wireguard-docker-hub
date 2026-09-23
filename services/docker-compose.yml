@@ -27,6 +27,8 @@ services:
         condition: service_healthy
       jellyfin:
         condition: service_started
+      lidarr:
+        condition: service_healthy
       prowlarr:
         condition: service_healthy
       qbittorrent:
@@ -134,7 +136,8 @@ services:
       - jellyfin_cache:/cache
       - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/movies:/data/movies:ro
       - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/series:/data/series:ro
-      # - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/music:/data/music:ro  # Add more media categories as needed
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/music:/data/music:ro
+      # - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}/books:/data/books:ro  # Add more media categories as needed
     devices:
       - /dev/dri:/dev/dri  # Intel QuickSync hardware acceleration
     # healthcheck: no HEALTHCHECK, its /health endpoint can't be used during startup migrations
@@ -238,6 +241,32 @@ services:
       retries: 3
       start_period: 1m
 
+  lidarr:
+    container_name: lidarr
+    image: lscr.io/linuxserver/lidarr:3.1.0
+    restart: unless-stopped
+    ports:
+      - "${LIDARR_WEB_PORT:-8686}:8686"
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    volumes:
+      - lidarr_config:/config
+      # Bind mount to a NAS path for media, defaulting to /mnt/nas_media if LOCAL_MOUNT_MEDIA_PATH is not set in .env
+      - ${LOCAL_MOUNT_MEDIA_PATH:-/mnt/nas_media}:/media
+    depends_on:
+      prowlarr:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_healthy
+    healthcheck:
+      test: curl -fsS -m 2 http://127.0.0.1:8686/ping || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+
   dockge:
     container_name: dockge
     image: louislam/dockge:1.5.0
@@ -293,3 +322,5 @@ volumes:
     name: radarr_config
   sonarr_config:
     name: sonarr_config
+  lidarr_config:
+    name: lidarr_config

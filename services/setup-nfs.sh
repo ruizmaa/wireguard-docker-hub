@@ -1,6 +1,6 @@
 #!/bin/bash
 # Mounts the TrueNAS NFS share at LOCAL_MOUNT_MEDIA_PATH and persists it in /etc/fstab, so
-# radarr/sonarr/qbittorrent/jellyfin all see the same media library. Run once on the home
+# lidarr/radarr/sonarr/qbittorrent/jellyfin all see the same media library. Run once on the home
 # server before the first `docker compose up`.
 # Usage: ./services/setup-nfs.sh
 set -euo pipefail
@@ -89,9 +89,9 @@ else
     # Remove any existing mount that points to a different source.
     if [ -n "$CURRENT_SOURCE" ]; then
         # Refuse to unmount out from under running containers that bind-mount this path
-        RUNNING_MEDIA_CONTAINERS="$(docker compose -f "$COMPOSE_FILE" ps -q jellyfin qbittorrent radarr sonarr 2>/dev/null)"
+        RUNNING_MEDIA_CONTAINERS="$(docker compose -f "$COMPOSE_FILE" ps -q jellyfin qbittorrent lidarr radarr sonarr 2>/dev/null)"
         if [ -n "$RUNNING_MEDIA_CONTAINERS" ]; then
-            echo -e "      ${RED}-> ERROR: jellyfin/qbittorrent/radarr/sonarr are still using $LOCAL_MOUNT_MEDIA_PATH. Stop the stack first: docker compose -f $COMPOSE_FILE down${NC}"
+            echo -e "      ${RED}-> ERROR: jellyfin/qbittorrent/lidarr/radarr/sonarr are still using $LOCAL_MOUNT_MEDIA_PATH. Stop the stack first: docker compose -f $COMPOSE_FILE down${NC}"
             exit 1
         fi
         echo "      -> Unmounting stale mount from $CURRENT_SOURCE..."
