@@ -10,7 +10,7 @@ location / {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $connection_upgrade;
 
-    # Backends with a self-signed cert (Proxmox/PBS) would fail a chain check, this hop stays on the host's docker network.
+    # Proxmox/PBS serve self-signed certs from the LAN: this hop is encrypted, not authenticated.
     proxy_ssl_verify off;
     proxy_pass $backend_scheme://$backend;
 }

@@ -460,8 +460,7 @@ set $backend_scheme https;
 Every other template says `http` today; switching one to `https` is how a service moves to TLS on that inner hop.
 
 > [!NOTE]
-> A template that forgets `set $backend_scheme` still passes `nginx -t`, then answers `500` at request time with
-> `invalid URL prefix` in the log. CI checks every template for it.
+> A template that forgets `set $backend` or `set $backend_scheme` still passes `nginx -t`, then answers `500` at request time with `invalid URL prefix` in the log. CI checks both in every template that includes `proxy_params.conf`.
 
 To add or drop a node, copy `conf.d/pve1.conf.template` to `conf.d/<name>.conf.template` (or delete it) and keep
 its `<NAME>_IP` in sync in three places: `.env`, the `nginx` service's `environment` and its `NGINX_ENVSUBST_FILTER`

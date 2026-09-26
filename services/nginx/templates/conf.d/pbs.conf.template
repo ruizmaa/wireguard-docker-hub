@@ -13,5 +13,9 @@ server {
     set $backend ${PBS_IP}:8007;
     set $backend_scheme https;
 
+    # Its xterm.js shell and task logs go quiet for minutes, nginx's 60s read timeout would cut them
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+
     include /etc/nginx/proxy_params.conf;
 }

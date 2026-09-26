@@ -18,5 +18,9 @@ server {
     client_max_body_size 0;
     proxy_request_buffering off;
 
+    # The noVNC/xterm.js console sends nothing while idle, nginx's 60s read timeout would cut it
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+
     include /etc/nginx/proxy_params.conf;
 }
