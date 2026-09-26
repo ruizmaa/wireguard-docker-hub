@@ -20,6 +20,36 @@
         href: "https://truenas.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}/ui"
         description: TrueNAS ui
 
+- Proxmox:
+    # Standalone nodes, one card each. The widgets talk to each node's API directly (IP, port 8006/8007), not through nginx
+    - pve1:
+        icon: proxmox.png
+        href: "https://pve1.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: Proxmox VE node
+        widget:
+          type: proxmox
+          url: "https://{{HOMEPAGE_VAR_PVE1_IP}}:8006"
+          username: "{{HOMEPAGE_VAR_PVE1_TOKEN_ID}}"
+          password: "{{HOMEPAGE_VAR_PVE1_TOKEN_SECRET}}"
+    - pve2:
+        icon: proxmox.png
+        href: "https://pve2.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: Proxmox VE node
+        widget:
+          type: proxmox
+          url: "https://{{HOMEPAGE_VAR_PVE2_IP}}:8006"
+          username: "{{HOMEPAGE_VAR_PVE2_TOKEN_ID}}"
+          password: "{{HOMEPAGE_VAR_PVE2_TOKEN_SECRET}}"
+    - pbs:
+        icon: proxmox-backup-server.png
+        href: "https://pbs.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+        description: Proxmox Backup Server
+        widget:
+          type: proxmoxbackupserver
+          url: "https://{{HOMEPAGE_VAR_PBS_IP}}:8007"
+          username: "{{HOMEPAGE_VAR_PBS_TOKEN_ID}}"
+          password: "{{HOMEPAGE_VAR_PBS_TOKEN_SECRET}}"
+
 - Media Arr Stack:
     # Ordered as the real pipeline: indexers -> collection managers -> downloader -> playback
     - Indexer:

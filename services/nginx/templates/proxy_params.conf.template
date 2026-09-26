@@ -1,4 +1,4 @@
-# Shared by every proxied service's HTTPS server block in conf.d/. Expects `set $backend ...;` first.
+# Shared by every proxied service's HTTPS server block in conf.d/. Expects `set $backend ...;` and `set $backend_scheme ...;` first.
 location / {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -10,5 +10,7 @@ location / {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $connection_upgrade;
 
-    proxy_pass http://$backend;
+    # Proxmox/PBS serve self-signed certs from the LAN: this hop is encrypted, not authenticated.
+    proxy_ssl_verify off;
+    proxy_pass $backend_scheme://$backend;
 }

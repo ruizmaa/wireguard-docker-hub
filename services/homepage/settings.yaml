@@ -9,16 +9,16 @@ layout:
   System Monitor:
     style: row
     columns: 5
+  Proxmox:
+    style: row
+    columns: 3
   Media Arr Stack:
     style: row
     # Applies to the subgroup grid: Indexer | Collection Managers | Downloader | Playback
     columns: 4
     useEqualHeights: true
     Indexer:
-      header: false
     Collection Managers:
       style: column
     Downloader:
-      header: false
     Playback:
-      header: false

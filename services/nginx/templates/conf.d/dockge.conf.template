@@ -9,5 +9,6 @@ server {
     server_name dockge.home.arpa;
 
     set $backend dockge:5001;
+    set $backend_scheme http;
     include /etc/nginx/proxy_params.conf;
 }

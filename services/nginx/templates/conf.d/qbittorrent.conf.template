@@ -9,5 +9,6 @@ server {
     server_name qbittorrent.home.arpa;
 
     set $backend qbittorrent:8080;
+    set $backend_scheme http;
     include /etc/nginx/proxy_params.conf;
 }

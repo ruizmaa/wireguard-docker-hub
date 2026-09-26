@@ -1,0 +1,20 @@
+server {
+    listen 80;
+    server_name pbs.home.arpa;
+    return 301 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name pbs.home.arpa;
+
+    # PBS is a LAN machine, not a container here, HTTPS-only with a self-signed cert
+    set $backend ${PBS_IP}:8007;
+    set $backend_scheme https;
+
+    # Its xterm.js shell and task logs go quiet for minutes, nginx's 60s read timeout would cut them
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+
+    include /etc/nginx/proxy_params.conf;
+}

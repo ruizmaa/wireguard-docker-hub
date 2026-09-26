@@ -17,13 +17,17 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # No .env here, so the services compose's required vars (nginx's LAN_SUBNET/VPN_SUBNET/TRUENAS_IP,
+    # No .env here, so the services compose's required vars (nginx's LAN_SUBNET/VPN_SUBNET/TRUENAS_IP/PVE*_IP/PBS_IP,
     # Homepage's HOMEPAGE_ALLOWED_HOSTS/GLANCES_PASSWORD) are passed inline.
     env:
       LAN_SUBNET: 192.168.1.0/24
       VPN_SUBNET: 10.13.13.0/24
       HOMEPAGE_ALLOWED_HOSTS: ci-allowed.example:3001
-      TRUENAS_IP: 192.168.1.99  # no real TrueNAS in CI, just needs to satisfy nginx's required var
+      # No real trueNAS/PVE/PBS hosts in CI, just need to satisfy the services compose's required vars
+      TRUENAS_IP: 192.168.1.99
+      PVE1_IP: 192.168.1.97
+      PVE2_IP: 192.168.1.98
+      PBS_IP: 192.168.1.96
       GLANCES_PASSWORD: CI-TESTING-ONLY-NOT-A-REAL-PASSWORD  # just needs to satisfy Homepage's required var
     steps:
       - uses: actions/checkout@v7
@@ -95,6 +99,21 @@ jobs:
           done
           if [ -n "$missing" ]; then
             echo "::error::Missing nginx conf.d entry for:$missing"
+            exit 1
+          fi
+
+      - name: Check every proxied backend declares its host and scheme
+        run: |
+          # proxy_params.conf does `proxy_pass $backend_scheme://$backend`, and either one
+          # left unset only fails at request time, not at `nginx -t`
+          missing=""
+          for template in services/nginx/templates/conf.d/*.conf.template; do
+            grep -q 'include /etc/nginx/proxy_params.conf' "$template" || continue
+            grep -q 'set \$backend ' "$template" && grep -q 'set \$backend_scheme ' "$template" \
+              || missing="$missing $(basename "$template")"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Templates including proxy_params.conf must set both \$backend and \$backend_scheme:$missing"
             exit 1
           fi
 

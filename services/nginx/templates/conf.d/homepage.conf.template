@@ -9,5 +9,6 @@ server {
     server_name homepage.home.arpa;
 
     set $backend homepage:3000;
+    set $backend_scheme http;
     include /etc/nginx/proxy_params.conf;
 }

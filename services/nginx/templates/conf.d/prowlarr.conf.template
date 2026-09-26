@@ -9,5 +9,6 @@ server {
     server_name prowlarr.home.arpa;
 
     set $backend prowlarr:9696;
+    set $backend_scheme http;
     include /etc/nginx/proxy_params.conf;
 }

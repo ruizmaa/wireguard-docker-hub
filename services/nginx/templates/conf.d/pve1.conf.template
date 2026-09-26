@@ -1,0 +1,24 @@
+server {
+    listen 80;
+    server_name pve1.home.arpa;
+    return 301 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name pve1.home.arpa;
+
+    # Proxmox node on the LAN, not a container here, pveproxy is HTTPS-only with a self-signed cert
+    set $backend ${PVE1_IP}:8006;
+    set $backend_scheme https;
+
+    # ISO/template uploads through the web UI: no size cap, and streamed instead of spooled to disk
+    client_max_body_size 0;
+    proxy_request_buffering off;
+
+    # The noVNC/xterm.js console sends nothing while idle, nginx's 60s read timeout would cut it
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+
+    include /etc/nginx/proxy_params.conf;
+}
