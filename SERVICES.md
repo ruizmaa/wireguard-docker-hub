@@ -444,31 +444,21 @@ Finally, so `<service>.home.arpa` actually resolves: run (or re-run) [`generate-
 
 #### Proxying external devices (Proxmox VE and PBS)
 
-Not everything behind nginx is a container in this compose file. TrueNAS, the Proxmox VE nodes and Proxmox Backup
-Server are separate boxes on the LAN, so their templates point at an IP from `.env` (`TRUENAS_IP`, `PVE1_IP`,
-`PVE2_IP`, `PBS_IP`) instead of a container name.
+Not everything behind nginx is a container in this compose file. TrueNAS, the Proxmox VE nodes and Proxmox Backup Server are separate boxes on the LAN, so their templates point at an IP from `.env` (`TRUENAS_IP`, `PVE1_IP`, `PVE2_IP`, `PBS_IP`) instead of a container name.
 
-Proxmox VE and PBS differ from every other backend in one more way: they only speak HTTPS (on 8006 and 8007), with
-their own self-signed certificate. So each template declares the scheme right next to its backend:
+Proxmox VE and PBS differ from every other backend in one more way: they only speak HTTPS (on 8006 and 8007), with their own self-signed certificate. So each template declares the scheme right next to its backend:
 
 ```nginx
 set $backend ${PVE1_IP}:8006;
 set $backend_scheme https;
 ```
 
-`proxy_params.conf` proxies to `$backend_scheme://$backend` and doesn't verify the backend's certificate chain.
-Every other template says `http` today; switching one to `https` is how a service moves to TLS on that inner hop.
+`proxy_params.conf` proxies to `$backend_scheme://$backend` and doesn't verify the backend's certificate chain. Every other template says `http` today; switching one to `https` is how a service moves to TLS on that inner hop.
 
 > [!NOTE]
 > A template that forgets `set $backend` or `set $backend_scheme` still passes `nginx -t`, then answers `500` at request time with `invalid URL prefix` in the log. CI checks both in every template that includes `proxy_params.conf`.
 
-To add or drop a node, copy `conf.d/pve1.conf.template` to `conf.d/<name>.conf.template` (or delete it) and keep
-its `<NAME>_IP` in sync in three places: `.env`, the `nginx` service's `environment` and its `NGINX_ENVSUBST_FILTER`
-in `services/docker-compose.yml`. Only nginx's copy carries the `:?` that makes it required, so those three stay
-together; the `homepage` service reads the same variable without one. A dropped node also leaves its card behind
-in `services/homepage/services.yaml`, pointing at an empty address -- delete that too. Its `<name>.home.arpa` DNS
-rewrite is picked up automatically the next time you run [`generate-adguard-config.sh`](#adguard-configuration),
-which reads the `conf.d/` templates.
+To add or drop a node, copy `conf.d/pve1.conf.template` to `conf.d/<name>.conf.template` (or delete it) and keep its `<NAME>_IP` in sync in three places: `.env`, the `nginx` service's `environment` and its `NGINX_ENVSUBST_FILTER` in `services/docker-compose.yml`. Only nginx's copy carries the `:?` that makes it required, so those three stay together, the `homepage` service reads the same variable without one. A dropped node also leaves its card behind in `services/homepage/services.yaml`, pointing at an empty address, delete that too. Its `<name>.home.arpa` DNS rewrite is picked up automatically the next time you run [`generate-adguard-config.sh`](#adguard-configuration), which reads the `conf.d/` templates.
 
 #### LAN vs. WireGuard zone
 
