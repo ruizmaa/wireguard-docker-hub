@@ -22,12 +22,12 @@
 
 - Media Arr Stack:
     # Ordered as the real pipeline: indexers -> collection managers -> downloader -> playback
-    - Prowlarr:
-        icon: prowlarr.png
-        href: "https://prowlarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
-        description: Indexer manager
+    - Indexer:
+        - Prowlarr:
+            icon: prowlarr.png
+            href: "https://prowlarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+            description: Indexer manager
 
-    # Nested group: renders as one column inside the parent row
     - Collection Managers:
         - Radarr:
             icon: radarr.png
@@ -42,15 +42,17 @@
             href: "https://lidarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
             description: Music collection manager
 
-    - qBittorrent:
-        icon: qbittorrent.png
-        href: "https://qbittorrent.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
-        description: BitTorrent client
+    - Downloader:
+        - qBittorrent:
+            icon: qbittorrent.png
+            href: "https://qbittorrent.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+            description: BitTorrent client
 
-    - Jellyfin:
-        icon: jellyfin.png
-        href: "https://jellyfin.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
-        description: Media server
+    - Playback:
+        - Jellyfin:
+            icon: jellyfin.png
+            href: "https://jellyfin.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+            description: Media server
 
 - System Monitor:
     - Top Processes:
