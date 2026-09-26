@@ -9,5 +9,6 @@ server {
     server_name lidarr.home.arpa;
 
     set $backend lidarr:8686;
+    set $backend_scheme http;
     include /etc/nginx/proxy_params.conf;
 }

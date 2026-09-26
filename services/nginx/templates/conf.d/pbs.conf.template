@@ -1,0 +1,17 @@
+server {
+    listen 80;
+    server_name pbs.home.arpa;
+    return 301 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name pbs.home.arpa;
+
+    # Proxmox Backup Server on the LAN, not a container in this compose file. Like
+    # Proxmox VE it is HTTPS-only, on 8007, with a self-signed cert.
+    set $backend ${PBS_IP}:8007;
+    set $backend_scheme https;
+
+    include /etc/nginx/proxy_params.conf;
+}

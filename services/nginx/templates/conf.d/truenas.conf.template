@@ -10,5 +10,6 @@ server {
 
     # TrueNAS is an external LAN device, not a container in this compose file
     set $backend ${TRUENAS_IP}:80;
+    set $backend_scheme http;
     include /etc/nginx/proxy_params.conf;
 }

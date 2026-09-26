@@ -9,5 +9,6 @@ server {
     server_name syncthing.home.arpa;
 
     set $backend syncthing:8384;
+    set $backend_scheme http;
     include /etc/nginx/proxy_params.conf;
 }

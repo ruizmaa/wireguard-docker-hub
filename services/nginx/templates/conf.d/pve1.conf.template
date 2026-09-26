@@ -1,0 +1,22 @@
+server {
+    listen 80;
+    server_name pve1.home.arpa;
+    return 301 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name pve1.home.arpa;
+
+    # Proxmox node on the LAN, not a container in this compose file. pveproxy is
+    # HTTPS-only on 8006 and serves a self-signed cert (see proxy_params.conf).
+    set $backend ${PVE1_IP}:8006;
+    set $backend_scheme https;
+
+    # Proxmox uploads ISOs/templates through the web UI: no size cap, and stream them through
+    # instead of spooling the whole file to this container's disk before Proxmox sees a byte
+    client_max_body_size 0;
+    proxy_request_buffering off;
+
+    include /etc/nginx/proxy_params.conf;
+}

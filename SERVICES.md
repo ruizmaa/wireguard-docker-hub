@@ -42,7 +42,7 @@ Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID
 
 The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`, `QBITTORRENT_WEB_PORT`, `QBITTORRENT_TORRENT_PORT`, `PROWLARR_WEB_PORT`, `LIDARR_WEB_PORT`, `RADARR_WEB_PORT`, `SONARR_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
-`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing. `GLANCES_PASSWORD` is also required, see [Glances](#glances), but it only fails that one container instead of the whole stack.
+`LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy), as are `TRUENAS_IP` and the `PVE1_IP`/`PVE2_IP`/`PBS_IP` of the [external devices it proxies](#proxying-external-devices-proxmox-ve-and-pbs). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing. `GLANCES_PASSWORD` is also required, see [Glances](#glances), but it only fails that one container instead of the whole stack.
 
 Start the services:
 
@@ -81,6 +81,13 @@ All customization is done through YAML files inside `services/homepage/`, which 
 | `widgets.yaml` | Top-bar info widgets (date, search, resources…) |
 | `settings.yaml` | Global settings (title, theme, layout…) |
 
+The Proxmox and PBS cards also carry a widget each, showing VMs/containers and CPU/memory for a node, and datastore usage plus failed backup tasks for PBS. They need a read-only API token per node in `.env` (`PVE1_TOKEN_ID`/`PVE1_TOKEN_SECRET` and so on), created like this:
+
+- **Proxmox VE**: `Datacenter > Permissions > API Tokens > Add`. Untick *Privilege Separation* or give the token itself the `PVEAuditor` role on `/` under `Datacenter > Permissions`. The ID goes in `.env` in full, e.g. `root@pam!homepage`.
+- **PBS**: `Configuration > Access Control > API Token > Add`, then assign the `Audit` role on `/` to both the user and the token (PBS treats them separately). The ID is e.g. `root@pbs!homepage`.
+
+Each node keeps its own token: they're standalone, so they don't share a user database. Homepage fires the API call whether or not the pair is filled in, so an unset token shows that card with an authentication error rather than silently without stats. If you'd rather not set one up, delete that card's `widget:` block from `services/homepage/services.yaml`. Unlike the card links, these widgets talk to each node's API directly by IP (`PVE1_IP` and friends, ports 8006/8007), not through nginx, because the Homepage container resolves names through Docker's DNS, which doesn't know AdGuard's `*.home.arpa` rewrites.
+
 Edit those files, commit the changes, and restart the container to apply them:
 
 ```bash
@@ -116,7 +123,7 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 >
 > Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
 >
-> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`, showing what it's about to change before asking for confirmation:
+> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa`, showing what it's about to change before asking for confirmation:
 >
 > - LAN clients resolve them to this host's LAN IP, found via a route lookup against `LAN_SUBNET` (overridable with `ADGUARD_LAN_IP`, CI sets this).
 > - VPN (WireGuard) clients resolve them to this host's own tunnel IP instead, read from its `wg0` interface (overridable with `ADGUARD_VPN_IP`, CI sets this).
@@ -134,7 +141,7 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
-If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
 
 #### Tracking your config
 
@@ -435,6 +442,35 @@ These are `.conf.template`, not `.conf`, nginx's own Docker image substitutes `$
 
 Finally, so `<service>.home.arpa` actually resolves: run (or re-run) [`generate-adguard-config.sh`](#adguard-configuration) after this — it sets up split-horizon DNS automatically (LAN clients get this host's LAN IP, VPN clients get its WireGuard tunnel IP).
 
+#### Proxying external devices (Proxmox VE and PBS)
+
+Not everything behind nginx is a container in this compose file. TrueNAS, the Proxmox VE nodes and Proxmox Backup
+Server are separate boxes on the LAN, so their templates point at an IP from `.env` (`TRUENAS_IP`, `PVE1_IP`,
+`PVE2_IP`, `PBS_IP`) instead of a container name.
+
+Proxmox VE and PBS differ from every other backend in one more way: they only speak HTTPS (on 8006 and 8007), with
+their own self-signed certificate. So each template declares the scheme right next to its backend:
+
+```nginx
+set $backend ${PVE1_IP}:8006;
+set $backend_scheme https;
+```
+
+`proxy_params.conf` proxies to `$backend_scheme://$backend` and doesn't verify the backend's certificate chain.
+Every other template says `http` today; switching one to `https` is how a service moves to TLS on that inner hop.
+
+> [!NOTE]
+> A template that forgets `set $backend_scheme` still passes `nginx -t`, then answers `500` at request time with
+> `invalid URL prefix` in the log. CI checks every template for it.
+
+To add or drop a node, copy `conf.d/pve1.conf.template` to `conf.d/<name>.conf.template` (or delete it) and keep
+its `<NAME>_IP` in sync in three places: `.env`, the `nginx` service's `environment` and its `NGINX_ENVSUBST_FILTER`
+in `services/docker-compose.yml`. Only nginx's copy carries the `:?` that makes it required, so those three stay
+together; the `homepage` service reads the same variable without one. A dropped node also leaves its card behind
+in `services/homepage/services.yaml`, pointing at an empty address -- delete that too. Its `<name>.home.arpa` DNS
+rewrite is picked up automatically the next time you run [`generate-adguard-config.sh`](#adguard-configuration),
+which reads the `conf.d/` templates.
+
 #### LAN vs. WireGuard zone
 
 nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, or `external` for anything outside both subnets) and exposes it as the `X-Client-Zone` response header, verifiable with `curl -I`. Nothing is restricted based on it yet.
@@ -445,7 +481,7 @@ nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, 
 docker compose up -d
 ```
 
-Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://qbittorrent.home.arpa`, `https://prowlarr.home.arpa`, `https://lidarr.home.arpa`, `https://radarr.home.arpa`, `https://sonarr.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`.
+Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://qbittorrent.home.arpa`, `https://prowlarr.home.arpa`, `https://lidarr.home.arpa`, `https://radarr.home.arpa`, `https://sonarr.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`, `https://pve1.home.arpa`, `https://pve2.home.arpa`, `https://pbs.home.arpa`.
 
 ---
 

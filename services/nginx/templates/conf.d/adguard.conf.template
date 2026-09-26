@@ -12,5 +12,6 @@ server {
     # wizard itself runs on 3000, that's separate and closes once configured). This
     # doesn't follow $ADGUARD_WEB_PORT (that only remaps the host-side port).
     set $backend adguard:80;
+    set $backend_scheme http;
     include /etc/nginx/proxy_params.conf;
 }

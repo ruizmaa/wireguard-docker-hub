@@ -8,11 +8,15 @@ services:
       - "${NGINX_HTTPS_PORT:-443}:443"
     environment:
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx  # default is conf.d only, but services/nginx/templates/ also has nginx.conf/proxy_params.conf
-      - NGINX_ENVSUBST_FILTER=^(LAN_SUBNET|VPN_SUBNET|NGINX_HTTPS_PORT|TRUENAS_IP)$$  # protects nginx's own $host/$remote_addr/etc
+      - NGINX_ENVSUBST_FILTER=^(LAN_SUBNET|VPN_SUBNET|NGINX_HTTPS_PORT|TRUENAS_IP|PVE1_IP|PVE2_IP|PBS_IP)$$  # protects nginx's own $host/$remote_addr/etc
       - LAN_SUBNET=${LAN_SUBNET:?Set LAN_SUBNET in .env}
       - VPN_SUBNET=${VPN_SUBNET:?Set VPN_SUBNET in .env}
       - NGINX_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}  # so the HTTP->HTTPS redirect points at the real published port
       - TRUENAS_IP=${TRUENAS_IP:?Set TRUENAS_IP in .env}  # substituted into truenas.conf.template's backend
+      # Substituted into pve1/pve2/pbs.conf.template's backend. Drop the var and its conf.d template for any node you don't have
+      - PVE1_IP=${PVE1_IP:?Set PVE1_IP in .env}
+      - PVE2_IP=${PVE2_IP:?Set PVE2_IP in .env}
+      - PBS_IP=${PBS_IP:?Set PBS_IP in .env}
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/certs:/etc/nginx/certs:ro
@@ -113,6 +117,19 @@ services:
       - HOMEPAGE_VAR_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}  # substituted into services.yaml hrefs, see services/homepage/services.yaml
       - HOMEPAGE_VAR_GLANCES_USERNAME=${GLANCES_USERNAME:-glances}  # substituted into widgets.yaml, see services/homepage/widgets.yaml
       - HOMEPAGE_VAR_GLANCES_PASSWORD=${GLANCES_PASSWORD:-}  # substituted into widgets.yaml, set in .env and run ./services/generate-glances-config.sh
+      # Substituted into services.yaml's Proxmox/PBS widgets
+      # No :? here, nginx above already makes them required; a second guard would just be
+      # another place to remember when dropping a node
+      - HOMEPAGE_VAR_PVE1_IP=${PVE1_IP:-}
+      - HOMEPAGE_VAR_PVE2_IP=${PVE2_IP:-}
+      - HOMEPAGE_VAR_PBS_IP=${PBS_IP:-}
+      # One token per node: standalone nodes each keep their own user/token db
+      - HOMEPAGE_VAR_PVE1_TOKEN_ID=${PVE1_TOKEN_ID:-}
+      - HOMEPAGE_VAR_PVE1_TOKEN_SECRET=${PVE1_TOKEN_SECRET:-}
+      - HOMEPAGE_VAR_PVE2_TOKEN_ID=${PVE2_TOKEN_ID:-}
+      - HOMEPAGE_VAR_PVE2_TOKEN_SECRET=${PVE2_TOKEN_SECRET:-}
+      - HOMEPAGE_VAR_PBS_TOKEN_ID=${PBS_TOKEN_ID:-}
+      - HOMEPAGE_VAR_PBS_TOKEN_SECRET=${PBS_TOKEN_SECRET:-}
     volumes:
       - ./homepage:/app/config
       - homepage_disk_probe:/host:ro

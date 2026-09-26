@@ -9,6 +9,9 @@ layout:
   System Monitor:
     style: row
     columns: 5
+  Proxmox:
+    style: row
+    columns: 3
   Media Arr Stack:
     style: row
     # 4 cells: Prowlarr | Collection Managers | qBittorrent | Jellyfin
