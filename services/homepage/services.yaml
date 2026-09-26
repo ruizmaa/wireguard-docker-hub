@@ -96,3 +96,11 @@
           password: "{{HOMEPAGE_VAR_GLANCES_PASSWORD}}"
           version: 4
           metric: disk:sda
+    - Disk:
+        widget:
+          type: glances
+          url: http://glances:61208
+          username: "{{HOMEPAGE_VAR_GLANCES_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_GLANCES_PASSWORD}}"
+          version: 4
+          metric: fs:/

@@ -1,5 +1,7 @@
 - resources:
     disk: /host
+    # Shows the total next to the free space; there is no 'used' mode in this widget
+    expanded: true
     # cpu/memory disabled: they'd only show this container's own usage, not the whole machine's
     # cpu: true
     # memory: true
