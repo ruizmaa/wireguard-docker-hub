@@ -118,11 +118,11 @@ services:
       - HOMEPAGE_VAR_GLANCES_USERNAME=${GLANCES_USERNAME:-glances}  # substituted into widgets.yaml, see services/homepage/widgets.yaml
       - HOMEPAGE_VAR_GLANCES_PASSWORD=${GLANCES_PASSWORD:-}  # substituted into widgets.yaml, set in .env and run ./services/generate-glances-config.sh
       # Substituted into services.yaml's Proxmox/PBS widgets
-      # No :? here, nginx above already makes them required; a second guard would just be
-      # another place to remember when dropping a node
       - HOMEPAGE_VAR_PVE1_IP=${PVE1_IP:-}
       - HOMEPAGE_VAR_PVE2_IP=${PVE2_IP:-}
-      - HOMEPAGE_VAR_PBS_IP=${PBS_IP:-}
+      - HOMEPAGE_VAR_PBS_HOST=${PBS_CERT_HOST:-}
+      # Proxmox/PBS sign their own certs, so trust them instead of switching verification off
+      - NODE_EXTRA_CA_CERTS=/certs/proxmox-ca.pem
       # One token per node: standalone nodes each keep their own user/token db
       - HOMEPAGE_VAR_PVE1_TOKEN_ID=${PVE1_TOKEN_ID:-}
       - HOMEPAGE_VAR_PVE1_TOKEN_SECRET=${PVE1_TOKEN_SECRET:-}
@@ -130,8 +130,11 @@ services:
       - HOMEPAGE_VAR_PVE2_TOKEN_SECRET=${PVE2_TOKEN_SECRET:-}
       - HOMEPAGE_VAR_PBS_TOKEN_ID=${PBS_TOKEN_ID:-}
       - HOMEPAGE_VAR_PBS_TOKEN_SECRET=${PBS_TOKEN_SECRET:-}
+    extra_hosts:
+      - "${PBS_CERT_HOST:?Set PBS_CERT_HOST in .env}:${PBS_IP:-}"
     volumes:
       - ./homepage:/app/config
+      - ./homepage-certs:/certs:ro  # built by ./services/generate-proxmox-ca.sh
       - homepage_disk_probe:/host:ro
     # healthcheck: already baked into this image, no need to add one
 

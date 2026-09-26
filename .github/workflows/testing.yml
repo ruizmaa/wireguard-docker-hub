@@ -28,6 +28,7 @@ jobs:
       PVE1_IP: 192.168.1.97
       PVE2_IP: 192.168.1.98
       PBS_IP: 192.168.1.96
+      PBS_CERT_HOST: pbs.ci.example
       GLANCES_PASSWORD: CI-TESTING-ONLY-NOT-A-REAL-PASSWORD  # just needs to satisfy Homepage's required var
     steps:
       - uses: actions/checkout@v7

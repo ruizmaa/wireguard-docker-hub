@@ -46,7 +46,7 @@
         description: Proxmox Backup Server
         widget:
           type: proxmoxbackupserver
-          url: "https://{{HOMEPAGE_VAR_PBS_IP}}:8007"
+          url: "https://{{HOMEPAGE_VAR_PBS_HOST}}:8007"
           username: "{{HOMEPAGE_VAR_PBS_TOKEN_ID}}"
           password: "{{HOMEPAGE_VAR_PBS_TOKEN_SECRET}}"
 
