@@ -21,7 +21,7 @@
         description: TrueNAS ui
 
 - Proxmox:
-    # Standalone nodes, one card each. The widgets talk to each node's API directly (IP, port 8006/8007), not through nginx
+    # One card per node. The widgets talk to each API directly on 8006/8007, not through nginx
     - pve1:
         icon: proxmox.png
         href: "https://pve1.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
@@ -31,6 +31,7 @@
           url: "https://{{HOMEPAGE_VAR_PVE1_IP}}:8006"
           username: "{{HOMEPAGE_VAR_PVE1_TOKEN_ID}}"
           password: "{{HOMEPAGE_VAR_PVE1_TOKEN_SECRET}}"
+          node: minipc  # without it the widget averages the whole cluster, same numbers on every card
     - pve2:
         icon: proxmox.png
         href: "https://pve2.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
@@ -40,6 +41,7 @@
           url: "https://{{HOMEPAGE_VAR_PVE2_IP}}:8006"
           username: "{{HOMEPAGE_VAR_PVE2_TOKEN_ID}}"
           password: "{{HOMEPAGE_VAR_PVE2_TOKEN_SECRET}}"
+          node: nas  # without it the widget averages the whole cluster, same numbers on every card
     - pbs:
         icon: proxmox-backup-server.png
         href: "https://pbs.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"

@@ -94,6 +94,9 @@ Proxmox and PBS serve certs signed by their own CAs, which Node rejects by defau
 
 It verifies the result against every backend before finishing, using the same image and the same `fetch()` the widgets use, then recreates `homepage` if it's already up. Re-run it with `--force` whenever a node regenerates its certificate. One cluster CA covers every PVE node, present and future; PBS is self-signed, so its own cert is the anchor, and because its SAN carries no IP the widget reaches it by `PBS_CERT_HOST` instead, mapped to `PBS_IP` through the compose file's `extra_hosts`.
 
+Each PVE card pins its own `node:` in `services.yaml`, matching the names `pvecm nodes` prints. Leave it out and
+the widget averages the whole cluster, so every node's card shows identical numbers.
+
 Clustered nodes share one token: users, tokens and ACLs are replicated cluster-wide, so create it once and repeat the same pair for every node. Standalone nodes each need their own, they don't share a user database. PBS is always separate either way.
 
 Homepage fires the API call whether or not the pair is filled in, so an unset token shows that card with an authentication error rather than silently without stats. If you'd rather not set one up, delete that card's `widget:` block from `services/homepage/services.yaml`. Unlike the card links, these widgets talk to each node's API directly by IP (`PVE1_IP` and friends, ports 8006/8007), not through nginx, because the Homepage container resolves names through Docker's DNS, which doesn't know AdGuard's `*.home.arpa` rewrites.
