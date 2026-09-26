@@ -81,12 +81,14 @@ All customization is done through YAML files inside `services/homepage/`, which 
 | `widgets.yaml` | Top-bar info widgets (date, search, resources…) |
 | `settings.yaml` | Global settings (title, theme, layout…) |
 
-The Proxmox and PBS cards also carry a widget each, showing VMs/containers and CPU/memory for a node, and datastore usage plus failed backup tasks for PBS. They need a read-only API token per node in `.env` (`PVE1_TOKEN_ID`/`PVE1_TOKEN_SECRET` and so on), created like this:
+The Proxmox and PBS cards also carry a widget each, showing VMs/containers and CPU/memory for a node, and datastore usage plus failed backup tasks for PBS. They need a read-only API token in `.env`, with a pair of slots per node (`PVE1_TOKEN_ID`/`PVE1_TOKEN_SECRET` and so on), created like this:
 
 - **Proxmox VE**: `Datacenter > Permissions > API Tokens > Add`. Untick *Privilege Separation* or give the token itself the `PVEAuditor` role on `/` under `Datacenter > Permissions`. The ID goes in `.env` in full, e.g. `root@pam!homepage`.
-- **PBS**: `Configuration > Access Control > API Token > Add`, then assign the `Audit` role on `/` to both the user and the token (PBS treats them separately). The ID is e.g. `root@pbs!homepage`.
+- **PBS**: `Configuration > Access Control > API Token > Add`. The ID is e.g. `root@pam!homepage`.
 
-Each node keeps its own token: they're standalone, so they don't share a user database. Homepage fires the API call whether or not the pair is filled in, so an unset token shows that card with an authentication error rather than silently without stats. If you'd rather not set one up, delete that card's `widget:` block from `services/homepage/services.yaml`. Unlike the card links, these widgets talk to each node's API directly by IP (`PVE1_IP` and friends, ports 8006/8007), not through nginx, because the Homepage container resolves names through Docker's DNS, which doesn't know AdGuard's `*.home.arpa` rewrites.
+Clustered nodes share one token: users, tokens and ACLs are replicated cluster-wide, so create it once and repeat the same pair for every node. Standalone nodes each need their own, they don't share a user database. PBS is always separate either way.
+
+Homepage fires the API call whether or not the pair is filled in, so an unset token shows that card with an authentication error rather than silently without stats. If you'd rather not set one up, delete that card's `widget:` block from `services/homepage/services.yaml`. Unlike the card links, these widgets talk to each node's API directly by IP (`PVE1_IP` and friends, ports 8006/8007), not through nginx, because the Homepage container resolves names through Docker's DNS, which doesn't know AdGuard's `*.home.arpa` rewrites.
 
 Edit those files, commit the changes, and restart the container to apply them:
 
