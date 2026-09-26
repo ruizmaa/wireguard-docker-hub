@@ -11,4 +11,8 @@ layout:
     columns: 5
   Media Arr Stack:
     style: row
-    columns: 6
+    # 4 cells: Prowlarr | Collection Managers | qBittorrent | Jellyfin
+    columns: 4
+    useEqualHeights: true
+    Collection Managers:
+      style: column
