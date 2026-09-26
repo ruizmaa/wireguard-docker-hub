@@ -347,6 +347,7 @@ jobs:
           echo "PVE1_IP=192.168.1.97" >> .env
           echo "PVE2_IP=192.168.1.98" >> .env
           echo "PBS_IP=192.168.1.96" >> .env
+          echo "PBS_CERT_HOST=pbs.ci.example" >> .env
           echo "GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD" >> .env
           echo "QBITTORRENT_TORRENT_PORT=16881" >> .env
 
@@ -1051,6 +1052,7 @@ jobs:
           PVE1_IP=192.168.1.97
           PVE2_IP=192.168.1.98
           PBS_IP=192.168.1.96
+          PBS_CERT_HOST=pbs.ci.example
           HOMEPAGE_ALLOWED_HOSTS=ci-allowed.example:3001
           GLANCES_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD
           SYNCTHING_MOUNT_1=/tmp/adguard-rewrite-paths-data:/data1
