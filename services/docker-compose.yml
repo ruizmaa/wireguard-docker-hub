@@ -306,7 +306,7 @@ services:
 
   glances:
     container_name: glances
-    image: nicolargo/glances:4.5.6
+    image: nicolargo/glances:4.5.7
     restart: unless-stopped
     ports:
       - "${GLANCES_WEB_PORT:-61208}:61208"
