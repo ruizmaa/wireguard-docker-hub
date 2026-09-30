@@ -20,6 +20,7 @@ services:
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/certs:/etc/nginx/certs:ro
+      - ../assets/logo-error.svg:/etc/nginx/assets/logo-error.svg:ro
     depends_on:
       adguard:
         condition: service_healthy
