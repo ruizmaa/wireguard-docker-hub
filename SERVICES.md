@@ -439,8 +439,10 @@ All configuration lives in `services/nginx/templates/`, tracked in this reposito
 | `conf.d/<service>.conf.template` | One server block per service: HTTP->HTTPS redirect, TLS, proxy to that service |
 | `conf.d/default.conf.template` | Catches any other host and drops the connection, also serves `/healthz` for the container healthcheck |
 | `proxy_params.conf.template` | Headers shared by every proxied service |
+| `error_page.conf.template` | Serves the error page below, included by the two files above |
+| `error.html` | The error page itself (see [below](#error-pages)), its logo comes from `assets/logo-error.svg` |
 
-These are `.conf.template`, not `.conf`, nginx's own Docker image substitutes `${LAN_SUBNET}`/`${VPN_SUBNET}`/`${NGINX_HTTPS_PORT}` into them and writes the result to `/etc/nginx/` (mirroring this folder's own layout) at container start (`NGINX_ENVSUBST_FILTER` in `docker-compose.yml` restricts substitution to exactly those variables, so it can't touch nginx's own `$host`/`$remote_addr`/etc., which use the same `$` syntax).
+All but `error.html` end in `.template`, nginx's own Docker image substitutes `${LAN_SUBNET}`/`${VPN_SUBNET}`/`${NGINX_HTTPS_PORT}` into them and writes the result to `/etc/nginx/` (mirroring this folder's own layout) at container start (`NGINX_ENVSUBST_FILTER` in `docker-compose.yml` restricts substitution to exactly those variables, so it can't touch nginx's own `$host`/`$remote_addr`/etc., which use the same `$` syntax).
 
 > [!IMPORTANT]
 > Before the first `docker compose up`, generate a wildcard TLS cert for all `*.home.arpa` subdomains, signed by a local CA (this installs [mkcert](https://github.com/FiloSottile/mkcert#installation) via `apt-get` if it's missing. Install `libnss3-tools` yourself first if you also want the CA trusted by Firefox on the home server itself):
@@ -476,6 +478,14 @@ To add or drop a node, copy `conf.d/pve1.conf.template` to `conf.d/<name>.conf.t
 #### LAN vs. WireGuard zone
 
 nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, or `external` for anything outside both subnets) and exposes it as the `X-Client-Zone` response header, verifiable with `curl -I`. Nothing is restricted based on it yet.
+
+#### Error pages
+
+When a backend is stopped or still starting, nginx answers `502` itself, and the same goes for `403`, `404`, `413`, `500`, `503` and `504` that nginx generates rather than proxies. Those get a page styled after this project's logo, with the blocks in red, naming the status code and the host that failed. `server_tokens off` keeps nginx's version out of it and out of the `Server` header.
+
+The page loads nothing a backend would have to be up to answer: its CSS is inline, and its only external file is `assets/logo-error.svg` (the project logo with the blocks in red), which nginx serves itself from the `../assets` bind mount. The page has no `${...}` variables of its own, so it's a plain `.html` the entrypoint's `envsubst` pass skips, served straight from the templates mount. `sub_filter` fills in the status code, the host and a per-code message (`map $status $error_message` in `nginx.conf.template`) as it's served.
+
+Errors that come *from* a backend are untouched: there's no `proxy_intercept_errors`, so a 404 from Sonarr is still Sonarr's own 404 page.
 
 #### nginx **Start**
 

@@ -14,3 +14,5 @@ location / {
     proxy_ssl_verify off;
     proxy_pass $backend_scheme://$backend;
 }
+
+include /etc/nginx/error_page.conf;

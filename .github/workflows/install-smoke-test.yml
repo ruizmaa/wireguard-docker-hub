@@ -1421,6 +1421,74 @@ jobs:
           fi
           echo "$zone_header"
 
+      - name: Verify nginx serves its own error page, not the stock one
+        working-directory: services
+        run: |
+          CACERT="nginx/certs/cert.pem"
+          curl_sonarr() { curl -s --max-time 10 --cacert "$CACERT" --resolve sonarr.home.arpa:443:127.0.0.1 "$@"; }
+
+          # However this step ends, sonarr has to come back listening: the Prowlarr
+          # application-link step below drives its API, and start alone doesn't wait for it
+          restore_sonarr() {
+            rc=$?
+            sudo docker compose start sonarr || { echo "could not restart sonarr"; exit 1; }
+            for i in $(seq 1 12); do
+              if curl -sf --max-time 2 -o /dev/null http://127.0.0.1:8989/ping; then
+                exit "$rc"
+              fi
+              echo "sonarr not answering /ping yet (attempt $i/12), retrying in 5s..."
+              sleep 5
+            done
+            echo "sonarr never answered /ping in the 60s after being restarted"
+            exit 1
+          }
+          trap restore_sonarr EXIT
+
+          # A stopped backend is the 502 the custom page exists for
+          sudo docker compose stop sonarr
+          # || true: a curl that fails to connect is its own diagnostic below, not a bare set -e exit
+          body=$(curl_sonarr -D /tmp/nginx-error.headers https://sonarr.home.arpa/) || true
+          # The page's <img>, fetched while the backend is still down, as a browser would
+          svg=$(curl_sonarr -o /dev/null -w '%{http_code} %{content_type}' https://sonarr.home.arpa/__nginx_error.svg) || true
+
+          if [ ! -s /tmp/nginx-error.headers ]; then
+            echo "no response at all from https://sonarr.home.arpa/ with sonarr stopped"
+            exit 1
+          fi
+          code=$(awk 'NR==1{print $2}' /tmp/nginx-error.headers)
+          if [ "$code" != "502" ]; then
+            echo "expected 502 from the stopped backend, got $code"
+            cat /tmp/nginx-error.headers
+            exit 1
+          fi
+          # sub_filter must have resolved both markers, so the page names what failed
+          for needle in "502" "sonarr.home.arpa" "not responding"; do
+            if ! grep -qF "$needle" <<< "$body"; then
+              echo "custom error page is missing \"$needle\""
+              echo "$body"
+              exit 1
+            fi
+          done
+          if grep -qF "{{" <<< "$body"; then
+            echo "custom error page still has unsubstituted sub_filter markers"
+            exit 1
+          fi
+          # The version leak the stock page has, in the body and in the Server header
+          if grep -qiE 'nginx/[0-9]' <<< "$body"; then
+            echo "error page leaks the nginx version"
+            exit 1
+          fi
+          server_header=$(grep -i '^Server:' /tmp/nginx-error.headers) || true
+          if [ -z "$server_header" ] || grep -qE '[0-9]' <<< "$server_header"; then
+            echo "expected a versionless Server header (server_tokens off), got: '$server_header'"
+            exit 1
+          fi
+          if [ "$svg" != "200 image/svg+xml" ]; then
+            echo "expected the error page's logo to be served, got: $svg"
+            exit 1
+          fi
+          echo "nginx served its own 502 page for a stopped backend"
+
       # Prowlarr/Lidarr/Radarr/Sonarr write their own ApiKey to config.xml on first boot (Servarr apps)
       - name: Set a fixed qBittorrent WebUI password
         working-directory: services

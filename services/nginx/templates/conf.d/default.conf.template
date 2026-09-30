@@ -15,4 +15,7 @@ server {
     location / {
         return 444;
     }
+
+    # So a 413 to an unknown Host doesn't fall back to the stock page either
+    include /etc/nginx/error_page.conf;
 }

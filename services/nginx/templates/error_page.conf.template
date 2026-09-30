@@ -1,0 +1,19 @@
+# Serves nginx.conf's error_page, included at server level by proxy_params.conf and default.conf.
+location = /__nginx_error.html {
+    internal;
+    # Served straight from the templates mount: the page has no variables to substitute,
+    # so it isn't a .template and the entrypoint's envsubst pass leaves it alone.
+    alias /etc/nginx/templates/error.html;
+
+    # sub_filter_once off: {{STATUS}} and {{HOST}} each appear twice in the page
+    sub_filter_once off;
+    sub_filter '{{STATUS}}'  $status;
+    sub_filter '{{HOST}}'    $host;
+    sub_filter '{{MESSAGE}}' $error_message;
+}
+
+# error.html's <img>. Not internal (the browser requests it directly) and not proxied,
+# so it still arrives when the backend behind this host is down.
+location = /__nginx_error.svg {
+    alias /etc/nginx/assets/logo-error.svg;
+}

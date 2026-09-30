@@ -1,0 +1,55 @@
+<!doctype html>
+<!--
+  Served for every error nginx generates itself -- see nginx.conf's error_page and
+  the /__nginx_error.html location in error_page.conf, which fills the placeholders
+  below in with sub_filter. The only external file is assets/logo-error.svg, served by
+  nginx from that same config -- never anything a backend would have to be up to answer.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{STATUS}} &middot; {{HOST}}</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #101317;
+    color: #e6e9ee;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    text-align: center;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+  main { max-width: 32rem; padding-bottom: 8rem; }
+  img { width: min(208px, 50vw); height: auto; }
+  .status {
+    margin: 1.5rem 0 0;
+    font-size: 4rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #e85d5d;
+  }
+  .message { margin: 0.75rem 0 0; font-size: 1.05rem; color: #b9c0cb; }
+  .host {
+    margin: 1.5rem 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.95rem;
+    color: #e2820f;
+    word-break: break-all;
+  }
+</style>
+</head>
+<body>
+<main>
+  <img src="/__nginx_error.svg" alt="" width="208" height="208">
+  <p class="status">{{STATUS}}</p>
+  <p class="message">{{MESSAGE}}</p>
+  <p class="host">{{HOST}}</p>
+</main>
+</body>
+</html>

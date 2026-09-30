@@ -10,6 +10,24 @@ http {
     sendfile      on;
     ssl_protocols TLSv1.2 TLSv1.3;
 
+    # Keeps the version out of the Server header and off any response body
+    server_tokens off;
+
+    # No proxy_intercept_errors, so a backend's own 404 still passes through untouched
+    error_page 403 404 413 500 502 503 504 /__nginx_error.html;
+
+    # Substituted into error.html's {{MESSAGE}}, $status is the code being served.
+    map $status $error_message {
+        default 'The service returned an unexpected response.';
+        403     'Access to this resource is denied.';
+        404     'That address does not exist on this service.';
+        413     'The upload is larger than this service accepts.';
+        500     'The service hit an internal error.';
+        502     'The service is not responding. Its container may be stopped or still starting.';
+        503     'The service is temporarily unavailable.';
+        504     'The service took too long to respond.';
+    }
+
     # Single wildcard cert for every *.home.arpa server block below
     ssl_certificate     /etc/nginx/certs/cert.pem;
     ssl_certificate_key /etc/nginx/certs/key.pem;
