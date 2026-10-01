@@ -17,3 +17,8 @@ location = /__nginx_error.html {
 location = /__nginx_error.svg {
     alias /etc/nginx/assets/logo-error.svg;
 }
+
+# error.html's favicon. Same deal as the logo above: served by nginx, never proxied
+location = /__nginx_error_icon.svg {
+    alias /etc/nginx/assets/favicon-error.svg;
+}

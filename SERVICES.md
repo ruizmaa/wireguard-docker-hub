@@ -440,7 +440,7 @@ All configuration lives in `services/nginx/templates/`, tracked in this reposito
 | `conf.d/default.conf.template` | Catches any other host and drops the connection, also serves `/healthz` for the container healthcheck |
 | `proxy_params.conf.template` | Headers shared by every proxied service |
 | `error_page.conf.template` | Serves the error page below, included by the two files above |
-| `error.html` | The error page itself (see [below](#error-pages)), its logo comes from `assets/logo-error.svg` |
+| `error.html` | The error page itself (see [below](#error-pages)), its logo and favicon come from `assets/logo-error.svg` and `assets/favicon-error.svg` |
 
 All but `error.html` end in `.template`, nginx's own Docker image substitutes `${LAN_SUBNET}`/`${VPN_SUBNET}`/`${NGINX_HTTPS_PORT}` into them and writes the result to `/etc/nginx/` (mirroring this folder's own layout) at container start (`NGINX_ENVSUBST_FILTER` in `docker-compose.yml` restricts substitution to exactly those variables, so it can't touch nginx's own `$host`/`$remote_addr`/etc., which use the same `$` syntax).
 
@@ -483,7 +483,7 @@ nginx computes a `$zone` per request from the client's source IP (`lan`, `vpn`, 
 
 When a backend is stopped or still starting, nginx answers `502` itself, and the same goes for `403`, `404`, `413`, `500`, `503` and `504` that nginx generates rather than proxies. Those get a page styled after this project's logo, with the blocks in red, naming the status code and the host that failed. `server_tokens off` keeps nginx's version out of it and out of the `Server` header.
 
-The page loads nothing a backend would have to be up to answer: its CSS is inline, and its only external file is `assets/logo-error.svg` (the project logo with the blocks in red), which nginx serves itself from the `../assets` bind mount. The page has no `${...}` variables of its own, so it's a plain `.html` the entrypoint's `envsubst` pass skips, served straight from the templates mount. `sub_filter` fills in the status code, the host and a per-code message (`map $status $error_message` in `nginx.conf.template`) as it's served.
+The page loads nothing a backend would have to be up to answer: its CSS is inline, and its only external files are `assets/logo-error.svg` (the project logo with the blocks in red) and `assets/favicon-error.svg` (the same logo redrawn for a 16px tab: the two hubs merged into one, blocks bleeding to the edges), both of which nginx serves itself from the `../assets` bind mounts. Declaring the favicon also stops the browser asking the dead backend for `/favicon.ico`. The page has no `${...}` variables of its own, so it's a plain `.html` the entrypoint's `envsubst` pass skips, served straight from the templates mount. `sub_filter` fills in the status code, the host and a per-code message (`map $status $error_message` in `nginx.conf.template`) as it's served.
 
 One code nginx generates is deliberately kept off that list: `497`, plain `http://` sent to the HTTPS port. It leaves as a `400`, so the page couldn't tell it apart from a genuinely malformed request and would name the wrong cause. It redirects to the same URL on `https://` instead, the way the port-80 server blocks already do.
 

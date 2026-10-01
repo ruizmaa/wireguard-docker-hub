@@ -1450,6 +1450,8 @@ jobs:
           body=$(curl_sonarr -D /tmp/nginx-error.headers https://sonarr.home.arpa/) || true
           # The page's <img>, fetched while the backend is still down, as a browser would
           svg=$(curl_sonarr -o /dev/null -w '%{http_code} %{content_type}' https://sonarr.home.arpa/__nginx_error.svg) || true
+          # Same for its favicon, so the tab never falls back to asking the dead backend for /favicon.ico
+          icon=$(curl_sonarr -o /dev/null -w '%{http_code} %{content_type}' https://sonarr.home.arpa/__nginx_error_icon.svg) || true
 
           if [ ! -s /tmp/nginx-error.headers ]; then
             echo "no response at all from https://sonarr.home.arpa/ with sonarr stopped"
@@ -1485,6 +1487,10 @@ jobs:
           fi
           if [ "$svg" != "200 image/svg+xml" ]; then
             echo "expected the error page's logo to be served, got: $svg"
+            exit 1
+          fi
+          if [ "$icon" != "200 image/svg+xml" ]; then
+            echo "expected the error page's favicon to be served, got: $icon"
             exit 1
           fi
           echo "nginx served its own 502 page for a stopped backend"
