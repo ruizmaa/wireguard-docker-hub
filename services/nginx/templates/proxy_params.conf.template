@@ -12,5 +12,9 @@ location / {
 
     # Proxmox/PBS serve self-signed certs from the LAN: this hop is encrypted, not authenticated.
     proxy_ssl_verify off;
+    # Without it, a stopped container still in nginx.conf's resolver cache hangs the browser 60s
+    proxy_connect_timeout 5s;
     proxy_pass $backend_scheme://$backend;
 }
+
+include /etc/nginx/error_page.conf;

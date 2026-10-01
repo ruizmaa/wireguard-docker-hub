@@ -1421,6 +1421,122 @@ jobs:
           fi
           echo "$zone_header"
 
+      - name: Verify nginx serves its own error page, not the stock one
+        working-directory: services
+        run: |
+          CACERT="nginx/certs/cert.pem"
+          curl_sonarr() { curl -s --max-time 10 --cacert "$CACERT" --resolve sonarr.home.arpa:443:127.0.0.1 "$@"; }
+
+          # However this step ends, sonarr has to come back listening: the Prowlarr
+          # application-link step below drives its API, and start alone doesn't wait for it
+          restore_sonarr() {
+            rc=$?
+            sudo docker compose start sonarr || { echo "could not restart sonarr"; exit 1; }
+            for i in $(seq 1 12); do
+              if curl -sf --max-time 2 -o /dev/null http://127.0.0.1:8989/ping; then
+                exit "$rc"
+              fi
+              echo "sonarr not answering /ping yet (attempt $i/12), retrying in 5s..."
+              sleep 5
+            done
+            echo "sonarr never answered /ping in the 60s after being restarted"
+            exit 1
+          }
+          trap restore_sonarr EXIT
+
+          # A stopped backend is the 502 the custom page exists for
+          sudo docker compose stop sonarr
+          # Outwait nginx.conf's `resolver ... valid=10s`: until it drops sonarr's dead IP, it's a 504
+          sleep 11
+          # || true: a curl that fails to connect is its own diagnostic below, not a bare set -e exit
+          body=$(curl_sonarr -D /tmp/nginx-error.headers https://sonarr.home.arpa/) || true
+          # The page's <img>, fetched while the backend is still down, as a browser would
+          svg=$(curl_sonarr -o /dev/null -w '%{http_code} %{content_type}' https://sonarr.home.arpa/__nginx_error.svg) || true
+          # Same for its favicon, so the tab never falls back to asking the dead backend for /favicon.ico
+          icon=$(curl_sonarr -o /dev/null -w '%{http_code} %{content_type}' https://sonarr.home.arpa/__nginx_error_icon.svg) || true
+
+          if [ ! -s /tmp/nginx-error.headers ]; then
+            echo "no response at all from https://sonarr.home.arpa/ with sonarr stopped"
+            exit 1
+          fi
+          code=$(awk 'NR==1{print $2}' /tmp/nginx-error.headers)
+          if [ "$code" != "502" ]; then
+            echo "expected 502 from the stopped backend, got $code"
+            cat /tmp/nginx-error.headers
+            exit 1
+          fi
+          # sub_filter must have resolved both markers, so the page names what failed
+          for needle in "502" "sonarr.home.arpa" "not responding"; do
+            if ! grep -qF "$needle" <<< "$body"; then
+              echo "custom error page is missing \"$needle\""
+              echo "$body"
+              exit 1
+            fi
+          done
+          if grep -qF "{{" <<< "$body"; then
+            echo "custom error page still has unsubstituted sub_filter markers"
+            exit 1
+          fi
+          # The version leak the stock page has, in the body and in the Server header
+          if grep -qiE 'nginx/[0-9]' <<< "$body"; then
+            echo "error page leaks the nginx version"
+            exit 1
+          fi
+          server_header=$(grep -i '^Server:' /tmp/nginx-error.headers) || true
+          if [ -z "$server_header" ] || grep -qE '[0-9]' <<< "$server_header"; then
+            echo "expected a versionless Server header (server_tokens off), got: '$server_header'"
+            exit 1
+          fi
+          if [ "$svg" != "200 image/svg+xml" ]; then
+            echo "expected the error page's logo to be served, got: $svg"
+            exit 1
+          fi
+          if [ "$icon" != "200 image/svg+xml" ]; then
+            echo "expected the error page's favicon to be served, got: $icon"
+            exit 1
+          fi
+          echo "nginx served its own 502 page for a stopped backend"
+
+          # 497 (http:// on the https port) redirects instead of rendering a page -- it doesn't
+          # touch the backend, so it works just as well with sonarr still stopped
+          redirect=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' \
+                          --resolve sonarr.home.arpa:443:127.0.0.1 "http://sonarr.home.arpa:443/sub/path?q=1") || true
+          if [ "$redirect" != "301 https://sonarr.home.arpa:443/sub/path?q=1" ]; then
+            echo "expected a 301 to the https URL for plain http on the https port, got: $redirect"
+            exit 1
+          fi
+          echo "nginx redirected http-on-the-https-port instead of erroring"
+
+      # Relies on the step above having restarted sonarr and waited for it to answer /ping
+      - name: Verify a backend's own error still reaches the client
+        working-directory: services
+        run: |
+          CACERT="nginx/certs/cert.pem"
+          curl_sonarr() { curl -s --max-time 10 --cacert "$CACERT" --resolve sonarr.home.arpa:443:127.0.0.1 "$@"; }
+
+          # Sonarr's SPA answers 200 for an unknown page path and 401 under /api/, so neither
+          # would prove anything here -- /content/ is where it returns a 404 of its own
+          body=$(curl_sonarr -D /tmp/backend-404.headers https://sonarr.home.arpa/content/nonexistent.js) || true
+
+          if [ ! -s /tmp/backend-404.headers ]; then
+            echo "no response at all from https://sonarr.home.arpa/content/nonexistent.js"
+            exit 1
+          fi
+          code=$(awk 'NR==1{print $2}' /tmp/backend-404.headers)
+          if [ "$code" != "404" ]; then
+            echo "expected Sonarr's own 404 for /content/nonexistent.js, got $code"
+            cat /tmp/backend-404.headers
+            exit 1
+          fi
+          # That same URL does serve nginx's page once sonarr is stopped, so this marker is what
+          # separates a passthrough from someone having turned proxy_intercept_errors on
+          if grep -qF '__nginx_error.svg' <<< "$body"; then
+            echo "nginx replaced the backend's own 404 with the custom error page"
+            echo "$body"
+            exit 1
+          fi
+          echo "a backend's own 404 still reaches the client untouched"
+
       # Prowlarr/Lidarr/Radarr/Sonarr write their own ApiKey to config.xml on first boot (Servarr apps)
       - name: Set a fixed qBittorrent WebUI password
         working-directory: services
