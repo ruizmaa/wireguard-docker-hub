@@ -1446,6 +1446,8 @@ jobs:
 
           # A stopped backend is the 502 the custom page exists for
           sudo docker compose stop sonarr
+          # Outwait nginx.conf's `resolver ... valid=10s`: until it drops sonarr's dead IP, it's a 504
+          sleep 11
           # || true: a curl that fails to connect is its own diagnostic below, not a bare set -e exit
           body=$(curl_sonarr -D /tmp/nginx-error.headers https://sonarr.home.arpa/) || true
           # The page's <img>, fetched while the backend is still down, as a browser would
