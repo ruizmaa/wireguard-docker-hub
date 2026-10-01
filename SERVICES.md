@@ -485,6 +485,8 @@ When a backend is stopped or still starting, nginx answers `502` itself, and the
 
 The page loads nothing a backend would have to be up to answer: its CSS is inline, and its only external file is `assets/logo-error.svg` (the project logo with the blocks in red), which nginx serves itself from the `../assets` bind mount. The page has no `${...}` variables of its own, so it's a plain `.html` the entrypoint's `envsubst` pass skips, served straight from the templates mount. `sub_filter` fills in the status code, the host and a per-code message (`map $status $error_message` in `nginx.conf.template`) as it's served.
 
+One code nginx generates is deliberately kept off that list: `497`, plain `http://` sent to the HTTPS port. It leaves as a `400`, so the page couldn't tell it apart from a genuinely malformed request and would name the wrong cause. It redirects to the same URL on `https://` instead, the way the port-80 server blocks already do.
+
 Errors that come *from* a backend are untouched: there's no `proxy_intercept_errors`, so a 404 from Sonarr is still Sonarr's own 404 page.
 
 #### nginx **Start**

@@ -16,6 +16,9 @@ http {
     # No proxy_intercept_errors, so a backend's own 404 still passes through untouched
     error_page 403 404 413 500 502 503 504 /__nginx_error.html;
 
+    # 497 is http:// on the https port. It goes out as 400, so a page would name the wrong cause
+    error_page 497 =301 https://$host:${NGINX_HTTPS_PORT}$request_uri;
+
     # Substituted into error.html's {{MESSAGE}}, $status is the code being served.
     map $status $error_message {
         default 'The service returned an unexpected response.';

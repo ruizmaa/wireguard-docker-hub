@@ -1489,6 +1489,46 @@ jobs:
           fi
           echo "nginx served its own 502 page for a stopped backend"
 
+          # 497 (http:// on the https port) redirects instead of rendering a page -- it doesn't
+          # touch the backend, so it works just as well with sonarr still stopped
+          redirect=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' \
+                          --resolve sonarr.home.arpa:443:127.0.0.1 "http://sonarr.home.arpa:443/sub/path?q=1") || true
+          if [ "$redirect" != "301 https://sonarr.home.arpa:443/sub/path?q=1" ]; then
+            echo "expected a 301 to the https URL for plain http on the https port, got: $redirect"
+            exit 1
+          fi
+          echo "nginx redirected http-on-the-https-port instead of erroring"
+
+      # Relies on the step above having restarted sonarr and waited for it to answer /ping
+      - name: Verify a backend's own error still reaches the client
+        working-directory: services
+        run: |
+          CACERT="nginx/certs/cert.pem"
+          curl_sonarr() { curl -s --max-time 10 --cacert "$CACERT" --resolve sonarr.home.arpa:443:127.0.0.1 "$@"; }
+
+          # Sonarr's SPA answers 200 for an unknown page path and 401 under /api/, so neither
+          # would prove anything here -- /content/ is where it returns a 404 of its own
+          body=$(curl_sonarr -D /tmp/backend-404.headers https://sonarr.home.arpa/content/nonexistent.js) || true
+
+          if [ ! -s /tmp/backend-404.headers ]; then
+            echo "no response at all from https://sonarr.home.arpa/content/nonexistent.js"
+            exit 1
+          fi
+          code=$(awk 'NR==1{print $2}' /tmp/backend-404.headers)
+          if [ "$code" != "404" ]; then
+            echo "expected Sonarr's own 404 for /content/nonexistent.js, got $code"
+            cat /tmp/backend-404.headers
+            exit 1
+          fi
+          # That same URL does serve nginx's page once sonarr is stopped, so this marker is what
+          # separates a passthrough from someone having turned proxy_intercept_errors on
+          if grep -qF '__nginx_error.svg' <<< "$body"; then
+            echo "nginx replaced the backend's own 404 with the custom error page"
+            echo "$body"
+            exit 1
+          fi
+          echo "a backend's own 404 still reaches the client untouched"
+
       # Prowlarr/Lidarr/Radarr/Sonarr write their own ApiKey to config.xml on first boot (Servarr apps)
       - name: Set a fixed qBittorrent WebUI password
         working-directory: services
