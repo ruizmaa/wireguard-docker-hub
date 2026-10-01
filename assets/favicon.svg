@@ -1,0 +1,18 @@
+<!-- logo.svg redrawn for a 16px browser tab: the two hubs merged into one, blocks bleeding to the viewBox edges. Same geometry as favicon-error.svg, only the block colours differ. Not used yet. -->
+<svg viewBox="23.5 40 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect x="50" y="120" width="100" height="48" rx="16" fill="#155a91"/>
+  <rect x="25" y="80" width="100" height="48" rx="16" fill="#1c6fb0"/>
+  <rect x="45" y="40" width="100" height="48" rx="16" fill="#3fa9f5"/>
+  <g stroke="#e8cba8" stroke-linecap="round" fill="none">
+    <path d="M102 112 108 64" stroke-width="7.8"/>
+    <path d="M41 58 102 112 140 133" stroke-width="6.5"/>
+    <path d="M102 112 47 142" stroke-width="5.2"/>
+  </g>
+  <g fill="#e2820f">
+    <circle cx="102" cy="112" r="11"/>
+    <circle cx="108" cy="64" r="11"/>
+    <circle cx="41" cy="58" r="11"/>
+    <circle cx="140" cy="133" r="11"/>
+    <circle cx="47" cy="142" r="11"/>
+  </g>
+</svg>
