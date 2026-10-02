@@ -1620,6 +1620,21 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Prowlarr can reach FlareSolverr as an indexer proxy
+        working-directory: services
+        run: |
+          PROWLARR_KEY=$(sudo docker compose exec -T prowlarr sh -c "grep -o '<ApiKey>[^<]*</ApiKey>' /config/config.xml | sed 's/<[^>]*>//g'")
+          body='{"name":"FlareSolverr","implementation":"FlareSolverr","configContract":"FlareSolverrSettings","fields":[{"name":"host","value":"http://flaresolverr:8191/"},{"name":"requestTimeout","value":60}],"tags":[]}'
+          # Prowlarr's test has FlareSolverr's Chromium fetch prowlarr.servarr.com, so this needs internet
+          status=$(curl -s -o /tmp/prowlarr-flaresolverr.json -w '%{http_code}' -X POST -H "X-Api-Key: $PROWLARR_KEY" \
+            -H "Content-Type: application/json" -d "$body" http://127.0.0.1:9696/api/v1/indexerproxy/test)
+          if [ "$status" != "200" ]; then
+            echo "Prowlarr could not use FlareSolverr as an indexer proxy (test returned $status):"
+            cat /tmp/prowlarr-flaresolverr.json
+            exit 1
+          fi
+          echo "Prowlarr -> FlareSolverr indexer proxy verified"
+
       - name: Configure qBittorrent as Lidarr/Radarr/Sonarr's download client and verify it connects
         working-directory: services
         run: |
