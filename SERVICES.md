@@ -351,6 +351,19 @@ An indexer proxy, for trackers [Prowlarr](#prowlarr) doesn't support or handles 
 
 Open the web UI at `http://<SERVER_IP>:9117`, set an `Admin password` at the bottom of the page, and add your trackers with `+ Add indexer`. For each one, click `Copy Torznab Feed`, then in Prowlarr go to `Indexers > Add Indexer > Generic Torznab` and paste it as the URL, swapping the host for `jackett:9117` (e.g. `http://jackett:9117/api/v2.0/indexers/<id>/results/torznab/`), with Jackett's `API Key` from the top of its dashboard. Prowlarr then syncs it to the apps like any other indexer.
 
+### [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr)
+
+Gets [Prowlarr](#prowlarr)/[Jackett](#jackett) past Cloudflare's "Checking your browser..." page, which some trackers sit behind: it loads the page in a headless Chromium, solves the challenge and hands the cookies back. Only needed if one of your indexers fails with a Cloudflare error.
+
+#### FlareSolverr **Configuration**
+
+- No web UI and no published port: it's an unauthenticated proxy that will fetch any URL, so it's only reachable from other containers at `http://flaresolverr:8191`, not from the LAN/VPN or through [nginx](#nginx-reverse-proxy)
+
+#### FlareSolverr **Start**
+
+- **Prowlarr**: under `Settings > Indexers`, add an `Indexer Proxy` of type `FlareSolverr` with host `http://flaresolverr:8191/` and a tag (e.g. `flaresolverr`). Prowlarr only routes an indexer through it if that indexer carries the same tag, so add the tag to each indexer that needs it.
+- **Jackett**: set `FlareSolverr API URL` to `http://flaresolverr:8191` in the settings at the bottom of its dashboard, then `Apply server settings`. Jackett uses it automatically for the trackers that need it.
+
 ### [Lidarr](https://hub.docker.com/r/linuxserver/lidarr)
 
 A music collection manager: tracks your wanted artists and albums, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).

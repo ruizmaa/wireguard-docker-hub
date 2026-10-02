@@ -48,7 +48,8 @@ jobs:
         run: |
           # homepage has no card for itself; nginx is a reverse proxy in front of the other
           # services, not something with its own dashboard card
-          services=$(docker compose -f services/docker-compose.yml config --services | grep -v -E '^(homepage|nginx)$')
+          # flaresolverr has no UI, only Prowlarr/Jackett use it internally
+          services=$(docker compose -f services/docker-compose.yml config --services | grep -v -E '^(homepage|nginx|flaresolverr)$')
           python3 - $services <<'PY'
           import re
           import sys
@@ -90,7 +91,8 @@ jobs:
         run: |
           # nginx doesn't proxy itself; every other service needs a conf.d template
           # declaring its own <service>.home.arpa hostname
-          services=$(docker compose -f services/docker-compose.yml config --services | grep -v '^nginx$')
+          # flaresolverr is an unauthenticated proxy, deliberately kept off nginx
+          services=$(docker compose -f services/docker-compose.yml config --services | grep -v -E '^(nginx|flaresolverr)$')
           missing=""
           for svc in $services; do
             template="services/nginx/templates/conf.d/$svc.conf.template"

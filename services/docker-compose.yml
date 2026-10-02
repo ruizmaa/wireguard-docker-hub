@@ -231,6 +231,22 @@ services:
       retries: 3
       start_period: 1m
 
+  flaresolverr:
+    container_name: flaresolverr
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
+    restart: unless-stopped
+    # No ports: unauthenticated proxy, only Prowlarr/Jackett reach it at flaresolverr:8191
+    environment:
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    tmpfs:
+      - /config  # image declares it but never uses it, else every down/up orphans an anonymous volume
+    healthcheck:
+      test: curl -fsS -m 2 http://127.0.0.1:8191/health || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+
   radarr:
     container_name: radarr
     image: lscr.io/linuxserver/radarr:6.4.4
