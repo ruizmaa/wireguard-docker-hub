@@ -40,7 +40,7 @@ The services are defined in `services/docker-compose.yml`. Copy the services you
 
 Copy `.env.example` (repo root) to `.env` in this directory and set `PUID`/`PGID`/`TZ` plus your real Syncthing (`SYNCTHING_MOUNT_1`, `SYNCTHING_MOUNT_2`, etc.) data mounts, each a full `host_path:container_path`.
 
-The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`, `QBITTORRENT_WEB_PORT`, `QBITTORRENT_TORRENT_PORT`, `PROWLARR_WEB_PORT`, `LIDARR_WEB_PORT`, `RADARR_WEB_PORT`, `SONARR_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
+The host ports (`NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `ADGUARD_WEB_PORT`, `ADGUARD_DNS_PORT`, `ADGUARD_SETUP_PORT`, `HOMEPAGE_WEB_PORT`, `JELLYFIN_WEB_PORT`, `JELLYFIN_DISCOVERY_PORT`, `SYNCTHING_WEB_PORT`, `SYNCTHING_SYNC_PORT`, `SYNCTHING_DISCOVERY_PORT`, `DOCKGE_WEB_PORT`, `GLANCES_WEB_PORT`, `QBITTORRENT_WEB_PORT`, `QBITTORRENT_TORRENT_PORT`, `PROWLARR_WEB_PORT`, `JACKETT_WEB_PORT`, `LIDARR_WEB_PORT`, `RADARR_WEB_PORT`, `SONARR_WEB_PORT`) are optional. Leave them out to use the defaults shown in `.env.example`, or set them if you need these services on different ports.
 
 `LAN_SUBNET` and `VPN_SUBNET` are required for [nginx](#nginx-reverse-proxy), as are `TRUENAS_IP` and the `PVE1_IP`/`PVE2_IP`/`PBS_IP` of the [external devices it proxies](#proxying-external-devices-proxmox-ve-and-pbs). `HOMEPAGE_ALLOWED_HOSTS` is required for [Homepage](#homepage). `docker compose up` refuses to start the whole stack if any of these are missing. `GLANCES_PASSWORD` is also required, see [Glances](#glances), but it only fails that one container instead of the whole stack.
 
@@ -136,7 +136,7 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 >
 > Prompts for an admin username/password (hidden input, 8+ characters), then generates `services/adguard/conf/AdGuardHome.yaml` for you. Web port `80`/DNS port `53` on all interfaces, matching what [nginx](#nginx-reverse-proxy) expects. Skips AdGuard's own first-run wizard entirely: DNS and the web UI are live immediately on first boot. Re-run with `--force` to regenerate it (e.g. to change the password).
 >
-> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa`, showing what it's about to change before asking for confirmation:
+> If [nginx](#nginx-reverse-proxy) is in use, it also sets up split-horizon DNS for `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`jackett.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa`, showing what it's about to change before asking for confirmation:
 >
 > - LAN clients resolve them to this host's LAN IP, found via a route lookup against `LAN_SUBNET` (overridable with `ADGUARD_LAN_IP`, CI sets this).
 > - VPN (WireGuard) clients resolve them to this host's own tunnel IP instead, read from its `wg0` interface (overridable with `ADGUARD_VPN_IP`, CI sets this).
@@ -154,7 +154,7 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 - **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
-If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`jackett.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
 
 #### Tracking your config
 
@@ -338,6 +338,19 @@ An indexer manager: configure your indexers once here, then [Lidarr](#lidarr)/[R
 
 Open the web UI at `http://<SERVER_IP>:9696` and add your indexers under `Indexers`. Then add [Lidarr](#lidarr), [Radarr](#radarr) and [Sonarr](#sonarr) under `Settings > Apps` (Prowlarr Server: `http://prowlarr:9696`, app URLs `http://lidarr:8686`/`http://radarr:7878`/`http://sonarr:8989`) so it keeps their indexer lists in sync.
 
+### [Jackett](https://hub.docker.com/r/linuxserver/jackett)
+
+An indexer proxy, for trackers [Prowlarr](#prowlarr) doesn't support or handles poorly. Jackett is added to Prowlarr as one more indexer, so [Lidarr](#lidarr)/[Radarr](#radarr)/[Sonarr](#sonarr) still only talk to Prowlarr.
+
+#### Jackett **Configuration**
+
+- Web interface: `http://<SERVER_IP>:9117`
+- Persistent volume: `jackett_config` -> `/config`
+
+#### Jackett **Start**
+
+Open the web UI at `http://<SERVER_IP>:9117`, set an `Admin password` at the bottom of the page, and add your trackers with `+ Add indexer`. For each one, click `Copy Torznab Feed`, then in Prowlarr go to `Indexers > Add Indexer > Generic Torznab` and paste it as the URL, swapping the host for `jackett:9117` (e.g. `http://jackett:9117/api/v2.0/indexers/<id>/results/torznab/`), with Jackett's `API Key` from the top of its dashboard. Prowlarr then syncs it to the apps like any other indexer.
+
 ### [Lidarr](https://hub.docker.com/r/linuxserver/lidarr)
 
 A music collection manager: tracks your wanted artists and albums, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).
@@ -495,7 +508,7 @@ Errors that come *from* a backend are untouched: there's no `proxy_intercept_err
 docker compose up -d
 ```
 
-Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://qbittorrent.home.arpa`, `https://prowlarr.home.arpa`, `https://lidarr.home.arpa`, `https://radarr.home.arpa`, `https://sonarr.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`, `https://pve1.home.arpa`, `https://pve2.home.arpa`, `https://pbs.home.arpa`.
+Then, from a device whose DNS resolves `*.home.arpa` to the home server (see [AdGuard Start](#adguard-start)): `https://adguard.home.arpa`, `https://homepage.home.arpa`, `https://jellyfin.home.arpa`, `https://qbittorrent.home.arpa`, `https://prowlarr.home.arpa`, `https://jackett.home.arpa`, `https://lidarr.home.arpa`, `https://radarr.home.arpa`, `https://sonarr.home.arpa`, `https://syncthing.home.arpa`, `https://dockge.home.arpa`, `https://glances.home.arpa`, `https://truenas.home.arpa`, `https://pve1.home.arpa`, `https://pve2.home.arpa`, `https://pbs.home.arpa`.
 
 ---
 
