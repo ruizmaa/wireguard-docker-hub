@@ -1597,6 +1597,29 @@ jobs:
           add_app radarr 7878 "$(get_api_key radarr)"
           add_app sonarr 8989 "$(get_api_key sonarr)"
 
+      - name: Verify Prowlarr can use Jackett as a Generic Torznab indexer
+        working-directory: services
+        run: |
+          PROWLARR_KEY=$(sudo docker compose exec -T prowlarr sh -c "grep -o '<ApiKey>[^<]*</ApiKey>' /config/config.xml | sed 's/<[^>]*>//g'")
+          JACKETT_KEY=$(sudo docker compose exec -T jackett sh -c "grep -o '\"APIKey\": *\"[^\"]*\"' /config/Jackett/ServerConfig.json | cut -d'\"' -f4")
+          if [ -z "$JACKETT_KEY" ]; then
+            echo "could not read Jackett's APIKey from ServerConfig.json"
+            exit 1
+          fi
+          # Jackett's "all" aggregate feed, same /api/v2.0/.../results/torznab path SERVICES.md documents
+          body="{\"name\":\"Jackett\",\"enable\":true,\"protocol\":\"torrent\",\"priority\":25,\"appProfileId\":1,\"implementation\":\"Torznab\",\"configContract\":\"TorznabSettings\",\"fields\":[{\"name\":\"baseUrl\",\"value\":\"http://jackett:9117/api/v2.0/indexers/all/results/torznab\"},{\"name\":\"apiPath\",\"value\":\"/api\"},{\"name\":\"apiKey\",\"value\":\"$JACKETT_KEY\"}],\"tags\":[]}"
+          status=$(curl -s -o /tmp/prowlarr-jackett.json -w '%{http_code}' -X POST -H "X-Api-Key: $PROWLARR_KEY" \
+            -H "Content-Type: application/json" -d "$body" http://127.0.0.1:9696/api/v1/indexer/test)
+          # CI's Jackett has no trackers, so an empty result set is the best case: it only comes back
+          # once Prowlarr reached Jackett, authenticated and ran a Torznab query (a bad key fails earlier)
+          if [ "$status" = "200" ] || { [ "$status" = "400" ] && grep -q "Query successful, but no results" /tmp/prowlarr-jackett.json; }; then
+            echo "Prowlarr -> Jackett Torznab feed verified"
+          else
+            echo "Prowlarr could not use Jackett as a Torznab indexer (test returned $status):"
+            cat /tmp/prowlarr-jackett.json
+            exit 1
+          fi
+
       - name: Configure qBittorrent as Lidarr/Radarr/Sonarr's download client and verify it connects
         working-directory: services
         run: |
