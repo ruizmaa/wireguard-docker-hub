@@ -18,6 +18,7 @@ layout:
     columns: 4
     useEqualHeights: true
     Indexer:
+      style: column
     Collection Managers:
       style: column
     Downloader:

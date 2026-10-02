@@ -59,6 +59,10 @@
             icon: prowlarr.png
             href: "https://prowlarr.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
             description: Indexer manager
+        - Jackett:
+            icon: jackett.png
+            href: "https://jackett.home.arpa:{{HOMEPAGE_VAR_HTTPS_PORT}}"
+            description: Indexer proxy for trackers Prowlarr lacks
 
     - Collection Managers:
         - Radarr:
