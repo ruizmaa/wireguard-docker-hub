@@ -30,6 +30,8 @@ services:
         condition: service_healthy
       homepage:
         condition: service_healthy
+      jackett:
+        condition: service_healthy
       jellyfin:
         condition: service_started
       lidarr:
@@ -210,6 +212,25 @@ services:
       retries: 3
       start_period: 1m
 
+  jackett:
+    container_name: jackett
+    image: lscr.io/linuxserver/jackett:0.24.2756
+    restart: unless-stopped
+    ports:
+      - "${JACKETT_WEB_PORT:-9117}:9117"
+    environment:
+      - PUID=1000  # You can check your PUID with the command `id`
+      - PGID=1000  # You can check your PGID with the command `id`
+      - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    volumes:
+      - jackett_config:/config
+    healthcheck:
+      test: curl -fsS -m 2 http://127.0.0.1:9117/health || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+
   radarr:
     container_name: radarr
     image: lscr.io/linuxserver/radarr:6.4.4
@@ -339,6 +360,8 @@ volumes:
     name: qbittorrent_config
   prowlarr_config:
     name: prowlarr_config
+  jackett_config:
+    name: jackett_config
   radarr_config:
     name: radarr_config
   sonarr_config:
