@@ -238,6 +238,8 @@ services:
     # No ports: unauthenticated proxy, only Prowlarr/Jackett reach it at flaresolverr:8191
     environment:
       - TZ=${TZ:-Etc/UTC}  # <your_time_zone>
+    tmpfs:
+      - /config  # image declares it but never uses it, else every down/up orphans an anonymous volume
     healthcheck:
       test: curl -fsS -m 2 http://127.0.0.1:8191/health || exit 1
       interval: 1m
