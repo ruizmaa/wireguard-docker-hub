@@ -415,6 +415,8 @@ A music collection manager: tracks your wanted artists and albums, searches [Pro
 
 Open the web UI at `http://<SERVER_IP>:8686`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/music` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
+Tick `Rename Tracks` under `Settings > Media Management` (`Show Advanced` if it's hidden): imports otherwise keep the release's own file names. The default naming format is enough. For files already imported, use `Preview Rename` on each item. Then connect it to Jellyfin so new imports show up without a manual scan, see [Jellyfin Start](#jellyfin-start).
+
 ### [Radarr](https://hub.docker.com/r/linuxserver/radarr)
 
 A movie collection manager: tracks a wishlist, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).
@@ -429,6 +431,8 @@ A movie collection manager: tracks a wishlist, searches [Prowlarr](#prowlarr)'s 
 
 Open the web UI at `http://<SERVER_IP>:7878`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/movies` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
+Tick `Rename Movies` under `Settings > Media Management` (`Show Advanced` if it's hidden): imports otherwise keep the release's own file name, which Jellyfin matches less reliably than `Title (Year)`. The default naming format is enough. For files already imported, use `Preview Rename` on each item. Then connect it to Jellyfin so new imports show up without a manual scan, see [Jellyfin Start](#jellyfin-start).
+
 ### [Sonarr](https://hub.docker.com/r/linuxserver/sonarr)
 
 A TV show collection manager: tracks your series and new episodes as they air, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).
@@ -442,6 +446,8 @@ A TV show collection manager: tracks your series and new episodes as they air, s
 #### Sonarr **Start**
 
 Open the web UI at `http://<SERVER_IP>:8989`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/series` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
+
+Tick `Rename Episodes` under `Settings > Media Management` (`Show Advanced` if it's hidden): imports otherwise keep the release's own file name, and Jellyfin can't match names like `Show [HDTV 720p][Cap.101].mkv`. The default naming format is enough. For files already imported, use `Preview Rename` on each item. Then connect it to Jellyfin so new imports show up without a manual scan, see [Jellyfin Start](#jellyfin-start).
 
 ### [Dockge](https://github.com/louislam/dockge)
 
