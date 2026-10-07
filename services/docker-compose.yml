@@ -214,7 +214,7 @@ services:
 
   jackett:
     container_name: jackett
-    image: lscr.io/linuxserver/jackett:0.24.2756
+    image: lscr.io/linuxserver/jackett:0.24.2800
     restart: unless-stopped
     ports:
       - "${JACKETT_WEB_PORT:-9117}:9117"
