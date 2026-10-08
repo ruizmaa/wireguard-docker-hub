@@ -307,6 +307,7 @@ Open the web UI at `http://<SERVER_IP>:8096` and run through the setup wizard, o
 - **Users** (`Dashboard > Users > +`): set username/password, then on that user tune `Access` (which libraries they can see), `Playback` (allow/restrict direct play vs transcoding) and uncheck the admin permissions for non-admin accounts.
 - **Libraries** (`Dashboard > Libraries > Add Media Library`): one library with content type `Movies` and folder `/data/movies`, another with content type `Shows` and folder `/data/series`, another with content type `Music` and folder `/data/music` and so on, matching the mounts above. Set your preferred metadata language/country and enable the providers you want (TheMovieDB, TheTVDB, OpenSubtitles...), then let the initial library scan finish.
 - **Hardware acceleration** (after running `setup-jellyfin-hwaccel.sh` above): Go to `Dashboard > Playback > Transcoding` and set `Hardware acceleration` to `Intel QuickSync (QSV)` and `QSV device` to `/dev/dri/renderD128`. Enable hardware decoding for the codecs your library uses (H264, HEVC, HEVC 10bit, VP9, VP9 10bit, MPEG2, VC1, AV1). If `dmesg | grep -i huc` shows `HuC: authenticated for all workloads`, also enable the low-power encoders for H.264/HEVC. Leave AV1 encoding off unless your iGPU actually has a hardware AV1 encoder, otherwise enabling it just pushes the encode onto the CPU instead. Enable VPP tone mapping for HDR->SDR. Verify afterwards that compatible content plays back as `Direct Play` (no transcoding) in the active-sessions panel.
+- **Library refresh from Lidarr/Radarr/Sonarr**: Jellyfin doesn't always notice new files on its own, especially over NFS. Have each app notify it on import instead: create one key per app under `Dashboard > API Keys > +` (named `lidarr`, `radarr`, `sonarr`), so revoking one doesn't break the others. Then in each app, `Settings > Connect > + > Emby / Jellyfin`, host `jellyfin`, port `8096`, no SSL, that app's API key, `Update Library` ticked.
 
 ### [qBittorrent](https://hub.docker.com/r/linuxserver/qbittorrent)
 
@@ -349,7 +350,43 @@ An indexer proxy, for trackers [Prowlarr](#prowlarr) doesn't support or handles 
 
 #### Jackett **Start**
 
-Open the web UI at `http://<SERVER_IP>:9117`, set an `Admin password` at the bottom of the page, and add your trackers with `+ Add indexer`. For each one, click `Copy Torznab Feed`, then in Prowlarr go to `Indexers > Add Indexer > Generic Torznab` and paste it as the URL, swapping the host for `jackett:9117` (e.g. `http://jackett:9117/api/v2.0/indexers/<id>/results/torznab/`), with Jackett's `API Key` from the top of its dashboard. Prowlarr then syncs it to the apps like any other indexer.
+Open the web UI at `http://<SERVER_IP>:9117`, set an `Admin password` at the bottom of the page, and add your trackers with `+ Add indexer`. For each one, click `Copy Torznab Feed`, then in Prowlarr go to `Indexers > Add Indexer > Generic Torznab` (type `torznab` in its search box, and clear the language filter if it's set) and paste it as the URL, swapping the scheme and host for `http://jackett:9117` (e.g. `http://jackett:9117/api/v2.0/indexers/<id>/results/torznab/`), with Jackett's `API Key` from the top of its dashboard. Prowlarr then syncs it to the apps like any other indexer.
+
+The copied feed starts with whatever address you opened Jackett from. Replace everything before `/api/` and keep the rest:
+
+```text
+copied:  https://jackett.home.arpa/api/v2.0/indexers/<id>/results/torznab/
+         http://<SERVER_IP>:9117/api/v2.0/indexers/<id>/results/torznab/
+use:     http://jackett:9117/api/v2.0/indexers/<id>/results/torznab/
+```
+
+Left as `jackett.home.arpa`, Prowlarr fails with `Name does not resolve (jackett.home.arpa:443)`: containers use Docker's DNS, not [AdGuard](#adguard-home), so they never see `*.home.arpa`.
+
+#### Trackers that block the VPS (Cloudflare error `1005`)
+
+If the home server tunnels all its traffic through the VPS (`AllowedIPs = 0.0.0.0/0`), Jackett and [FlareSolverr](#flaresolverr) reach trackers from the VPS's datacenter IP. Some trackers ban whole datacenter networks, and adding one fails with an HTML page containing `errorCode: 1005` (`Access denied ... used Cloudflare to restrict access`). That's a ban on the IP's network, not a challenge, so FlareSolverr can't solve it.
+
+The fix is to send only Jackett's traffic out through your home connection, via an HTTP proxy on another LAN device that isn't behind the tunnel. Not the home server itself, its traffic would still leave through the VPS. Downloads are unaffected: qBittorrent keeps going through the VPS, only Jackett's searches leave from your home IP. E.g. on TrueNAS SCALE, `Apps > Discover Apps > Install via YAML` (the first time, it asks for a pool to store apps in):
+
+```yaml
+services:
+  proxy:
+    image: gogost/gost:latest
+    restart: unless-stopped
+    command: ["-L", "jackett:<password>@:3128"]
+    ports:
+      - "3128:3128"
+```
+
+Use a letters-and-digits password: it ends up inside a proxy URL and on the command line. Don't forward `3128` on your router. Check it from the home server, it should print your home IP rather than the VPS's:
+
+```bash
+docker exec jackett curl -s -x 'http://jackett:<password>@<NAS_IP>:3128' https://ipinfo.io/ip
+```
+
+Then in Jackett's settings set `Proxy type` `HTTP`, `Proxy URL` `<NAS_IP>`, `Proxy port` `3128` and the username/password, plus `FlareSolverr API URL` (see [FlareSolverr Start](#flaresolverr-start)), and `Apply server settings`. The proxy applies to all of Jackett's indexers, and Jackett also hands it to FlareSolverr with each request, so the Cloudflare challenge is solved from your home IP too. FlareSolverr's log prints each request as-is, proxy password included.
+
+Some indexers don't publish seeder/peer counts, and Jackett fills in fixed values (MejorTorrent always shows 1 seeder and 2 peers), so that column means nothing for them. qBittorrent shows the real numbers once the download starts.
 
 ### [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr)
 
@@ -378,6 +415,8 @@ A music collection manager: tracks your wanted artists and albums, searches [Pro
 
 Open the web UI at `http://<SERVER_IP>:8686`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/music` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
+Tick `Rename Tracks` under `Settings > Media Management` (`Show Advanced` if it's hidden): imports otherwise keep the release's own file names. The default naming format is enough. For files already imported, use `Preview Rename` on each item. Then connect it to Jellyfin so new imports show up without a manual scan, see [Jellyfin Start](#jellyfin-start).
+
 ### [Radarr](https://hub.docker.com/r/linuxserver/radarr)
 
 A movie collection manager: tracks a wishlist, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).
@@ -392,6 +431,8 @@ A movie collection manager: tracks a wishlist, searches [Prowlarr](#prowlarr)'s 
 
 Open the web UI at `http://<SERVER_IP>:7878`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/movies` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
 
+Tick `Rename Movies` under `Settings > Media Management` (`Show Advanced` if it's hidden): imports otherwise keep the release's own file name, which Jellyfin matches less reliably than `Title (Year)`. The default naming format is enough. For files already imported, use `Preview Rename` on each item. Then connect it to Jellyfin so new imports show up without a manual scan, see [Jellyfin Start](#jellyfin-start).
+
 ### [Sonarr](https://hub.docker.com/r/linuxserver/sonarr)
 
 A TV show collection manager: tracks your series and new episodes as they air, searches [Prowlarr](#prowlarr)'s indexers for releases, and sends them to [qBittorrent](#qbittorrent).
@@ -405,6 +446,8 @@ A TV show collection manager: tracks your series and new episodes as they air, s
 #### Sonarr **Start**
 
 Open the web UI at `http://<SERVER_IP>:8989`. Add qBittorrent as a download client (`Settings > Download Clients`, host `qbittorrent`, port `8080`, plus the WebUI credentials from [qBittorrent's setup](#qbittorrent-start)) and set your root media folder to `/media/series` (not just `/media`, [Jellyfin](#jellyfin) only mounts the `movies`/`series`/`music` subfolders, so imports need to land there to show up). Indexers are populated automatically once [Prowlarr](#prowlarr) is configured to sync with it.
+
+Tick `Rename Episodes` under `Settings > Media Management` (`Show Advanced` if it's hidden): imports otherwise keep the release's own file name, and Jellyfin can't match names like `Show [HDTV 720p][Cap.101].mkv`. The default naming format is enough. For files already imported, use `Preview Rename` on each item. Then connect it to Jellyfin so new imports show up without a manual scan, see [Jellyfin Start](#jellyfin-start).
 
 ### [Dockge](https://github.com/louislam/dockge)
 
