@@ -82,7 +82,7 @@ services:
 
   syncthing:
     container_name: syncthing
-    image: lscr.io/linuxserver/syncthing:2.1.5
+    image: lscr.io/linuxserver/syncthing:2.1.6
     restart: unless-stopped
     hostname: minipc-syncthing
     ports:
