@@ -301,7 +301,7 @@ services:
 
   lidarr:
     container_name: lidarr
-    image: lscr.io/linuxserver/lidarr:3.1.0
+    image: lscr.io/linuxserver/lidarr:3.1.6
     restart: unless-stopped
     ports:
       - "${LIDARR_WEB_PORT:-8686}:8686"
