@@ -1,7 +1,7 @@
 services:
   nginx:
     container_name: nginx
-    image: nginx:1.31.7-alpine
+    image: nginx:1.31.8-alpine
     restart: unless-stopped
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
