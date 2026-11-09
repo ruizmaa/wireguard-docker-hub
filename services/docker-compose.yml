@@ -55,7 +55,7 @@ services:
 
   adguard:
     container_name: adguard
-    image: adguard/adguardhome:v0.107.79
+    image: adguard/adguardhome:v0.107.80
     restart: unless-stopped
     # Match your host UID/GID (check with `id`) so ./adguard/conf stays writable by you
     user: "1000:1000"
