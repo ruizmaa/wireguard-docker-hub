@@ -249,7 +249,7 @@ services:
 
   radarr:
     container_name: radarr
-    image: lscr.io/linuxserver/radarr:6.4.4
+    image: lscr.io/linuxserver/radarr:7.0.3
     restart: unless-stopped
     ports:
       - "${RADARR_WEB_PORT:-7878}:7878"
