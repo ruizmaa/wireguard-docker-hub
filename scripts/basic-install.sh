@@ -29,6 +29,14 @@ sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq apt-utils 2>/dev/null || true
 sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq > /dev/null
 sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq nano ca-certificates curl gnupg iputils-ping jq fail2ban unattended-upgrades openssh-server > /dev/null
 
+# TEMP CI test: install a package whose postinst fails, to see how apt errors are reported
+mkdir -p /tmp/ci-broken-pkg/DEBIAN
+printf 'Package: ci-broken-pkg\nVersion: 1.0\nArchitecture: all\nMaintainer: CI test <ci@example.com>\nDescription: postinst that always fails\n' > /tmp/ci-broken-pkg/DEBIAN/control
+printf '#!/bin/sh\necho "postinst: cannot start service ci-broken (simulated)"\nexit 1\n' > /tmp/ci-broken-pkg/DEBIAN/postinst
+chmod 755 /tmp/ci-broken-pkg/DEBIAN/postinst
+dpkg-deb -b /tmp/ci-broken-pkg /tmp/ci-broken-pkg.deb > /dev/null
+sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq /tmp/ci-broken-pkg.deb > /dev/null
+
 # Basic configuration
 echo -e "    ${YELLOW}[2/9]${NC} Configuring terminal..."
 if [ -n "$REAL_HOME" ]; then
