@@ -1645,7 +1645,7 @@ jobs:
             status=$(curl -s -o /tmp/dc-test-$name.json -w '%{http_code}' -X POST -H "X-Api-Key: $api_key" \
               -H "Content-Type: application/json" -d "$body" "http://127.0.0.1:$port/api/$api_version/downloadclient/test")
             
-            if [ "$status" != "200" ]; then
+            if [ "$status" != "200" ] && [ "$status" != "204" ]; then
               echo "$name could not connect to qBittorrent as a download client (test returned $status):"
               cat /tmp/dc-test-$name.json
               exit 1
