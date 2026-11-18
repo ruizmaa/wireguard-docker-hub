@@ -5,8 +5,6 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
-NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
-
 # Detect real user (if not already defined)
 if [ -z "$REAL_USER" ]; then
     if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
@@ -21,13 +19,15 @@ export REAL_USER REAL_HOME
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/lib/colors.sh"
+# shellcheck source=scripts/lib/apt.sh
+source "$SCRIPT_DIR/lib/apt.sh"
 
 # Basic system update and essential package installation
 echo -e "    ${YELLOW}[1/9]${NC} Updating system and installing essential packages..."
-sudo "${NO_INTERACTIVE_APT[@]}" update -qq > /dev/null
-sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq apt-utils 2>/dev/null || true
-sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq > /dev/null
-sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq nano ca-certificates curl gnupg iputils-ping jq fail2ban unattended-upgrades openssh-server > /dev/null
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" update -qq
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq apt-utils || true  # Optional (only silences a debconf warning), so a failure must not stop the install
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq nano ca-certificates curl gnupg iputils-ping jq fail2ban unattended-upgrades openssh-server
 
 # Basic configuration
 echo -e "    ${YELLOW}[2/9]${NC} Configuring terminal..."
@@ -59,8 +59,8 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
 echo -e "    ${YELLOW}[4/9]${NC} Installing Docker Engine..."
-sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
-sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 echo -e "    ${YELLOW}[5/9]${NC} Configuring permissions..."
 sudo usermod -aG docker "$REAL_USER"

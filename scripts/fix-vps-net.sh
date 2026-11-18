@@ -5,11 +5,11 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
-NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
-
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/lib/colors.sh"
+# shellcheck source=scripts/lib/apt.sh
+source "$SCRIPT_DIR/lib/apt.sh"
 WG_CONF="$SCRIPT_DIR/../config/wg_confs/wg0.conf"
 IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
 
@@ -19,12 +19,12 @@ echo "      -> Config Path: $WG_CONF"
 
 # Install required packages
 echo -e "    ${YELLOW}[2/8] Installing required packages for network fixes...${NC}"
-sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq > /dev/null
-sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq > /dev/null
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" update -y -qq
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" upgrade -y -qq
 
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
-sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq iptables-persistent netfilter-persistent > /dev/null
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq iptables-persistent netfilter-persistent
 
 # Kernel settings
 echo -e "    ${YELLOW}[3/8] Configuring Kernel Forwarding...${NC}"
