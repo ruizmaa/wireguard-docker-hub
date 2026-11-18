@@ -7,6 +7,8 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
+# shellcheck source=scripts/lib/apt.sh
+source "$SCRIPT_DIR/../scripts/lib/apt.sh"
 # shellcheck source=scripts/lib/writable-guard.sh
 source "$SCRIPT_DIR/../scripts/lib/writable-guard.sh"
 # shellcheck source=scripts/lib/force-flag.sh
@@ -34,8 +36,8 @@ refuse_overwrite_without_force "$CERT_FILE"
 
 # Same pattern as install-wireguard.sh: install the dependency ourselves instead of
 # just erroring out, so a fresh server doesn't need a separate manual step first.
-sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq > /dev/null
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mkcert > /dev/null
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" update -qq
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq mkcert
 
 if ! command -v mkcert >/dev/null 2>&1; then
     echo -e "${RED}Error: mkcert installation failed. See https://github.com/FiloSottile/mkcert#installation${NC}"

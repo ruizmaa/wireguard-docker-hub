@@ -8,10 +8,10 @@ set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
+# shellcheck source=scripts/lib/apt.sh
+source "$SCRIPT_DIR/../scripts/lib/apt.sh"
 # shellcheck source=scripts/lib/env.sh
 source "$SCRIPT_DIR/../scripts/lib/env.sh"
-
-NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
 
 ENV_FILE="$SCRIPT_DIR/.env"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
@@ -69,8 +69,8 @@ echo "      -> NFS source: $NFS_SOURCE"
 echo "      -> Mount point: $LOCAL_MOUNT_MEDIA_PATH"
 
 echo -e "    ${YELLOW}[3/6] Installing NFS client...${NC}"
-sudo "${NO_INTERACTIVE_APT[@]}" update -qq > /dev/null
-sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq nfs-common > /dev/null
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" update -qq
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq nfs-common
 
 echo -e "    ${YELLOW}[4/6] Configuring NFS mount...${NC}"
 sudo mkdir -p "$LOCAL_MOUNT_MEDIA_PATH"

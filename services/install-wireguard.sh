@@ -11,6 +11,8 @@ WG_CONF="/etc/wireguard/wg0.conf"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
+# shellcheck source=scripts/lib/apt.sh
+source "$SCRIPT_DIR/../scripts/lib/apt.sh"
 
 DRY_RUN="false"
 AUTO_YES="false"
@@ -59,8 +61,8 @@ censor() {
 
 # Install packages in the target host
 echo -e "    ${YELLOW}[1/4]${NC} Installing wireguard and resolvconf on $TARGET_HOST..."
-ssh "$TARGET_HOST" "sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq > /dev/null"
-ssh "$TARGET_HOST" "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wireguard resolvconf > /dev/null"
+quiet_unless_error ssh "$TARGET_HOST" "sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq"
+quiet_unless_error ssh "$TARGET_HOST" "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wireguard resolvconf"
 
 if ssh "$TARGET_HOST" "command -v wg > /dev/null && command -v wg-quick > /dev/null"; then
     echo -e "      ${GREEN}-> wg/wg-quick are available on $TARGET_HOST.${NC}"

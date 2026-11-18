@@ -8,8 +8,8 @@ set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
-
-NO_INTERACTIVE_APT=(DEBIAN_FRONTEND=noninteractive apt-get)
+# shellcheck source=scripts/lib/apt.sh
+source "$SCRIPT_DIR/../scripts/lib/apt.sh"
 
 echo -e "    ${YELLOW}[1/5] Checking Intel iGPU...${NC}"
 # Require an Intel render device to be visible before installing the VAAPI drivers
@@ -55,11 +55,11 @@ EOF
 echo "      -> non-free and non-free-firmware enabled."
 
 echo -e "    ${YELLOW}[3/5] Installing VAAPI drivers and firmware...${NC}"
-sudo "${NO_INTERACTIVE_APT[@]}" update -qq > /dev/null
-sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq \
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" update -qq
+quiet_unless_error sudo "${NO_INTERACTIVE_APT[@]}" install -y -qq \
     intel-media-va-driver-non-free \
     firmware-misc-nonfree \
-    vainfo > /dev/null
+    vainfo
 
 echo -e "    ${YELLOW}[4/5] Verifying render device permissions...${NC}"
 # The current user must be able to access the render device so VAAPI can be verified
