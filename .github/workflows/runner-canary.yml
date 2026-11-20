@@ -1,0 +1,21 @@
+name: Runner Canary
+
+# Weekly run on ubuntu-latest: catches a new runner image breaking CI before the tags are bumped
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install-smoke-test:
+    uses: ./.github/workflows/install-smoke-test.yml
+    with:
+      runner: ubuntu-latest
+
+  testing:
+    uses: ./.github/workflows/testing.yml
+    with:
+      runner: ubuntu-latest

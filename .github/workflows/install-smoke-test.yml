@@ -5,6 +5,12 @@ on:
     branches: ["main", "dev"]
   pull_request:
   workflow_dispatch:
+  # Lets runner-canary.yml rerun this on the latests runner image
+  workflow_call:
+    inputs:
+      runner:
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -15,7 +21,7 @@ concurrency:
 
 jobs:
   vps-smoke-test:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -297,7 +303,7 @@ jobs:
         run: sudo docker rm -f wg-target || true
 
   home-smoke-test:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
