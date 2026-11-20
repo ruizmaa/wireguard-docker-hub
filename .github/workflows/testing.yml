@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     # No .env here, so the services compose's required vars (nginx's LAN_SUBNET/VPN_SUBNET/TRUENAS_IP/PVE*_IP/PBS_IP,
     # Homepage's HOMEPAGE_ALLOWED_HOSTS/GLANCES_PASSWORD) are passed inline.
