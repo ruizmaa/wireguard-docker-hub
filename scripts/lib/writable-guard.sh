@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shared root-owned-path guards for generate-*.sh scripts. Not meant to be run directly.
+# Shared root-owned-path guards for generate-*.sh and sync-adguard-rewrites.sh. Not meant to be run directly.
 # Usage: source this file (after colors.sh, uses $RED/$NC), then call the functions below.
 
 # Catches a root-owned dir before the caller's real work reaches it and fails confusingly

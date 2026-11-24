@@ -154,7 +154,7 @@ Log in at `http://<SERVER_IP>:8080` with the username/password you gave the scri
 - **Upstream DNS Servers** (`Settings > DNS`): your preferred resolver (e.g. Cloudflare, Quad9).
 - **DNS blocklists** (`Filters > Blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
-If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`jackett.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa` for you as *Custom rules* (`Filters > Custom rules`), split by LAN/VPN, nothing to do manually.
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`jackett.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa` for you as *Custom rules* (`Filters > Custom rules`), split by LAN/VPN, nothing to do manually. Services added to or dropped from nginx later get their rules updated automatically on every deploy, by `services/sync-adguard-rewrites.sh` (your own custom rules are kept).
 
 #### Tracking your config
 
@@ -524,7 +524,7 @@ All but `error.html` end in `.template`, nginx's own Docker image substitutes `$
 >
 > Also set `LAN_SUBNET` and `VPN_SUBNET` in `.env` (see `.env.example`). Your LAN's CIDR, and the VPS's `INTERNAL_SUBNET` as a CIDR, these decide the `lan`/`vpn`/`external` split described below.
 
-Finally, so `<service>.home.arpa` actually resolves: run (or re-run) [`generate-adguard-config.sh`](#adguard-configuration) after this — it sets up split-horizon DNS automatically (LAN clients get this host's LAN IP, VPN clients get its WireGuard tunnel IP).
+Finally, so `<service>.home.arpa` actually resolves: run [`generate-adguard-config.sh`](#adguard-configuration) after this — it sets up split-horizon DNS automatically (LAN clients get this host's LAN IP, VPN clients get its WireGuard tunnel IP). Later changes to `conf.d/` are synced on every deploy.
 
 #### Proxying external devices (Proxmox VE and PBS)
 
@@ -542,7 +542,7 @@ set $backend_scheme https;
 > [!NOTE]
 > A template that forgets `set $backend` or `set $backend_scheme` still passes `nginx -t`, then answers `500` at request time with `invalid URL prefix` in the log. CI checks both in every template that includes `proxy_params.conf`.
 
-To add or drop a node, copy `conf.d/pve1.conf.template` to `conf.d/<name>.conf.template` (or delete it) and keep its `<NAME>_IP` in sync in three places: `.env`, the `nginx` service's `environment` and its `NGINX_ENVSUBST_FILTER` in `services/docker-compose.yml`. Only nginx's copy carries the `:?` that makes it required, so those three stay together, the `homepage` service reads the same variable without one. A dropped node also leaves its card behind in `services/homepage/services.yaml`, pointing at an empty address, delete that too. Its `<name>.home.arpa` DNS rewrite is picked up automatically the next time you run [`generate-adguard-config.sh`](#adguard-configuration), which reads the `conf.d/` templates.
+To add or drop a node, copy `conf.d/pve1.conf.template` to `conf.d/<name>.conf.template` (or delete it) and keep its `<NAME>_IP` in sync in three places: `.env`, the `nginx` service's `environment` and its `NGINX_ENVSUBST_FILTER` in `services/docker-compose.yml`. Only nginx's copy carries the `:?` that makes it required, so those three stay together, the `homepage` service reads the same variable without one. A dropped node also leaves its card behind in `services/homepage/services.yaml`, pointing at an empty address, delete that too. Its `<name>.home.arpa` DNS rewrites are added (or removed) automatically on the next deploy.
 
 #### LAN vs. WireGuard zone
 

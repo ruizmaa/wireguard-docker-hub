@@ -9,6 +9,7 @@ on:
     paths:
       - services/**
       - scripts/lib/update-images.sh
+      - scripts/lib/adguard-rewrites.sh
       - scripts/deploy-services.sh
 
 permissions:

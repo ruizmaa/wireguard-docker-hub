@@ -2,7 +2,8 @@
 # Run on the home server after a checkout of main (by the deploy-services
 # workflow's self-hosted runner). Applies any pinned version bump to the
 # services (adguard/syncthing/jellyfin) compose stack, then reconciles any
-# other compose drift (cap_add, ports, env, etc.).
+# other compose drift (cap_add, ports, env, etc.) and AdGuard's *.home.arpa
+# rewrites with nginx's conf.d/ templates.
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR/.." || exit
@@ -11,6 +12,9 @@ cd "$SCRIPT_DIR/.." || exit
 status=$?
 
 docker compose -f services/docker-compose.yml up -d --remove-orphans || status=1
+
+# Syncs AdGuard's *.home.arpa rewrites with nginx's conf.d/ templates
+./services/sync-adguard-rewrites.sh || status=1
 
 # up -d won't pick up bind-mounted config edits (e.g. homepage's YAML, nginx's templates) on its own
 docker compose -f services/docker-compose.yml restart homepage || status=1

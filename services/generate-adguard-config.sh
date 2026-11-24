@@ -4,11 +4,6 @@
 # Non-interactive (e.g. CI): set ADGUARD_SETUP_USER and ADGUARD_SETUP_PASSWORD.
 set -eo pipefail
 
-# Prints only the `user_rules:` block
-user_rules_block() {
-    awk '/^user_rules:/{f=1} f && !/^user_rules:/ && /^[^ ]/{exit} f'
-}
-
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=scripts/lib/colors.sh
 source "$SCRIPT_DIR/../scripts/lib/colors.sh"
@@ -20,6 +15,8 @@ source "$SCRIPT_DIR/../scripts/lib/force-flag.sh"
 source "$SCRIPT_DIR/../scripts/lib/adguard-users.sh"
 # shellcheck source=scripts/lib/restart-guard.sh
 source "$SCRIPT_DIR/../scripts/lib/restart-guard.sh"
+# shellcheck source=scripts/lib/adguard-rewrites.sh
+source "$SCRIPT_DIR/../scripts/lib/adguard-rewrites.sh"
 
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
@@ -101,120 +98,20 @@ USER_RULES_BLOCK=""
 # This whole block only fills in USER_RULES_BLOCK
 if [ -n "$LAN_SUBNET" ]; then
 
-    # ADGUARD_LAN_IP overrides autodetection (e.g. CI, which is never on $LAN_SUBNET)
-    #         Overwrite       Get the real host's IP on the LAN_SUBNET
-    LAN_IP="${ADGUARD_LAN_IP:-$(ip -4 route show scope link | awk -v subnet="$LAN_SUBNET" '$1 == subnet { for (i = 1; i <= NF; i++) if ($i == "src") print $(i + 1) }' || true)}"    # `|| true`: don't let set -e kill the script before the check below can
+    # One <name>.home.arpa per conf.d/ template, pointed at this host's LAN and VPN IPs
+    load_service_hosts "$SCRIPT_DIR/nginx/templates/conf.d"
+    detect_rewrite_ips
 
-    # If LAN_IP is empty, an error occurred
-    if [ -z "$LAN_IP" ]; then
-        echo -e "${RED}Error: couldn't detect this host's IP on $LAN_SUBNET.${NC}"
-        echo "Set ADGUARD_LAN_IP=<ip> to override (e.g. this host isn't directly on that subnet, or you're in CI)."
-        exit 1
-    fi
+    # Rebuilds the template's user_rules: with them, keeping every other custom rule as-is
+    compute_user_rules "$TEMPLATE_FILE" || exit 1
 
-    # ADGUARD_VPN_IP overrides autodetection (e.g. CI, or wg0 not up yet)
-    #         Overwrite       Get this host's tunnel IP from wg0
-    VPN_IP="${ADGUARD_VPN_IP:-$(ip -4 -o addr show dev wg0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 || true)}"    # `|| true`: don't let set -e kill the script before the check below can
-
-    # If VPN_IP is empty, an error occurred
-    if [ -z "$VPN_IP" ]; then
-        echo -e "${RED}Error: couldn't detect this host's WireGuard tunnel IP (wg0).${NC}"
-        echo "Set ADGUARD_VPN_IP=<ip> to override (e.g. wg0 isn't up on this host yet, or you're in CI)."
-        exit 1
-    fi
-
-    # Rebuild user_rules: from scratch every run, in 4 steps:
-    # 1. Load whatever's already there
-    # 2. Re-emit the nginx-managed hosts fresh, diffed against their old value for display
-    # 3. Copy through every other rule unchanged. Nothing is lost or duplicated
-    # 4. Serialize the result back into a user_rules: YAML block
-
-    # One pair of rules (lan/vpn) per nginx-proxied service. The file names are the only place these exist
-    SERVICE_HOSTS=()
-    for f in "$SCRIPT_DIR/nginx/templates/conf.d/"*.conf.template; do
-        name=$(basename "$f" .conf.template)
-        [ "$name" = "default" ] && continue
-        SERVICE_HOSTS+=("$name.home.arpa")
-    done
-
-    # Step 1: load the template's user_rules: list as plain strings (undoing AdGuard's quoting)
-    tmpl_rules=()
-    while IFS= read -r line; do
-        rule="${line#*- }"
-        if [[ "$rule" == \'*\' ]]; then
-            rule="${rule#\'}"
-            rule="${rule%\'}"
-            rule="${rule//"''"/"'"}"
-        fi
-        tmpl_rules+=("$rule")
-    done < <(user_rules_block < "$TEMPLATE_FILE" | tail -n +2)
-
-    # Helpers for steps 2/3 below
-    # A managed rule always looks like: ||<host>^$dnsrewrite=NOERROR;A;<ip>,client=<cidr>
-    rule_domain() {
-        local r="$1"
-        [[ "$r" =~ ^\|\|([^^]+)\^\$dnsrewrite= ]] && printf '%s' "${BASH_REMATCH[1]}"
-        return 0
-    }
-    rule_ip() {
-        local r="$1"
-        [[ "$r" =~ \$dnsrewrite=NOERROR\;A\;([^,]+), ]] && printf '%s' "${BASH_REMATCH[1]}"
-        return 0
-    }
-    is_managed_host() {
-        local d="$1" h
-        for h in "${SERVICE_HOSTS[@]}"; do [ "$h" = "$d" ] && return 0; done
-        return 1
-    }
-    old_rule_for() {
-        local host="$1" cidr="$2" r
-        for r in "${tmpl_rules[@]}"; do
-            if [ "$(rule_domain "$r")" = "$host" ] && [[ "$r" == *",client=$cidr" ]]; then
-                printf '%s' "$r"
-                return 0
-            fi
-        done
-        return 0
-    }
-
-    # Step 2: re-emit the nginx-managed rules fresh, diffed against their old value for display
+    # Shows every nginx rule (new, changed, unchanged, removed), then the custom ones kept
     echo "DNS rewrites for *.home.arpa (managed by nginx, split by zone):"
-    final_rules=()
-    emit_rule() {
-        local host="$1" zone="$2" cidr="$3" ip="$4" old_rule old_ip
-        old_rule="$(old_rule_for "$host" "$cidr")"
-        old_ip="$(rule_ip "$old_rule")"
-        if [ -z "$old_ip" ]; then
-            echo "  + $host  $zone -> $ip (new)"
-        elif [ "$old_ip" = "$ip" ]; then
-            echo "    $host  $zone -> $ip (unchanged)"
-        else
-            echo "  ~ $host  $zone -> $ip (was $old_ip)"
-        fi
-        final_rules+=("||$host^\$dnsrewrite=NOERROR;A;$ip,client=$cidr")
-    }
-    for h in "${SERVICE_HOSTS[@]}"; do
-        emit_rule "$h" lan "$LAN_SUBNET" "$LAN_IP"
-        emit_rule "$h" vpn "$VPN_SUBNET" "$VPN_IP"
-    done
-
-    # Step 3: copy through every other rule unchanged
-    kept_any="false"
-    for r in "${tmpl_rules[@]}"; do
-        d="$(rule_domain "$r")"
-        if [ -z "$d" ] || ! is_managed_host "$d"; then
-            [ "$kept_any" = "false" ] && echo "Other existing custom rules, kept as-is:"
-            kept_any="true"
-            echo "    $r"
-            final_rules+=("$r")
-        fi
-    done
-
-    # Step 4: serialize final_rules back into a user_rules: YAML block, quoted like AdGuard would
-    USER_RULES_BLOCK="user_rules:"$'\n'
-    for r in "${final_rules[@]}"; do
-        USER_RULES_BLOCK+="  - '${r//"'"/"''"}'"$'\n'
-    done
+    printf '%s\n' "${REWRITE_REPORT[@]}"
+    if [ "${#KEPT_RULES[@]}" -gt 0 ]; then
+        echo "Other existing custom rules, kept as-is:"
+        printf '    %s\n' "${KEPT_RULES[@]}"
+    fi
 
     # Ask for confirmation unless running non-interactively (CI sets both env vars)
     if [ -z "$ADGUARD_SETUP_USER" ] || [ -z "$ADGUARD_SETUP_PASSWORD" ]; then
@@ -299,11 +196,7 @@ f && /^    password:/ { print ENVIRON["PASSWORD_LINE"]; password_subs++; next }
 '
 if [ -n "$LAN_SUBNET" ]; then
     # Substitution 2: swap the whole user_rules: block for the one computed above
-    AWK_PROGRAM="$AWK_PROGRAM"'
-/^user_rules:/ { printf "%s", ENVIRON["USER_RULES_BLOCK"]; u = 1; next }
-u && /^[^ ]/ { u = 0 }                           # left it: next top-level key
-u { next }
-'
+    AWK_PROGRAM="$AWK_PROGRAM$USER_RULES_SUBST_AWK"
 fi
 
 # Fails loudly if these substitutions stop matching anything
