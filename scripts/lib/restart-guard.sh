@@ -30,10 +30,15 @@ stop_service_if_running() {
 
 # Restarts <service> if $3 is "true" (the value stop_service_if_running printed earlier).
 # `up -d --force-recreate`, not `start` because would keep old baked-in env vars (e.g. GLANCES_USERNAME).
+# Returns 1 if the restart failed, so the caller's exit code shows the service is down
 restart_service_if_was_running() {
     local compose_file="$1" service="$2" was_running="$3"
     if [ "$was_running" = "true" ]; then
         echo -e "${YELLOW}-> Restarting $service...${NC}"
-        docker compose -f "$compose_file" up -d --force-recreate "$service" || echo -e "${RED}Error: failed to restart $service. Start it manually with 'docker compose up -d --force-recreate $service'.${NC}"
+        # Recreate it, if that fails, tell how to start it by hand and return 1
+        if ! docker compose -f "$compose_file" up -d --force-recreate "$service"; then
+            echo -e "${RED}Error: failed to restart $service. Start it manually with 'docker compose up -d --force-recreate $service'.${NC}"
+            return 1
+        fi
     fi
 }

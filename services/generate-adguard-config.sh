@@ -232,7 +232,8 @@ tmp_name="adguard-config-gen-$$"
 # Runs on every exit path. Removes the throwaway container, and restarts adguard if this script stopped it
 cleanup() {
     docker rm -f "$tmp_name" > /dev/null 2>&1 || true
-    restart_service_if_was_running "$COMPOSE_FILE" adguard "$ADGUARD_WAS_RUNNING"
+    # AdGuard left down means no DNS on the LAN: fail even if the config was generated
+    restart_service_if_was_running "$COMPOSE_FILE" adguard "$ADGUARD_WAS_RUNNING" || exit 1
 }
 trap cleanup EXIT
 
