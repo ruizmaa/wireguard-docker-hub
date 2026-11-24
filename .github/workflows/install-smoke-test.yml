@@ -1327,6 +1327,10 @@ jobs:
           output=$(sudo -E ./sync-adguard-rewrites.sh 2>&1)
           echo "$output"
           expect_output "$output" "already in sync"
+          if grep -qF "look like old nginx ones" <<<"$output"; then
+            echo "generate's own rules were counted as possible leftovers"
+            exit 1
+          fi
           if [ "$(live_hash)" != "$hash_before" ] || [ "$(started_at)" != "$start_before" ]; then
             echo "an already-in-sync run still touched the live config or restarted adguard"
             exit 1
@@ -1342,7 +1346,8 @@ jobs:
           adguard_login
           original_rules=$(adguard_rules)
           # A double-quoted one too ("tab\there"): AdGuard writes those, and they must survive byte-for-byte
-          custom_rules='["! ci custom comment", "tab\there", "||ci-device.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.77,client=192.168.1.0/24"]'
+          # Per-client and AAAA rules for a host nginx manages are yours too, never touched
+          custom_rules='["! ci custom comment", "tab\there", "||ci-device.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.77,client=192.168.1.0/24", "||homepage.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.50,client=192.168.1.42", "||homepage.home.arpa^$dnsrewrite=NOERROR;AAAA;fd00::10,client=192.168.1.0/24"]'
           stale_rules='["||ci-dropped.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24", "||ci-dropped.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24"]'
           adguard_set_rules "$(jq -c -n --argjson o "$original_rules" --argjson c "$custom_rules" --argjson s "$stale_rules" '$o + $c + $s')"
           wait_for_live present "ci-dropped.home.arpa"
@@ -1355,6 +1360,13 @@ jobs:
           expect_output "$output" "+ ci-added.home.arpa  lan -> 192.168.1.10 (new)"
           expect_output "$output" "+ ci-added.home.arpa  vpn -> 10.13.13.10 (new)"
           expect_output "$output" "- ||ci-dropped.home.arpa^"
+          # Only ci-device is shaped like nginx's (per-client/AAAA aren't): listed for review, still kept
+          expect_output "$output" "look like old nginx ones"
+          expect_output "$output" "   ||ci-device.home.arpa^"
+          if grep -qF "   ||homepage.home.arpa^" <<<"$output"; then
+            echo "a per-client/AAAA rule was listed as a possible leftover"
+            exit 1
+          fi
           if [ "$(started_at)" = "$start_before" ]; then
             echo "expected adguard to be restarted to pick up the change"
             exit 1
@@ -1370,7 +1382,9 @@ jobs:
           for r in "||ci-added.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24" \
                    "||ci-added.home.arpa^\$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24" \
                    "! ci custom comment" "$(printf 'tab\there')" \
-                   "||ci-device.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.77,client=192.168.1.0/24"; do
+                   "||ci-device.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.77,client=192.168.1.0/24" \
+                   "||homepage.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.50,client=192.168.1.42" \
+                   "||homepage.home.arpa^\$dnsrewrite=NOERROR;AAAA;fd00::10,client=192.168.1.0/24"; do
             if ! has_rule "$rules" "$r"; then
               echo "expected adguard to have loaded '$r' after the sync, got: $rules"
               exit 1

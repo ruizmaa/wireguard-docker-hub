@@ -58,8 +58,16 @@ fi
 load_service_hosts "$SCRIPT_DIR/nginx/templates/conf.d"
 detect_rewrite_ips
 
-# Already in sync: exit without touching AdGuard
+# The user_rules: wanted now, compared against the live ones
 compute_user_rules "$LIVE_FILE" || exit 1
+
+# Possible leftovers (dropped service on an old IP...), or yours: kept, only listed for review
+if [ "${#STALE_RULES[@]}" -gt 0 ]; then
+    echo -e "${YELLOW}-> These kept *.home.arpa rules look like old nginx ones, remove any leftover in AdGuard (Filters > Custom rules):${NC}"
+    printf '   %s\n' "${STALE_RULES[@]}"
+fi
+
+# Already in sync: exit without touching AdGuard
 if [ "$REWRITES_CHANGED" != "true" ]; then
     echo -e "${GREEN}-> *.home.arpa rewrites already in sync (${#SERVICE_HOSTS[@]} hosts), AdGuard left untouched.${NC}"
     exit 0

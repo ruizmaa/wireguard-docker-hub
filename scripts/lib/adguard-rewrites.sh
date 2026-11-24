@@ -35,6 +35,8 @@ detect_rewrite_ips() {
     # ADGUARD_LAN_IP overrides autodetection (e.g. CI, which is never on $LAN_SUBNET)
     #         Overwrite       Get the real host's IP on the LAN_SUBNET
     LAN_IP="${ADGUARD_LAN_IP:-$(ip -4 route show scope link | awk -v subnet="$LAN_SUBNET" '$1 == subnet { for (i = 1; i <= NF; i++) if ($i == "src") print $(i + 1) }' || true)}"    # `|| true`: don't let set -e kill the script before the check below can
+
+    # If LAN_IP is empty, an error occurred
     if [ -z "$LAN_IP" ]; then
         echo -e "${RED}Error: couldn't detect this host's IP on $LAN_SUBNET.${NC}"
         echo "Set ADGUARD_LAN_IP=<ip> to override (e.g. this host isn't directly on that subnet, or you're in CI)."
@@ -44,6 +46,8 @@ detect_rewrite_ips() {
     # ADGUARD_VPN_IP overrides autodetection (e.g. CI, or wg0 not up yet)
     #         Overwrite       Get this host's tunnel IP from wg0
     VPN_IP="${ADGUARD_VPN_IP:-$(ip -4 -o addr show dev wg0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 || true)}"    # `|| true`: same as above
+
+    # If VPN_IP is empty, an error occurred
     if [ -z "$VPN_IP" ]; then
         echo -e "${RED}Error: couldn't detect this host's WireGuard tunnel IP (wg0).${NC}"
         echo "Set ADGUARD_VPN_IP=<ip> to override (e.g. wg0 isn't up on this host yet, or you're in CI)."
@@ -76,16 +80,33 @@ is_managed_host() {
 
 # Returns 0 if rule $1 belongs to nginx (rebuilt every run), 1 if it's a custom one (kept)
 is_managed_rule() {
-    local rule="$1" domain
+    local rule="$1" domain ip
     domain=$(rule_domain "$rule")
     # Not a dnsrewrite: always custom
     [ -z "$domain" ] && return 1
-    # Any dnsrewrite for a host with a conf.d/ template
-    is_managed_host "$domain" && return 0
+    ip=$(rule_ip "$rule")
+    # Not an A rewrite (AAAA, CNAME...): always custom
+    [ -z "$ip" ] && return 1
+    # A host with a conf.d/ template: nginx's exact rule for either zone, any IP, so an IP change gets replaced
+    if is_managed_host "$domain"; then
+        [ "$rule" = "$(managed_rule "$domain" "$ip" "$LAN_SUBNET")" ] ||
+            [ "$rule" = "$(managed_rule "$domain" "$ip" "$VPN_SUBNET")" ]
+        return
+    fi
     # A dropped service: only the exact rule this script writes, so your own *.home.arpa rules stay
     [[ "$domain" == *.home.arpa ]] || return 1
     [ "$rule" = "$(managed_rule "$domain" "$LAN_IP" "$LAN_SUBNET")" ] ||
         [ "$rule" = "$(managed_rule "$domain" "$VPN_IP" "$VPN_SUBNET")" ]
+}
+
+# Returns 0 if rule $1 has the exact shape of nginx's rules, for any *.home.arpa host, IP and subnet
+has_managed_shape() {
+    local rule="$1" domain ip cidr
+    domain=$(rule_domain "$rule")
+    ip=$(rule_ip "$rule")
+    cidr="${rule##*,client=}"
+    [[ "$domain" == *.home.arpa && -n "$ip" && "$cidr" == */* ]] &&
+        [ "$rule" = "$(managed_rule "$domain" "$ip" "$cidr")" ]
 }
 
 # Prints the rule in one `  - <rule>` line, without AdGuard's YAML quoting
@@ -103,8 +124,9 @@ decode_rule_line() {
     # "double-quoted": prints nothing. Never a managed rule, and kept as its original line anyway
 }
 
-# Rebuilds <file>'s user_rules:, fresh nginx rules first, then every custom rule's line as-is
-# Sets: USER_RULES_BLOCK, REWRITES_CHANGED, REWRITE_REPORT (all nginx rules), REWRITE_CHANGES (only the changed ones), KEPT_RULES
+# Builds a new user_rules: block for <file>, fresh nginx rules first, then every custom rule's line as-is
+# Sets: USER_RULES_BLOCK, REWRITES_CHANGED, REWRITE_REPORT (all nginx rules), REWRITE_CHANGES (only the changed ones), KEPT_RULES,
+# STALE_RULES (kept ones shaped like nginx's)
 # Returns 1 if <file>'s user_rules: isn't in a format this can safely rewrite
 # shellcheck disable=SC2034 # read by the scripts that source this file
 compute_user_rules() {
@@ -131,6 +153,7 @@ compute_user_rules() {
 
     # Splits the current rules into nginx's and custom ones
     KEPT_RULES=()
+    STALE_RULES=()
     for line in "${old_lines[@]}"; do
         rule=$(decode_rule_line "$line")
         if is_managed_rule "$rule"; then
@@ -141,6 +164,8 @@ compute_user_rules() {
             new_lines+=("$line")
             # For display: decoded, or the raw value if it was "double-quoted"
             KEPT_RULES+=("${rule:-${line#  - }}")
+            # Shaped like nginx's (dropped service on an old IP, old subnet...): maybe a leftover, or yours
+            if has_managed_shape "$rule"; then STALE_RULES+=("$rule"); fi
         fi
     done
 
