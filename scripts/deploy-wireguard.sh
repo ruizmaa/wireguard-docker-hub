@@ -5,6 +5,9 @@
 # (cap_add, volumes, env, etc.).
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/deploy-log.sh
+source "$SCRIPT_DIR/lib/deploy-log.sh"
+start_deploy_log "VPS"
 cd "$SCRIPT_DIR/.." || exit
 
 ./wireguard.sh update --yes

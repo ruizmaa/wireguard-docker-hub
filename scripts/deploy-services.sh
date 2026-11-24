@@ -6,6 +6,9 @@
 # rewrites with nginx's conf.d/ templates.
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/deploy-log.sh
+source "$SCRIPT_DIR/lib/deploy-log.sh"
+start_deploy_log "home server"
 cd "$SCRIPT_DIR/.." || exit
 
 ./services/update.sh --yes
