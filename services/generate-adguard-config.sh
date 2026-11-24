@@ -90,8 +90,7 @@ if [ "${#admin_password}" -lt 8 ]; then
 fi
 
 # Split-horizon DNS for *.home.arpa (see SERVICES.md), only if nginx is in this deployment.
-LAN_SUBNET=$(echo "$compose_json" | jq -r '.services.nginx.environment.LAN_SUBNET // empty')
-VPN_SUBNET=$(echo "$compose_json" | jq -r '.services.nginx.environment.VPN_SUBNET // empty')
+load_rewrite_subnets "$compose_json"
 USER_RULES_BLOCK=""
 
 # LAN_SUBNET is only set on nginx's environment block, so its presence means nginx is deployed

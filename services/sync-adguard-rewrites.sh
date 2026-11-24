@@ -31,8 +31,7 @@ if ! compose_json=$(docker compose -f "$COMPOSE_FILE" config --format json); the
 fi
 
 # LAN_SUBNET is only set on nginx's environment block, so its absence means there's no nginx to point names at
-LAN_SUBNET=$(echo "$compose_json" | jq -r '.services.nginx.environment.LAN_SUBNET // empty')
-VPN_SUBNET=$(echo "$compose_json" | jq -r '.services.nginx.environment.VPN_SUBNET // empty')
+load_rewrite_subnets "$compose_json"
 if [ -z "$LAN_SUBNET" ]; then
     echo "-> nginx isn't part of this deployment, no *.home.arpa rewrites to sync."
     exit 0

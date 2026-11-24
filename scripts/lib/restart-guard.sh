@@ -3,7 +3,7 @@
 # generate-*-config.sh and sync-adguard-rewrites.sh. Not meant to be run directly.
 # Usage: source this file (after colors.sh, uses $YELLOW/$RED/$NC), then:
 #   WAS_RUNNING=$(stop_service_if_running "$COMPOSE_FILE" <service> "<reason, e.g. 'new config'>")
-#   trap 'restart_service_if_was_running "$COMPOSE_FILE" <service> "$WAS_RUNNING"' EXIT
+#   trap 'restart_service_if_was_running "$COMPOSE_FILE" <service> "$WAS_RUNNING" || exit 1' EXIT
 
 # Stops <service> now if it's running. Prints "true"/"false" on stdout (capture it);
 # all human-readable output goes to stderr so it doesn't end up in that captured value.

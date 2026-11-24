@@ -1,6 +1,6 @@
 #!/bin/bash
 # Shared *.home.arpa rewrite logic for generate-adguard-config.sh and sync-adguard-rewrites.sh. Not meant to be run directly.
-# Usage: source this file (after colors.sh, uses $RED/$NC), set LAN_SUBNET/VPN_SUBNET, call load_service_hosts and
+# Usage: source this file (after colors.sh, uses $RED/$NC), call load_rewrite_subnets, load_service_hosts and
 # detect_rewrite_ips, then the functions below.
 
 # Prints only the `user_rules:` block
@@ -15,6 +15,12 @@ USER_RULES_SUBST_AWK='
 u && /^[^ ]/ { u = 0 }                           # left it: next top-level key
 u { next }                                       # drops the old block lines
 '
+
+# Sets LAN_SUBNET/VPN_SUBNET from nginx's environment in <compose_json>, both empty if nginx isn't deployed
+load_rewrite_subnets() {
+    LAN_SUBNET=$(echo "$1" | jq -r '.services.nginx.environment.LAN_SUBNET // empty')
+    VPN_SUBNET=$(echo "$1" | jq -r '.services.nginx.environment.VPN_SUBNET // empty')
+}
 
 # Sets SERVICE_HOSTS: one <name>.home.arpa per conf.d/<name>.conf.template, except default
 load_service_hosts() {
@@ -109,9 +115,11 @@ has_managed_shape() {
         [ "$rule" = "$(managed_rule "$domain" "$ip" "$cidr")" ]
 }
 
-# Prints the rule in one `  - <rule>` line, without AdGuard's YAML quoting
+# Prints the rule in one `  - <rule>` item, without AdGuard's YAML quoting or folding
 decode_rule_line() {
     local v="${1#  - }"
+    # Folded over several lines: AdGuard broke it at a space, put it back
+    v="${v//$'\n    '/ }"
     if [[ "$v" == \'*\' ]]; then
         # 'single-quoted': strip the quotes, '' back to '
         v="${v#\'}"
@@ -130,7 +138,7 @@ decode_rule_line() {
 # Returns 1 if <file>'s user_rules: isn't in a format this can safely rewrite
 # shellcheck disable=SC2034 # read by the scripts that source this file
 compute_user_rules() {
-    local file="$1" header line rule rule_ip_now h zone cidr ip old_rule old_ip changed new_rule
+    local file="$1" header line rule shown rule_ip_now h zone cidr ip old_rule old_ip changed new_rule
     local -a old_lines=() old_managed=() new_managed=() new_lines=()
     local -A accounted=() seen=()
 
@@ -141,14 +149,19 @@ compute_user_rules() {
         return 1
     fi
 
-    # Loads the current rules, one `  - <rule>` per line
+    # Loads the current rules, one `  - <rule>` item each
     while IFS= read -r line; do
-        # Anything else (e.g. a rule split over several lines) would be mangled below
-        if [[ "$line" != "  - "* ]]; then
+        # Rest of a rule AdGuard folded past 80 columns (only at spaces): belongs to the item above
+        if [[ "$line" == "    "* && "${#old_lines[@]}" -gt 0 ]]; then
+            old_lines[-1]+=$'\n'"$line"
+        # A new rule
+        elif [[ "$line" == "  - "* ]]; then
+            old_lines+=("$line")
+        # Anything else would be mangled below
+        else
             echo -e "${RED}Error: unexpected line in $file's user_rules: '$line'. Its format may have changed.${NC}"
             return 1
         fi
-        old_lines+=("$line")
     done < <(user_rules_block < "$file" | tail -n +2)
 
     # Splits the current rules into nginx's and custom ones
@@ -162,8 +175,9 @@ compute_user_rules() {
         else
             # Custom: its original line is written back untouched
             new_lines+=("$line")
-            # For display: decoded, or the raw value if it was "double-quoted"
-            KEPT_RULES+=("${rule:-${line#  - }}")
+            # For display: decoded, or the raw value (unfolded) if it was "double-quoted"
+            shown="${line#  - }"
+            KEPT_RULES+=("${rule:-${shown//$'\n    '/ }}")
             # Shaped like nginx's (dropped service on an old IP, old subnet...): maybe a leftover, or yours
             if has_managed_shape "$rule"; then STALE_RULES+=("$rule"); fi
         fi

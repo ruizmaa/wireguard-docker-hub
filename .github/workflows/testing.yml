@@ -126,6 +126,273 @@ jobs:
             exit 1
           fi
 
+      # Edge cases the smoke test's real AdGuard run doesn't reach: IP change, duplicates, old IPs/subnets, quoting, folding
+      - name: Verify adguard-rewrites.sh rebuilds only nginx's rules
+        run: |
+          source scripts/lib/colors.sh
+          source scripts/lib/adguard-rewrites.sh
+          export ADGUARD_LAN_IP=192.168.1.10 ADGUARD_VPN_IP=10.13.13.10
+          dir=$(mktemp -d)
+          trap 'rm -rf "$dir"' EXIT
+          expect_same() {
+            if [ "$2" != "$3" ]; then
+              echo "unexpected $1, diff (expected -> got):"
+              diff <(echo "$3") <(echo "$2") || true
+              exit 1
+            fi
+          }
+
+          # Two nginx hosts: homepage (already there) and added (new). default is the catch-all, never a host
+          mkdir "$dir/conf.d"
+          touch "$dir/conf.d/default.conf.template" "$dir/conf.d/homepage.conf.template" "$dir/conf.d/added.conf.template"
+          load_service_hosts "$dir/conf.d"
+          detect_rewrite_ips
+
+          # --- Path: a live config with every kind of rule, folded ones as AdGuard writes them past 80 columns ---
+          cat > "$dir/in.yaml" <<'EOF'
+          dns:
+            bind_hosts: []
+          user_rules:
+            - '||homepage.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.9,client=192.168.1.0/24'
+            - '! a very long comment that keeps going and going so that AdGuard has to fold
+              it over two lines of yaml output'
+            - '||homepage.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24'
+            - '||homepage.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24'
+            - '||dropped.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24'
+            - '||dropped.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24'
+            - '||old-ip.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.5,client=192.168.1.0/24'
+            - '||homepage.home.arpa^$dnsrewrite=NOERROR;A;192.168.2.10,client=192.168.2.0/24'
+            - '||txt.home.arpa^$dnsrewrite=NOERROR;TXT;some text with spaces in it that is long
+              enough to fold'
+            - "tab\there and then a long tail of words so that the double quoted scalar must
+              fold somewhere too"
+            - plain.example
+            - 'it''s'
+          filters: []
+          EOF
+          if ! compute_user_rules "$dir/in.yaml"; then
+            echo "compute_user_rules rejected a valid live config"
+            exit 1
+          fi
+          # IP change, new host, a duplicate and a dropped service on this host's IPs; nothing else
+          expect_same "changes" "$(printf '%s\n' "${REWRITE_CHANGES[@]}")" "$(cat <<'EOF'
+            + added.home.arpa  lan -> 192.168.1.10 (new)
+            + added.home.arpa  vpn -> 10.13.13.10 (new)
+            ~ homepage.home.arpa  lan -> 192.168.1.10 (was 192.168.1.9)
+            - ||homepage.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24 (removed)
+            - ||dropped.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24 (removed)
+            - ||dropped.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24 (removed)
+          EOF
+          )"
+          # Old IP or old subnet: kept, only listed for review
+          expect_same "possible leftovers" "$(printf '%s\n' "${STALE_RULES[@]}")" "$(cat <<'EOF'
+          ||old-ip.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.5,client=192.168.1.0/24
+          ||homepage.home.arpa^$dnsrewrite=NOERROR;A;192.168.2.10,client=192.168.2.0/24
+          EOF
+          )"
+          # A folded rule is shown as the one line it really is
+          if ! printf '%s\n' "${KEPT_RULES[@]}" | grep -qxF "! a very long comment that keeps going and going so that AdGuard has to fold it over two lines of yaml output"; then
+            echo "the folded comment wasn't joined back for display: $(printf '%s\n' "${KEPT_RULES[@]}")"
+            exit 1
+          fi
+          # nginx's rules first, then every custom line byte for byte, the rest of the file untouched
+          USER_RULES_BLOCK="$USER_RULES_BLOCK" awk "$USER_RULES_SUBST_AWK"'{ print }' "$dir/in.yaml" > "$dir/out.yaml"
+          expect_same "rewritten file" "$(cat "$dir/out.yaml")" "$(cat <<'EOF'
+          dns:
+            bind_hosts: []
+          user_rules:
+            - '||added.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24'
+            - '||added.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24'
+            - '||homepage.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24'
+            - '||homepage.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24'
+            - '! a very long comment that keeps going and going so that AdGuard has to fold
+              it over two lines of yaml output'
+            - '||old-ip.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.5,client=192.168.1.0/24'
+            - '||homepage.home.arpa^$dnsrewrite=NOERROR;A;192.168.2.10,client=192.168.2.0/24'
+            - '||txt.home.arpa^$dnsrewrite=NOERROR;TXT;some text with spaces in it that is long
+              enough to fold'
+            - "tab\there and then a long tail of words so that the double quoted scalar must
+              fold somewhere too"
+            - plain.example
+            - 'it''s'
+          filters: []
+          EOF
+          )"
+
+          # --- Path: run again on the result, nothing left to change ---
+          compute_user_rules "$dir/out.yaml"
+          expect_same "REWRITES_CHANGED on a second run" "$REWRITES_CHANGED" "false"
+
+          # --- Path: AdGuard's empty list, with and without nginx hosts ---
+          printf 'user_rules: []\nfilters: []\n' > "$dir/empty.yaml"
+          compute_user_rules "$dir/empty.yaml"
+          expect_same "REWRITES_CHANGED for new hosts on an empty list" "$REWRITES_CHANGED" "true"
+          mkdir "$dir/none.d"
+          load_service_hosts "$dir/none.d"
+          compute_user_rules "$dir/empty.yaml"
+          expect_same "block with no hosts and no rules" "${USER_RULES_BLOCK%$'\n'}" "user_rules: []"
+          expect_same "REWRITES_CHANGED with no hosts and no rules" "$REWRITES_CHANGED" "false"
+
+          # --- Path: a user_rules: this can't safely rewrite must be refused, not mangled ---
+          printf 'filters: []\n' > "$dir/missing.yaml"
+          printf 'user_rules:\n  key: value\n' > "$dir/map.yaml"
+          printf 'user_rules: [a, b]\n' > "$dir/inline.yaml"
+          for f in missing map inline; do
+            if compute_user_rules "$dir/$f.yaml" > /dev/null; then
+              echo "expected compute_user_rules to refuse $f.yaml, but it returned 0"
+              exit 1
+            fi
+          done
+          echo "adguard-rewrites.sh rebuilds only nginx's rules and keeps the rest byte for byte"
+
+      # The deploy's path: run as the config's owner, not root (the smoke test can only run it with sudo)
+      - name: Verify sync-adguard-rewrites.sh as a non-root user, with docker mocked
+        run: |
+          export ADGUARD_LAN_IP=192.168.1.10 ADGUARD_VPN_IP=10.13.13.10
+          # A copy, so the live config it writes never lands in the checkout
+          work=$(mktemp -d)
+          trap 'sudo rm -rf "$work"' EXIT
+          cp -r scripts services "$work/"
+          SYNC="$work/services/sync-adguard-rewrites.sh"
+          LIVE="$work/services/adguard/conf/AdGuardHome.yaml"
+          mkdir -p "$(dirname "$LIVE")"
+
+          # Real `compose config`; ps answers $MOCK_PS, the restart fails if MOCK_UP_FAIL=1, every call logged
+          REAL_DOCKER=$(command -v docker)
+          export REAL_DOCKER MOCK_LOG="$work/docker-calls.log"
+          mkdir "$work/bin"
+          cat > "$work/bin/docker" <<'EOF'
+          #!/bin/bash
+          echo "$*" >> "$MOCK_LOG"
+          case "$*" in
+            *"config --format json"*) exec "$REAL_DOCKER" "$@" ;;
+            *"ps -q adguard"*) echo "$MOCK_PS" ;;
+            *"up -d --force-recreate adguard"*) exit "${MOCK_UP_FAIL:-0}" ;;
+          esac
+          EOF
+          chmod +x "$work/bin/docker"
+          export PATH="$work/bin:$PATH"
+          # Runs the sync with a fresh call log, sets $output/$status
+          run_sync() {
+            : > "$MOCK_LOG"
+            set +e
+            output=$("$SYNC" 2>&1)
+            status=$?
+            set -e
+            echo "$output"
+          }
+          called() { grep -q -- "$1" "$MOCK_LOG"; }
+          # Moves one of nginx's rules to an old IP, so the next run has something to sync
+          drift() { sed -i '0,/A;192\.168\.1\.10,/s//A;192.168.1.11,/' "$LIVE"; }
+
+          # --- Path: changes, AdGuard running: stopped, file written with the same owner/mode, restarted ---
+          printf "a: 1\nuser_rules:\n  - '! mine'\nb: 2\n" > "$LIVE"
+          chmod 640 "$LIVE"
+          MOCK_PS=abc123 run_sync
+          if [ "$status" -ne 0 ] || ! called " stop adguard" || ! called " up -d --force-recreate adguard"; then
+            echo "expected a stop, a write and a restart with exit 0, got exit $status and calls:"
+            cat "$MOCK_LOG"
+            exit 1
+          fi
+          if [ "$(stat -c '%u %a' "$LIVE")" != "$(id -u) 640" ]; then
+            echo "the live config's owner/mode changed: $(stat -c '%u %a' "$LIVE")"
+            exit 1
+          fi
+          if ! grep -qF "'||homepage.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24'" "$LIVE" \
+            || ! grep -qxF "  - '! mine'" "$LIVE"; then
+            echo "expected nginx's rules added and the custom one kept, got:"
+            cat "$LIVE"
+            exit 1
+          fi
+
+          # --- Path: already in sync, docker never asked to stop anything ---
+          MOCK_PS=abc123 run_sync
+          if [ "$status" -ne 0 ] || ! grep -q "already in sync" <<<"$output" || called " stop adguard"; then
+            echo "expected an already-in-sync run to leave AdGuard alone"
+            exit 1
+          fi
+
+          # --- Path: AdGuard not running: written, but not started ---
+          drift
+          MOCK_PS="" run_sync
+          if [ "$status" -ne 0 ] || called " stop adguard" || called " up -d " || grep -qF "192.168.1.11" "$LIVE"; then
+            echo "expected the file synced without starting AdGuard, got exit $status and calls:"
+            cat "$MOCK_LOG"
+            exit 1
+          fi
+
+          # --- Path: the restart fails: AdGuard is down, so the deploy must fail ---
+          drift
+          MOCK_PS=abc123 MOCK_UP_FAIL=1 run_sync
+          if [ "$status" -eq 0 ] || ! grep -q "failed to restart adguard" <<<"$output"; then
+            echo "expected a failed restart to fail the sync, got exit $status"
+            exit 1
+          fi
+
+          # --- Path: writable but owned by someone else: the replaced file would change owner, refuse ---
+          drift
+          sudo chown root "$LIVE"
+          sudo chmod 666 "$LIVE"
+          MOCK_PS=abc123 run_sync
+          if [ "$status" -eq 0 ] || ! grep -q "is owned by UID 0" <<<"$output" || called " stop adguard"; then
+            echo "expected a config owned by another user to be refused before stopping AdGuard, got exit $status"
+            exit 1
+          fi
+          echo "sync-adguard-rewrites.sh works as a non-root user"
+
+      - name: Verify deploy-log.sh keeps the output private and passes the exit code through
+        run: |
+          export HOME
+          HOME=$(mktemp -d)
+          trap 'rm -rf "$HOME"' EXIT
+          LOGS="$HOME/deploy-logs"
+          # 55 older logs: after one more deploy only the newest 50 must be left
+          mkdir "$LOGS"
+          for i in $(seq -w 1 55); do touch "$LOGS/2000-01-01_00-00-$i.log"; done
+          cat > "$HOME/deploy.sh" <<'EOF'
+          source "$1"
+          start_deploy_log "CI box"
+          echo "private stdout"
+          echo "private stderr" >&2
+          exit "$2"
+          EOF
+          # Runs a fake deploy exiting with $1, sets $output/$status
+          deploy() {
+            set +e
+            output=$(bash "$HOME/deploy.sh" "$PWD/scripts/lib/deploy-log.sh" "$1")
+            status=$?
+            set -e
+          }
+
+          # --- Path: a failed deploy: same exit code, only the ::error:: line shown, the rest in the log ---
+          deploy 3
+          re='^::error::Deploy failed, details in ~/deploy-logs/([^ ]+) on the CI box$'
+          if [ "$status" -ne 3 ] || ! [[ "$output" =~ $re ]]; then
+            echo "expected exit 3 and only the ::error:: line, got exit $status and: $output"
+            exit 1
+          fi
+          log="$LOGS/${BASH_REMATCH[1]}"
+          if ! grep -qx "private stdout" "$log" || ! grep -qx "private stderr" "$log"; then
+            echo "expected stdout and stderr in $log, got: $(cat "$log")"
+            exit 1
+          fi
+          if [ "$(find "$LOGS" -name '*.log' | wc -l)" -ne 50 ] || [ -e "$LOGS/2000-01-01_00-00-06.log" ] || [ ! -e "$LOGS/2000-01-01_00-00-07.log" ]; then
+            echo "expected only the newest 50 logs kept, got: $(ls "$LOGS")"
+            exit 1
+          fi
+          if [ "$(stat -c %a "$LOGS")" != 700 ]; then
+            echo "expected $LOGS to be 700, got $(stat -c %a "$LOGS")"
+            exit 1
+          fi
+
+          # --- Path: a deploy that worked ---
+          deploy 0
+          if [ "$status" -ne 0 ] || [[ "$output" != "Deploy OK, details in ~/deploy-logs/"*" on the CI box" ]]; then
+            echo "expected exit 0 and only the OK line, got exit $status and: $output"
+            exit 1
+          fi
+          echo "deploy-log.sh keeps the output private and passes the exit code through"
+
       - name: ShellCheck
         run: find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck -x
 

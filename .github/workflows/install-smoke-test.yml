@@ -1348,9 +1348,17 @@ jobs:
           # A double-quoted one too ("tab\there"): AdGuard writes those, and they must survive byte-for-byte
           # Per-client and AAAA rules for a host nginx manages are yours too, never touched
           custom_rules='["! ci custom comment", "tab\there", "||ci-device.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.77,client=192.168.1.0/24", "||homepage.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.50,client=192.168.1.42", "||homepage.home.arpa^$dnsrewrite=NOERROR;AAAA;fd00::10,client=192.168.1.0/24"]'
+          # Rules with spaces past 80 columns: AdGuard folds them over several lines, quoted either way
+          long_rules='["! ci long comment that keeps going well past the eighty columns where AdGuard folds it", "||ci-txt.home.arpa^$dnsrewrite=NOERROR;TXT;a TXT answer with spaces, long enough for AdGuard to fold it", "tab\there plus enough words after it to push this double-quoted rule past eighty columns"]'
           stale_rules='["||ci-dropped.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24", "||ci-dropped.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24"]'
-          adguard_set_rules "$(jq -c -n --argjson o "$original_rules" --argjson c "$custom_rules" --argjson s "$stale_rules" '$o + $c + $s')"
+          adguard_set_rules "$(jq -c -n --argjson o "$original_rules" --argjson c "$custom_rules" --argjson l "$long_rules" --argjson s "$stale_rules" '$o + $c + $l + $s')"
           wait_for_live present "ci-dropped.home.arpa"
+          # Without a folded line in the live file, the long rules above wouldn't test anything
+          if ! sudo awk '/^user_rules:/ { f = 1; next } f && /^[^ ]/ { exit } f && /^    [^ ]/ { found = 1 } END { exit !found }' "$LIVE"; then
+            echo "expected adguard to fold the long rules in $LIVE, got:"
+            sudo awk '/^user_rules:/ { f = 1; print; next } f && /^[^ ]/ { exit } f' "$LIVE"
+            exit 1
+          fi
           cp nginx/templates/conf.d/homepage.conf.template nginx/templates/conf.d/ci-added.conf.template
 
           mode_before=$(sudo stat -c '%u:%g %a' "$LIVE")
@@ -1382,6 +1390,9 @@ jobs:
           for r in "||ci-added.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24" \
                    "||ci-added.home.arpa^\$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24" \
                    "! ci custom comment" "$(printf 'tab\there')" \
+                   "! ci long comment that keeps going well past the eighty columns where AdGuard folds it" \
+                   "||ci-txt.home.arpa^\$dnsrewrite=NOERROR;TXT;a TXT answer with spaces, long enough for AdGuard to fold it" \
+                   "$(printf 'tab\there plus enough words after it to push this double-quoted rule past eighty columns')" \
                    "||ci-device.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.77,client=192.168.1.0/24" \
                    "||homepage.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.50,client=192.168.1.42" \
                    "||homepage.home.arpa^\$dnsrewrite=NOERROR;AAAA;fd00::10,client=192.168.1.0/24"; do
