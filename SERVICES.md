@@ -151,10 +151,10 @@ A DNS server that blocks ads/trackers and resolves your own service names (`*.ho
 
 Log in at `http://<SERVER_IP>:8080` with the username/password you gave the script above, then configure:
 
-- **Upstream DNS Servers** (`Settings > DNS settings`): your preferred resolver (e.g. Cloudflare, Quad9).
-- **DNS blocklists** (`Filters > DNS blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
+- **Upstream DNS Servers** (`Settings > DNS`): your preferred resolver (e.g. Cloudflare, Quad9).
+- **DNS blocklists** (`Filters > Blocklists`): AdGuard ships with one enabled by default, add more from its list of curated sources if you want.
 
-If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`jackett.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa` for you as *Custom filtering rules* (`Filters > Custom filtering rules`), split by LAN/VPN, nothing to do manually.
+If you're using [nginx](#nginx-reverse-proxy), `generate-adguard-config.sh` already set up `adguard.home.arpa`/`homepage.home.arpa`/`jellyfin.home.arpa`/`qbittorrent.home.arpa`/`prowlarr.home.arpa`/`jackett.home.arpa`/`lidarr.home.arpa`/`radarr.home.arpa`/`sonarr.home.arpa`/`syncthing.home.arpa`/`dockge.home.arpa`/`glances.home.arpa`/`truenas.home.arpa`/`pve1.home.arpa`/`pve2.home.arpa`/`pbs.home.arpa` for you as *Custom rules* (`Filters > Custom rules`), split by LAN/VPN, nothing to do manually.
 
 #### Tracking your config
 
