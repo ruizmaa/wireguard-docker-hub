@@ -246,7 +246,9 @@ To apply an update manually instead of waiting for the next push (e.g. while tes
 
 Both show `current -> new` per service and ask for confirmation before pulling and recreating. Pass `--yes` to skip the prompt.
 
-`scripts/deploy-wireguard.sh` / `scripts/deploy-services.sh` are the non-interactive equivalents each deploy workflow runs (the matching entry point with `--yes`, plus `docker image prune -f`).
+`scripts/deploy-wireguard.sh` / `scripts/deploy-services.sh` are the non-interactive equivalents each deploy workflow runs (the matching entry point with `--yes`, plus `docker image prune -f`). The services one also syncs AdGuard's `*.home.arpa` rewrites with nginx's templates.
+
+Each deploy's full output stays private on its machine, in `~/deploy-logs/<date>.log` (last 50 kept). GitHub only shows whether it worked.
 
 ### Self-hosted runners
 

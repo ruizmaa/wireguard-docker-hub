@@ -1065,6 +1065,22 @@ jobs:
           ENVEOF
           rm -f adguard/conf/AdGuardHome.yaml
 
+          # --- Path: sync-adguard-rewrites.sh with no live config yet must skip with a warning (deploy stays green), not create one ---
+          set +e
+          output=$(ADGUARD_LAN_IP=192.168.1.10 ADGUARD_VPN_IP=10.13.13.10 ./sync-adguard-rewrites.sh 2>&1)
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] || ! echo "$output" | grep -q "AdGuard isn't set up yet"; then
+            echo "expected sync-adguard-rewrites.sh to skip with a warning and exit 0 with no live config, got (exit $status):"
+            echo "$output"
+            exit 1
+          fi
+          if [ -f adguard/conf/AdGuardHome.yaml ]; then
+            echo "sync-adguard-rewrites.sh must never create the live config itself"
+            exit 1
+          fi
+          echo "sync with no live config correctly skips with a warning"
+
           # --- Path: no ADGUARD_LAN_IP override, and this runner isn't on LAN_SUBNET ---
           set +e
           output=$(ADGUARD_SETUP_USER=admin ADGUARD_SETUP_PASSWORD=CI-TESTING-ONLY-NOT-A-REAL-PASSWORD ./generate-adguard-config.sh 2>&1)
@@ -1227,8 +1243,193 @@ jobs:
           fi
           echo "no-nginx path correctly skips DNS-rewrite handling"
 
+          # Same for the sync: nothing to point names at, so a deploy without nginx must still succeed
+          before_hash=$(md5sum adguard/conf/AdGuardHome.yaml | cut -d' ' -f1)
+          output=$(./sync-adguard-rewrites.sh 2>&1)
+          if ! echo "$output" | grep -q "nginx isn't part of this deployment"; then
+            echo "expected sync-adguard-rewrites.sh to skip cleanly without nginx, got:"
+            echo "$output"
+            exit 1
+          fi
+          if [ "$(md5sum adguard/conf/AdGuardHome.yaml | cut -d' ' -f1)" != "$before_hash" ]; then
+            echo "sync-adguard-rewrites.sh changed the live config even though nginx isn't deployed"
+            exit 1
+          fi
+          echo "no-nginx path correctly skips the sync too"
+
           cd "$ORIG_DIR"
           rm -rf "$TESTDIR" /tmp/adguard-rewrite-paths-data
+
+      # Against the real running stack: a conf.d/ template added or dropped must reach AdGuard's live
+      # config, keeping every UI-made rule as-is, and an already-in-sync run must not touch AdGuard at all.
+      - name: Verify sync-adguard-rewrites.sh syncs added/dropped services into the live config
+        working-directory: services
+        run: |
+          export ADGUARD_LAN_IP=192.168.1.10
+          export ADGUARD_VPN_IP=10.13.13.10
+          LIVE=adguard/conf/AdGuardHome.yaml
+          COOKIES=/tmp/adg-sync-cookies.txt
+
+          # Also waits out a restart: the login only succeeds once adguard is back up
+          adguard_login() {
+            for i in $(seq 1 12); do
+              curl -sf -c "$COOKIES" -o /dev/null -X POST http://127.0.0.1:8080/control/login \
+                -H "Content-Type: application/json" \
+                -d '{"name":"admin","password":"CI-TESTING-ONLY-NOT-A-REAL-PASSWORD"}' && return 0
+              echo "adguard login not working yet (attempt $i/12), retrying in 5s..."
+              sleep 5
+            done
+            echo "couldn't log in to adguard with the unchanged password"
+            return 1
+          }
+          # Retried: right after a restart the API can answer the login before this
+          adguard_rules() {
+            local status
+            for _ in $(seq 1 12); do
+              if status=$(curl -sf -b "$COOKIES" http://127.0.0.1:8080/control/filtering/status) && [ -n "$status" ]; then
+                jq -c '.user_rules' <<<"$status"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "couldn't read adguard's user_rules from its API" >&2
+            return 1
+          }
+          adguard_set_rules() {
+            jq -c '{rules: .}' <<<"$1" | curl -sf -b "$COOKIES" -o /dev/null -X POST \
+              http://127.0.0.1:8080/control/filtering/set_rules -H "Content-Type: application/json" -d @-
+          }
+          started_at() { sudo docker inspect -f '{{.State.StartedAt}}' adguard; }
+          live_hash() { sudo md5sum "$LIVE" | cut -d' ' -f1; }
+          # Wait for AdGuard to save a change made through its API to the live file
+          wait_for_live() {
+            for _ in $(seq 1 10); do
+              if [ "$1" = present ] && sudo grep -qF -- "$2" "$LIVE"; then return 0; fi
+              if [ "$1" = absent ] && ! sudo grep -qF -- "$2" "$LIVE"; then return 0; fi
+              sleep 1
+            done
+            echo "adguard never saved the rules change to $LIVE"
+            return 1
+          }
+          expect_output() {
+            if ! grep -qF -- "$2" <<<"$1"; then
+              echo "expected '$2' in the sync output, got:"
+              echo "$1"
+              exit 1
+            fi
+          }
+          has_rule() { jq -e --arg r "$2" 'any(.[]; . == $r)' <<<"$1" > /dev/null; }
+          trap 'rm -f nginx/templates/conf.d/ci-added.conf.template' EXIT
+
+          # --- Path: already in sync (right after generate), AdGuard must be left completely alone ---
+          hash_before=$(live_hash)
+          start_before=$(started_at)
+          output=$(sudo -E ./sync-adguard-rewrites.sh 2>&1)
+          echo "$output"
+          expect_output "$output" "already in sync"
+          if grep -qF "look like old nginx ones" <<<"$output"; then
+            echo "generate's own rules were counted as possible leftovers"
+            exit 1
+          fi
+          if [ "$(live_hash)" != "$hash_before" ] || [ "$(started_at)" != "$start_before" ]; then
+            echo "an already-in-sync run still touched the live config or restarted adguard"
+            exit 1
+          fi
+
+          # --- Path: any flag is a typo, must fail before doing anything ---
+          if sudo -E ./sync-adguard-rewrites.sh --force; then
+            echo "expected sync-adguard-rewrites.sh to reject a flag, but it exited 0"
+            exit 1
+          fi
+
+          # --- Path: a service added + rules made in the UI, including a stale one for a dropped service ---
+          adguard_login
+          original_rules=$(adguard_rules)
+          # A double-quoted one too ("tab\there"): AdGuard writes those, and they must survive byte-for-byte
+          # Per-client and AAAA rules for a host nginx manages are yours too, never touched
+          custom_rules='["! ci custom comment", "tab\there", "||ci-device.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.77,client=192.168.1.0/24", "||homepage.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.50,client=192.168.1.42", "||homepage.home.arpa^$dnsrewrite=NOERROR;AAAA;fd00::10,client=192.168.1.0/24"]'
+          # Rules with spaces past 80 columns: AdGuard folds them over several lines, quoted either way
+          long_rules='["! ci long comment that keeps going well past the eighty columns where AdGuard folds it", "||ci-txt.home.arpa^$dnsrewrite=NOERROR;TXT;a TXT answer with spaces, long enough for AdGuard to fold it", "tab\there plus enough words after it to push this double-quoted rule past eighty columns"]'
+          stale_rules='["||ci-dropped.home.arpa^$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24", "||ci-dropped.home.arpa^$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24"]'
+          adguard_set_rules "$(jq -c -n --argjson o "$original_rules" --argjson c "$custom_rules" --argjson l "$long_rules" --argjson s "$stale_rules" '$o + $c + $l + $s')"
+          wait_for_live present "ci-dropped.home.arpa"
+          # Without a folded line in the live file, the long rules above wouldn't test anything
+          if ! sudo awk '/^user_rules:/ { f = 1; next } f && /^[^ ]/ { exit } f && /^    [^ ]/ { found = 1 } END { exit !found }' "$LIVE"; then
+            echo "expected adguard to fold the long rules in $LIVE, got:"
+            sudo awk '/^user_rules:/ { f = 1; print; next } f && /^[^ ]/ { exit } f' "$LIVE"
+            exit 1
+          fi
+          cp nginx/templates/conf.d/homepage.conf.template nginx/templates/conf.d/ci-added.conf.template
+
+          mode_before=$(sudo stat -c '%u:%g %a' "$LIVE")
+          start_before=$(started_at)
+          output=$(sudo -E ./sync-adguard-rewrites.sh 2>&1)
+          echo "$output"
+          expect_output "$output" "+ ci-added.home.arpa  lan -> 192.168.1.10 (new)"
+          expect_output "$output" "+ ci-added.home.arpa  vpn -> 10.13.13.10 (new)"
+          expect_output "$output" "- ||ci-dropped.home.arpa^"
+          # Only ci-device is shaped like nginx's (per-client/AAAA aren't): listed for review, still kept
+          expect_output "$output" "look like old nginx ones"
+          expect_output "$output" "   ||ci-device.home.arpa^"
+          if grep -qF "   ||homepage.home.arpa^" <<<"$output"; then
+            echo "a per-client/AAAA rule was listed as a possible leftover"
+            exit 1
+          fi
+          if [ "$(started_at)" = "$start_before" ]; then
+            echo "expected adguard to be restarted to pick up the change"
+            exit 1
+          fi
+          if [ "$(sudo stat -c '%u:%g %a' "$LIVE")" != "$mode_before" ]; then
+            echo "the live config's owner/mode changed: $mode_before -> $(sudo stat -c '%u:%g %a' "$LIVE")"
+            exit 1
+          fi
+
+          # Logging in with the same password also proves users: was left alone
+          adguard_login
+          rules=$(adguard_rules)
+          for r in "||ci-added.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.10,client=192.168.1.0/24" \
+                   "||ci-added.home.arpa^\$dnsrewrite=NOERROR;A;10.13.13.10,client=10.13.13.0/24" \
+                   "! ci custom comment" "$(printf 'tab\there')" \
+                   "! ci long comment that keeps going well past the eighty columns where AdGuard folds it" \
+                   "||ci-txt.home.arpa^\$dnsrewrite=NOERROR;TXT;a TXT answer with spaces, long enough for AdGuard to fold it" \
+                   "$(printf 'tab\there plus enough words after it to push this double-quoted rule past eighty columns')" \
+                   "||ci-device.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.77,client=192.168.1.0/24" \
+                   "||homepage.home.arpa^\$dnsrewrite=NOERROR;A;192.168.1.50,client=192.168.1.42" \
+                   "||homepage.home.arpa^\$dnsrewrite=NOERROR;AAAA;fd00::10,client=192.168.1.0/24"; do
+            if ! has_rule "$rules" "$r"; then
+              echo "expected adguard to have loaded '$r' after the sync, got: $rules"
+              exit 1
+            fi
+          done
+          if grep -q "ci-dropped" <<<"$rules"; then
+            echo "the stale rules of a dropped service survived the sync: $rules"
+            exit 1
+          fi
+
+          # --- Path: run again right away, nothing left to do ---
+          expect_output "$(sudo -E ./sync-adguard-rewrites.sh 2>&1)" "already in sync"
+
+          # --- Path: the service's template dropped again, its rules must go too ---
+          rm nginx/templates/conf.d/ci-added.conf.template
+          output=$(sudo -E ./sync-adguard-rewrites.sh 2>&1)
+          echo "$output"
+          expect_output "$output" "- ||ci-added.home.arpa^"
+          adguard_login
+          rules=$(adguard_rules)
+          if grep -q "ci-added" <<<"$rules"; then
+            echo "the dropped service's rules survived the sync: $rules"
+            exit 1
+          fi
+          if ! has_rule "$rules" "! ci custom comment"; then
+            echo "dropping a service also dropped an unrelated custom rule: $rules"
+            exit 1
+          fi
+
+          # Put the rules back as generate left them, so the steps below see the same state as before
+          adguard_set_rules "$original_rules"
+          wait_for_live absent "ci custom comment"
+          expect_output "$(sudo -E ./sync-adguard-rewrites.sh 2>&1)" "already in sync"
+          echo "sync-adguard-rewrites.sh correctly syncs added/dropped services and keeps everything else"
 
       # Real change via the API (not a hand-edited file), so the snapshot below reflects
       # what an operator actually configuring AdGuard through its web UI would produce.

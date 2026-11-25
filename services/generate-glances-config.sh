@@ -61,7 +61,8 @@ guard_writable_file "$OUT_FILE"
 refuse_overwrite_without_force "$OUT_FILE"
 
 GLANCES_WAS_RUNNING="false"
-trap 'restart_service_if_was_running "$COMPOSE_FILE" glances "$GLANCES_WAS_RUNNING"' EXIT
+# Glances left down: fail even if the password was written
+trap 'restart_service_if_was_running "$COMPOSE_FILE" glances "$GLANCES_WAS_RUNNING" || exit 1' EXIT
 if [ "$FORCE" = "true" ]; then  # on first setup there's nothing running yet to stop
     GLANCES_WAS_RUNNING=$(stop_service_if_running "$COMPOSE_FILE" glances "new password")
 fi
