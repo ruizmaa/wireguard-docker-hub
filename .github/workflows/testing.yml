@@ -128,3 +128,17 @@ jobs:
 
       - name: ShellCheck
         run: find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck -x
+
+      - name: Check every script is executable in git
+        run: |
+          # The mode git stores, not the checkout's: a missing +x only shows up as "Permission denied" on the server
+          bad=""
+          while read -r mode _ _ path; do
+            # Sourced libraries, never run directly
+            case "$path" in scripts/lib/*) continue ;; esac
+            [ "$mode" = 100755 ] || bad="$bad $path"
+          done < <(git ls-files -s -- '*.sh')
+          if [ -n "$bad" ]; then
+            echo "::error::Not executable in git (fix with: git update-index --chmod=+x <file>):$bad"
+            exit 1
+          fi
